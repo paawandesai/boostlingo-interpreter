@@ -6,7 +6,8 @@ public sealed record RealtimeSessionRequest(
     string Instructions);
 
 /// <summary>A short-lived secret the browser uses to open its own WebRTC session.</summary>
-public sealed record RealtimeClientSecret(string Value, DateTimeOffset ExpiresAt, string Model);
+/// <param name="TranscriptionModel">Echoed so the client can keep it when it updates the transcription language.</param>
+public sealed record RealtimeClientSecret(string Value, DateTimeOffset ExpiresAt, string Model, string TranscriptionModel);
 
 /// <summary>
 /// Creates a Realtime session credential server-side, so the provider API key never reaches

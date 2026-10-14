@@ -27,13 +27,14 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     [Fact]
     public async Task Returns_ephemeral_secret_and_instructions_for_both_directions()
     {
-        var minter = new FakeMinter(_ => new RealtimeClientSecret("ek_test", DateTimeOffset.UnixEpoch, "gpt-realtime"));
+        var minter = new FakeMinter(_ => new RealtimeClientSecret("ek_test", DateTimeOffset.UnixEpoch, "gpt-realtime", "gpt-4o-mini-transcribe"));
 
         var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "es" });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
         Assert.Equal("ek_test", json.GetProperty("clientSecret").GetString());
+        Assert.Equal("gpt-4o-mini-transcribe", json.GetProperty("transcriptionModel").GetString());
         Assert.Equal("https://api.openai.com/v1/realtime/calls", json.GetProperty("callsUrl").GetString());
         var instructions = json.GetProperty("instructions");
         Assert.Contains("English", instructions.GetProperty("en>es").GetString());
