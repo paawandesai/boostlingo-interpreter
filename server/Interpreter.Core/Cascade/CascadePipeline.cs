@@ -20,7 +20,8 @@ public sealed record CascadeSettings(
 
 /// <summary>
 /// Everything the cascade reports, in the order it happened. <see cref="AtMs"/> is milliseconds since the
-/// pipeline started, on the server clock; the transport converts it for the client (D9).
+/// pipeline started (or since <c>clockStart</c>, a <see cref="TimeProvider"/> timestamp, when the caller passes
+/// one to share a clock), on the server clock; the transport converts it for the client (D9).
 /// </summary>
 public abstract record CascadeEvent(int Utterance)
 {
@@ -74,10 +75,11 @@ public sealed class CascadePipeline(
     public async IAsyncEnumerable<CascadeEvent> RunAsync(
         IAsyncEnumerable<AudioFrame> audio,
         CascadeSettings settings,
-        [EnumeratorCancellation] CancellationToken ct)
+        [EnumeratorCancellation] CancellationToken ct,
+        long? clockStart = null)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var run = new Run(this, settings, _time.GetTimestamp(), cts.Token);
+        var run = new Run(this, settings, clockStart ?? _time.GetTimestamp(), cts.Token);
 
         // If one stage fails, cancel the other so neither waits forever on a queue nobody serves.
         async Task Stage(Func<Task> body)
