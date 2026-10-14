@@ -23,5 +23,11 @@ public sealed record SttPartial(string Text) : SttEvent;
 /// <param name="Confidence">0..1 when the provider reports it; null means unknown, never a made-up value.</param>
 public sealed record SttFinal(string Text, bool EndsUtterance, double? Confidence = null) : SttEvent;
 
-/// <summary>The provider's end-of-utterance signal, used as the "endpoint" latency mark (D9).</summary>
+/// <summary>The provider's end-of-utterance signal, used as the "endpoint" latency mark (D9). Closes the utterance.</summary>
 public sealed record SttUtteranceEnd : SttEvent;
+
+/// <summary>
+/// The provider detected end of speech but the final transcript comes later (OpenAI server VAD). Marks
+/// "endpoint" (D9) without closing the utterance; the next final with <c>EndsUtterance</c> closes it.
+/// </summary>
+public sealed record SttEndpoint : SttEvent;

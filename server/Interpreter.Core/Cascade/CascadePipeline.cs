@@ -125,19 +125,28 @@ public sealed class CascadePipeline(
 
         private double Now() => _p._time.GetElapsedTime(start).TotalMilliseconds;
 
-        private ValueTask Emit(CascadeEvent e) => Events.Writer.WriteAsync(e with { AtMs = Now() }, _ct);
+        private ValueTask Emit(CascadeEvent e, double? atMs = null) =>
+            Events.Writer.WriteAsync(e with { AtMs = atMs ?? Now() }, _ct);
 
         /// <summary>STT stage: splits the event stream into utterances and queues their finals.</summary>
         public async Task ListenAsync(IAsyncEnumerable<AudioFrame> audio)
         {
             var nextId = 1;
             Utterance? current = null;
+            // Endpoints seen while the previous utterance still waits for its final (OpenAI transcribes after
+            // speech stops, so a quick next turn can end first). Each belongs to the next utterance opened.
+            var earlyEndpoints = new Queue<double>();
 
             async ValueTask<Utterance> Current()
             {
                 if (current is not null) return current;
                 current = new Utterance(nextId++);
                 await _utterances.Writer.WriteAsync(current, _ct);
+                if (earlyEndpoints.TryDequeue(out var at))
+                {
+                    current.EndpointMarked = true;
+                    await Emit(new LatencyMark(current.Id, "endpoint"), at);
+                }
                 return current;
             }
 
@@ -174,6 +183,17 @@ public sealed class CascadePipeline(
                             break;
                         case SttUtteranceEnd when current is not null:
                             await Close(current);
+                            break;
+                        case SttEndpoint when current is { EndpointMarked: true }:
+                            earlyEndpoints.Enqueue(Now());
+                            break;
+                        case SttEndpoint:
+                            var open = await Current();
+                            if (!open.EndpointMarked)
+                            {
+                                open.EndpointMarked = true;
+                                await Emit(new LatencyMark(open.Id, "endpoint"));
+                            }
                             break;
                     }
                 }

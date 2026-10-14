@@ -1,3 +1,4 @@
+using Interpreter.Core.Cascade;
 using Interpreter.Core.Realtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,15 @@ public static class ServiceCollectionExtensions
             .Bind(config.GetSection(OpenAIRealtimeOptions.Section))
             .PostConfigure(o => o.ApiKey ??= config["OPENAI_API_KEY"]);
         services.AddHttpClient<IRealtimeSessionMinter, OpenAIRealtimeSessionMinter>(c => c.Timeout = TimeSpan.FromSeconds(10));
+        return services;
+    }
+
+    public static IServiceCollection AddOpenAIStt(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddOptions<OpenAITranscriptionOptions>()
+            .Bind(config.GetSection(OpenAITranscriptionOptions.Section))
+            .PostConfigure(o => o.ApiKey ??= config["OPENAI_API_KEY"]);
+        services.AddKeyedSingleton<IStreamingStt, OpenAIRealtimeStt>("openai");
         return services;
     }
 }
