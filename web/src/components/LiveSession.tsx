@@ -1,7 +1,8 @@
 import type { LanguagesResponse } from '../session/languages'
-import { headlineLatencyMs, type SessionState, type Utterance } from '../session/store'
+import type { SessionState, Utterance } from '../session/store'
 import type { SpeakerSide } from '../transports/types'
 import { ErrorBanner } from './ErrorBanner'
+import { LatencyPanel } from './LatencyPanel'
 import { ModeToggle } from './ModeToggle'
 import { SpeakerSideToggle } from './SpeakerSideToggle'
 import { TranscriptColumn } from './TranscriptColumn'
@@ -55,23 +56,7 @@ export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDis
         nameA={name(state.langA)}
         nameB={name(state.langB)}
       />
-      <section aria-labelledby="lat-h" className="panel">
-        <h2 id="lat-h">Latency: speech end → first audio out</h2>
-        <ul className="latency">
-          {utterances.map((u, i) => {
-            const ms = headlineLatencyMs(u)
-            return (
-              <li key={u.id}>
-                #{i + 1} · {u.mode} · {ms === null ? 'pending' : `${Math.round(ms)} ms`}
-              </li>
-            )
-          })}
-        </ul>
-        <p className="hint">
-          Realtime exposes endpointing, response.created and first audio only; model-internal time is opaque. The
-          per-stage waterfall lands in T3.2.
-        </p>
-      </section>
+      <LatencyPanel utterances={utterances} />
     </>
   )
 }

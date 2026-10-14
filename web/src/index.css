@@ -23,6 +23,13 @@
   --sp-4: 16px;
   --sp-6: 24px;
   --radius: 6px;
+  --stage-0: #71717a;
+  --stage-1: #2563eb;
+  --stage-2: #9333ea;
+  --stage-3: #db2777;
+  --stage-4: #ea580c;
+  --stage-5: #059669;
+  --stage-6: #ca8a04;
   color-scheme: light dark;
 }
 
@@ -38,6 +45,13 @@
     --ok: #4ade80;
     --warn: #fbbf24;
     --err: #f87171;
+    --stage-0: #a1a1aa;
+    --stage-1: #60a5fa;
+    --stage-2: #c084fc;
+    --stage-3: #f472b6;
+    --stage-4: #fb923c;
+    --stage-5: #34d399;
+    --stage-6: #facc15;
   }
 }
 
@@ -261,4 +275,107 @@ summary {
 .check input {
   width: 18px;
   height: 18px;
+}
+.summaries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-3);
+}
+.summary {
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.summary caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: var(--sp-1);
+}
+.summary th,
+.summary td {
+  padding: 2px var(--sp-3) 2px 0;
+  text-align: right;
+}
+.summary th[scope='row'],
+.summary thead th:first-child {
+  text-align: left;
+  font-weight: 400;
+}
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding: 0;
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.latency li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.waterfall {
+  position: relative;
+  height: 14px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.waterfall .bar {
+  position: absolute;
+  top: 2px;
+  height: 10px;
+  border-radius: 2px;
+  min-width: 2px;
+}
+.waterfall .bar.parallel {
+  top: 0;
+  height: 3px;
+}
+.waterfall .zero,
+.waterfall .budget {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--text-muted);
+}
+.waterfall .budget {
+  border-left: 1px dashed var(--err);
+}
+.opaque {
+  background-image: repeating-linear-gradient(45deg, transparent 0 3px, rgba(127, 127, 127, 0.45) 3px 5px);
+}
+.stage-0 {
+  background-color: var(--stage-0);
+}
+.stage-1 {
+  background-color: var(--stage-1);
+}
+.stage-2 {
+  background-color: var(--stage-2);
+}
+.stage-3 {
+  background-color: var(--stage-3);
+}
+.stage-4 {
+  background-color: var(--stage-4);
+}
+.stage-5 {
+  background-color: var(--stage-5);
+}
+.stage-6 {
+  background-color: var(--stage-6);
 }
