@@ -1,0 +1,5 @@
+{
+  "web/**/*.{ts,tsx,js}": "sh scripts/hooks/web-staged.sh",
+  "web/**/*.{json,css,html,md}": "sh scripts/hooks/web-format.sh",
+  "server/**/*.cs": "sh scripts/hooks/server-staged.sh"
+}

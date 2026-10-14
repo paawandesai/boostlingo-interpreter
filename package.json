@@ -1,0 +1,15 @@
+{
+  "name": "boostlingo-interpreter-tooling",
+  "private": true,
+  "description": "Repo-level git hooks only (husky, lint-staged, commitlint). App code lives in web/ and server/.",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  },
+  "type": "module"
+}

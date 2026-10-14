@@ -1,0 +1,173 @@
+# Lean CI for a polyglot repo (.NET 10 server + Vite web).
+# Runner facts (checked 2026-10-14): self-hosted, privileged=false (no Docker-in-Docker),
+# default image python:3.12-slim, so every job sets image: explicitly.
+# Sized for the smallest runner slot (1.5 CPU / 1.5 GB) until the project's runner is confirmed.
+
+workflow:
+  rules:
+    # One pipeline per push: MR pipelines win over branch pipelines when an MR is open.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+  auto_cancel:
+    on_new_commit: interruptible
+
+variables:
+  HUSKY: "0"
+  GIT_DEPTH: "20"
+  FF_USE_FASTZIP: "true"
+  CACHE_COMPRESSION_LEVEL: fast
+  ARTIFACT_COMPRESSION_LEVEL: fast
+  NODE_OPTIONS: --max-old-space-size=1024
+  DOTNET_GCHeapHardLimit: "0x40000000" # 1 GB
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  NUGET_PACKAGES: $CI_PROJECT_DIR/.nuget/packages
+  npm_config_cache: $CI_PROJECT_DIR/.npm
+
+default:
+  timeout: 15m
+  interruptible: true
+
+stages: [install, check, build, test]
+
+# ---------- rule templates ----------
+# main always runs everything; branches and MRs run a stack's jobs only when that stack changed.
+.web-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes:
+        paths: [web/**/*, config/**/*, .gitlab-ci.yml]
+        compare_to: refs/heads/main
+
+.server-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes:
+        paths: [server/**/*, config/**/*, .gitlab-ci.yml]
+        compare_to: refs/heads/main
+
+.eval-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      exists: [eval/**/*.py]
+    - changes:
+        paths: [eval/**/*]
+        compare_to: refs/heads/main
+
+# ---------- web ----------
+.web:
+  extends: .web-rules
+  image: node:22.22-slim
+  before_script:
+    - cd web
+
+web:install:
+  extends: .web
+  stage: install
+  script:
+    - npm ci --no-audit --no-fund
+  cache:
+    key:
+      files: [web/package-lock.json]
+    paths: [.npm/]
+  artifacts:
+    # node_modules is ~200 MB; passing it once beats four cold installs on a shared runner.
+    paths: [web/node_modules/]
+    expire_in: 1 hour
+
+web:lint:
+  extends: .web
+  stage: check
+  needs: [web:install]
+  script:
+    - npm run lint
+    - npm run format:check
+
+web:typecheck:
+  extends: .web
+  stage: check
+  needs: [web:install]
+  script:
+    - npm run typecheck
+
+web:test:
+  extends: .web
+  stage: test
+  needs: [web:install]
+  script:
+    - npx vitest run --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit=vitest-junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: web/vitest-junit.xml
+    expire_in: 1 week
+
+web:build:
+  extends: .web
+  stage: build
+  needs: [web:install]
+  script:
+    - npx vite build
+    # M2 guardrail: no OpenAI key or key-like string may ship in the browser bundle.
+    - if grep -rEn 'sk-[A-Za-z0-9_-]{16,}|OPENAI_API_KEY' dist; then echo "Secret-like string found in web bundle" >&2; exit 1; fi
+  artifacts:
+    paths: [web/dist/]
+    expire_in: 1 day
+
+# ---------- server ----------
+.server:
+  extends: .server-rules
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache:
+    key:
+      files: [server/Interpreter.Api/packages.lock.json, server/Interpreter.Tests/packages.lock.json]
+    paths: [.nuget/packages/]
+
+server:format:
+  extends: .server
+  stage: check
+  needs: []
+  script:
+    - dotnet restore server --locked-mode
+    - dotnet format server --verify-no-changes --no-restore
+
+server:build:
+  extends: .server
+  stage: build
+  needs: []
+  script:
+    - dotnet restore server --locked-mode
+    - dotnet build server -c Release -m:1 --no-restore
+  artifacts:
+    paths:
+      - server/*/bin/
+      - server/*/obj/
+    expire_in: 1 hour
+
+server:test:
+  extends: .server
+  stage: test
+  needs: [server:build]
+  script:
+    - dotnet test server -c Release --no-build --filter "Category!=Live" --logger "junit;LogFilePath=$CI_PROJECT_DIR/server-junit.xml"
+  artifacts:
+    when: always
+    reports:
+      junit: server-junit.xml
+    expire_in: 1 week
+
+# ---------- eval (Python, offline scripts) ----------
+eval:lint:
+  extends: .eval-rules
+  image: python:3.12-slim
+  stage: check
+  needs: []
+  script:
+    - pip install --quiet ruff
+    - ruff check eval
+
+# live:smoke and e2e:soak (manual/scheduled, real provider calls) are added in Day 3 (T3.6)
+# once there is something to soak. They need a runner tag for the heavy lane; this
+# project's runner currently has no tags and runs untagged jobs.
