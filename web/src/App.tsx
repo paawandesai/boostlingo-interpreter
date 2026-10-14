@@ -1,3 +1,4 @@
+import { AudioCheck } from './components/AudioCheck'
 import { BackendStatus } from './components/BackendStatus'
 
 export default function App() {
@@ -5,6 +6,7 @@ export default function App() {
     <main>
       <h1>AI Interpreter Workbench</h1>
       <BackendStatus />
+      <AudioCheck />
     </main>
   )
 }
