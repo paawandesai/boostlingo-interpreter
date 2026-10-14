@@ -7,12 +7,12 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **M1 SPA with mic capture + playback**  
   Task(s): T0.3 (design), T1.4  
   Acceptance check: Mic permission prompt; capture worklet emits 16 kHz PCM16 frames (unit test on resampler); test tone plays through the playback scheduler  
-  Evidence: partial (2026-10-14). Unit: `web/src/audio/*.test.ts` (resampler length/fidelity, VAD, queue cap, gate tail). Headless Chromium with fake mic WAV: frames ~50/s, VAD speech end reported, mic gated during test tone (MR !4). 🎧 pending: real mic prompt and hearing the tone.
+  Evidence: partial (2026-10-14). Unit: `web/src/audio/*.test.ts` (resampler length/fidelity, VAD, queue cap, gate tail). Headless Chromium with fake mic WAV: frames ~50/s, VAD speech end reported, mic gated during test tone (MR !4). 🎧 2026-10-14 Paawan: mic heard and test tone played (it is a fixed 1 s tone with no stop control, by design).
 
-- [ ] **M2 Realtime, `gpt-realtime`, voice in/out**  
+- [x] **M2 Realtime, `gpt-realtime`, voice in/out**  
   Task(s): T1.5, T1.6  
   Acceptance check: 🎧 EN→ES and ES→EN spoken round trip; secret never in the browser bundle (grep in CI); session config pins model `gpt-realtime`  
-  Evidence: partial (2026-10-14). `OpenAIRealtimeSessionMinterTests` asserts model `gpt-realtime`; `web:build` CI job greps the bundle for keys; live mint and SDP exchange returned 201 from headless Chromium (MR !5, !6). ICE blocked in the cloud container. 🎧 pending: spoken EN→ES and ES→EN round trip.
+  Evidence: partial (2026-10-14). `OpenAIRealtimeSessionMinterTests` asserts model `gpt-realtime`; `web:build` CI job greps the bundle for keys; live mint and SDP exchange returned 201 from headless Chromium (MR !5, !6). ICE blocked in the cloud container. 🎧 2026-10-14 Paawan: spoken EN→ES and ES→EN round trips worked on a local Mac run.
 
 - [ ] **M3 Cascade STT→Translation→TTS, streaming**  
   Task(s): T2.1–T2.6  
@@ -27,7 +27,7 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **M5 Language pairs ≥ EN↔ES both directions**  
   Task(s): T1.5, T2.6, T4.1 (VI)  
   Acceptance check: Both directions in both modes; a pair added via `languages.json` only  
-  Evidence: partial (2026-10-14). Realtime flips direction with `session.update` (`RealtimeTransport.test.ts`); pairs come from `config/languages.json` via `GET /api/languages`. 🎧 pending both directions spoken; cascade on Day 2.
+  Evidence: partial (2026-10-14). Realtime flips direction with `session.update` (`RealtimeTransport.test.ts`); pairs come from `config/languages.json` via `GET /api/languages`. 🎧 2026-10-14 Paawan: Realtime both directions spoken OK. Cascade on Day 2, so the box stays open.
 
 - [ ] **M6 Live source + target transcripts**  
   Task(s): T1.6, T2.6  
