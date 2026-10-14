@@ -10,7 +10,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddOptions<AnthropicTranslationOptions>()
             .Bind(config.GetSection(AnthropicTranslationOptions.Section))
-            .PostConfigure(o => o.ApiKey ??= config["ANTHROPIC_API_KEY"]);
+            .PostConfigure(o => o.ApiKey ??= AnthropicTranslationOptions.ApiKeyFrom(config));
         services.AddHttpClient<AnthropicTranslator>(c => c.Timeout = TimeSpan.FromSeconds(15));
         services.AddKeyedTransient<IStreamingTranslator>("anthropic", (sp, _) => sp.GetRequiredService<AnthropicTranslator>());
         return services;

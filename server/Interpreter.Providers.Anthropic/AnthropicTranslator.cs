@@ -36,7 +36,7 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
     public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_opts.ApiKey))
-            throw new ProviderException(ProviderErrorKind.Auth, Provider, "ANTHROPIC_API_KEY is not configured on the server");
+            throw new ProviderException(ProviderErrorKind.Auth, Provider, $"{AnthropicTranslationOptions.ApiKeyEnv} (or {AnthropicTranslationOptions.FallbackApiKeyEnv}) is not configured on the server");
 
         using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, "messages"))
         {

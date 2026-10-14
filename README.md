@@ -25,7 +25,7 @@ export DEMO_ACCESS_TOKEN=...       # any long random string; enter it in the set
 # Cascade mode also needs (all server only):
 export DEEPGRAM_API_KEY=...        # STT; or run with Cascade__Stt=openai to use OpenAI transcription
 export ELEVENLABS_API_KEY=...      # TTS; a paid plan (the free plan is non-commercial)
-export ANTHROPIC_API_KEY=...       # only if Cascade__Translator=anthropic
+export CLAUDE_TRANSLATOR_API_KEY=...  # only if Cascade__Translator=anthropic (ANTHROPIC_API_KEY also works locally)
 dotnet run --project server/Interpreter.Api
 
 # terminal 2: frontend on http://localhost:5173 (proxies /health, /api, /ws to the backend)
