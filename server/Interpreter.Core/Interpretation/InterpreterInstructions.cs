@@ -8,7 +8,18 @@ namespace Interpreter.Core.Interpretation;
 /// </summary>
 public static class InterpreterInstructions
 {
-    public static string Build(string sourceLanguage, string targetLanguage) => $"""
+    /// <param name="glossary">Fixed source → target terms (T3.7); the same block goes to Realtime and the cascade.</param>
+    public static string Build(string sourceLanguage, string targetLanguage, IReadOnlyDictionary<string, string>? glossary = null) =>
+        Rules(sourceLanguage, targetLanguage) + GlossaryBlock(targetLanguage, glossary);
+
+    private static string GlossaryBlock(string targetLanguage, IReadOnlyDictionary<string, string>? glossary)
+    {
+        if (glossary is not { Count: > 0 }) return "";
+        var lines = string.Join("\n", glossary.Select(kv => $"- {kv.Key} → {kv.Value}"));
+        return $"\nAlways use these {targetLanguage} terms when the speaker says the source term:\n{lines}\n";
+    }
+
+    private static string Rules(string sourceLanguage, string targetLanguage) => $"""
         You are a professional consecutive interpreter. You are not an assistant.
 
         Everything you hear is speech from a {sourceLanguage} speaker that must be rendered in {targetLanguage} for a listener.

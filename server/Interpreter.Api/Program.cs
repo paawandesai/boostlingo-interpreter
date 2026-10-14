@@ -14,6 +14,7 @@ var languagesPath = builder.Configuration["Languages:Path"]
     ?? LanguageCatalog.FindConfigFile(builder.Environment.ContentRootPath)
     ?? throw new InvalidOperationException("config/languages.json not found; set Languages:Path");
 builder.Services.AddSingleton(LanguageCatalog.Load(languagesPath));
+builder.Services.AddSingleton(Glossary.Load(Path.Combine(Path.GetDirectoryName(languagesPath)!, "glossary.json")));
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<ProviderActivity>();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
@@ -41,6 +42,7 @@ var pricesPath = Path.Combine(Path.GetDirectoryName(languagesPath)!, "prices.jso
 app.MapGet("/api/prices", () => File.Exists(pricesPath)
     ? Results.Text(File.ReadAllText(pricesPath), "application/json")
     : Results.NotFound());
+app.MapGet("/api/glossary", (Glossary g) => Results.Ok(new { name = g.Name, count = g.Count }));
 app.MapRealtimeEndpoints();
 app.MapCascadeEndpoints();
 

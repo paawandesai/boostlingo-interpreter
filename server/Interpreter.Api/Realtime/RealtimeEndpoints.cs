@@ -8,7 +8,7 @@ using Interpreter.Core.Realtime;
 namespace Interpreter.Api.Realtime;
 
 /// <param name="Model">Optional; must be one of GET /api/realtime/models' allowed list.</param>
-public sealed record CreateRealtimeSessionRequest(string Source, string Target, string? Model = null);
+public sealed record CreateRealtimeSessionRequest(string Source, string Target, string? Model = null, bool Glossary = false);
 
 public sealed record RealtimeModelsResponse(string Default, IReadOnlyList<string> Allowed);
 
@@ -37,7 +37,7 @@ public static class RealtimeEndpoints
     }
 
     private static async Task<IResult> CreateSession(
-        CreateRealtimeSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ProviderActivity activity,
+        CreateRealtimeSessionRequest req, LanguageCatalog catalog, Glossary glossary, IRealtimeSessionMinter minter, ProviderActivity activity,
         ILoggerFactory logs, CancellationToken ct)
     {
         var source = catalog.Find(req.Source);
@@ -50,8 +50,11 @@ public static class RealtimeEndpoints
 
         var instructions = new Dictionary<string, string>
         {
-            [$"{source.Code}>{target.Code}"] = InterpreterInstructions.Build(source.Name, target.Name),
-            [$"{target.Code}>{source.Code}"] = InterpreterInstructions.Build(target.Name, source.Name),
+            // Same glossary block as the cascade translators (T3.7), so the comparison is fair.
+            [$"{source.Code}>{target.Code}"] = InterpreterInstructions.Build(source.Name, target.Name,
+                req.Glossary ? glossary.For(source.Code, target.Code) : null),
+            [$"{target.Code}>{source.Code}"] = InterpreterInstructions.Build(target.Name, source.Name,
+                req.Glossary ? glossary.For(target.Code, source.Code) : null),
         };
 
         try
