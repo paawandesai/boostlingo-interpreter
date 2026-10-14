@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="Interpreter.Api/Interpreter.Api.csproj" />
+  <Project Path="Interpreter.Core/Interpreter.Core.csproj" />
+  <Project Path="Interpreter.Providers.Anthropic/Interpreter.Providers.Anthropic.csproj" />
+  <Project Path="Interpreter.Providers.Deepgram/Interpreter.Providers.Deepgram.csproj" />
+  <Project Path="Interpreter.Providers.ElevenLabs/Interpreter.Providers.ElevenLabs.csproj" />
+  <Project Path="Interpreter.Providers.OpenAI/Interpreter.Providers.OpenAI.csproj" />
+  <Project Path="Interpreter.Tests/Interpreter.Tests.csproj" />
+</Solution>

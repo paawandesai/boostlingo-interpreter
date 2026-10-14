@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+TestResults/
+
+# Node / Vite
+node_modules/
+dist/
+*.local
+
+# Python (eval)
+__pycache__/
+.venv/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
