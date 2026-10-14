@@ -2,6 +2,7 @@ using Interpreter.Api.Cascade;
 using Interpreter.Api.Health;
 using Interpreter.Api.Realtime;
 using Interpreter.Api.Security;
+using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
 using Interpreter.Providers.Anthropic;
 using Interpreter.Providers.Deepgram;
@@ -34,8 +35,10 @@ app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
 {
-    languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure }),
+    languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure, l.OutputChecks }),
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
+    // The prompt-leak canary is not a secret: it only has to never appear in an output (G15).
+    canary = InterpreterInstructions.Canary,
 }));
 // List prices for the session export's cost table (T3.5). Served as-is; null means unchecked.
 var pricesPath = Path.Combine(Path.GetDirectoryName(languagesPath)!, "prices.json");

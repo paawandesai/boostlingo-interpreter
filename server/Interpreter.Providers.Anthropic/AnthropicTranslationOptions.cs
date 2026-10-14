@@ -32,4 +32,11 @@ public sealed class AnthropicTranslationOptions
     public string ApiVersion { get; set; } = "2023-06-01";
 
     public int MaxTokens { get; set; } = 400;
+
+    /// <summary>
+    /// Null by default: claude-haiku-5-5 rejects the parameter ("`temperature` is deprecated for this model",
+    /// HTTP 400, checked 2026-10-14), so G16's temperature 0 can't be applied here. Set it for a model that
+    /// accepts it. Known constraint in README.md.
+    /// </summary>
+    public double? Temperature { get; set; }
 }

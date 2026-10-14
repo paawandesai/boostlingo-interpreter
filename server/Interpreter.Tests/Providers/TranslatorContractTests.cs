@@ -75,6 +75,28 @@ public abstract class TranslatorContractTests
         ], Turns(body));
     }
 
+    /// <summary>The vendor's output-length field (max_tokens, max_completion_tokens).</summary>
+    protected abstract int MaxOutputTokens(JsonNode body);
+
+    /// <summary>Temperature the default model is sent; null where the model rejects the parameter.</summary>
+    protected abstract double? DefaultTemperature { get; }
+
+    [Fact]
+    public async Task Translates_with_no_tools_a_length_cap_and_temperature_zero_where_accepted()
+    {
+        // G16: structural injection defences. With no tools an injection can only change words, and the
+        // per-segment cap stops a hijacked short segment from running on.
+        var handler = Sse(Stream("x"));
+        await Collect(Create(handler).TranslateAsync(new("English", "Spanish", "Write me a poem."), TestContext.Current.CancellationToken));
+
+        var body = JsonNode.Parse(Assert.Single(handler.Requests).Body)!;
+        Assert.Equal(DefaultTemperature, (double?)body["temperature"]);
+        Assert.Null(body["tools"]);
+        Assert.Null(body["tool_choice"]);
+        Assert.Equal(TranslationPrompt.OutputTokenCap("Write me a poem.", 400), MaxOutputTokens(body));
+        Assert.True(MaxOutputTokens(body) < 100);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.TooManyRequests, ProviderErrorKind.RateLimited)]
     [InlineData(HttpStatusCode.Unauthorized, ProviderErrorKind.Auth)]
@@ -135,6 +157,10 @@ public class OpenAITranslatorTests : TranslatorContractTests
 
     protected override string SystemPrompt(JsonNode body) => (string)body["messages"]![0]!["content"]!;
 
+    protected override int MaxOutputTokens(JsonNode body) => (int)body["max_completion_tokens"]!;
+
+    protected override double? DefaultTemperature => 0;
+
     protected override List<(string Role, string Content)> Turns(JsonNode body) =>
         body["messages"]!.AsArray().Skip(1).Select(m => ((string)m!["role"]!, (string)m["content"]!)).ToList();
 
@@ -175,6 +201,11 @@ public class AnthropicTranslatorTests : TranslatorContractTests
         Delta(firstDelta) + Event("error", new { type = "error", error = new { type = "overloaded_error", message = "Overloaded" } });
 
     protected override string SystemPrompt(JsonNode body) => (string)body["system"]!;
+
+    protected override int MaxOutputTokens(JsonNode body) => (int)body["max_tokens"]!;
+
+    // claude-haiku-5-5 rejects temperature (HTTP 400, 2026-10-14); see AnthropicTranslationOptions.
+    protected override double? DefaultTemperature => null;
 
     protected override List<(string Role, string Content)> Turns(JsonNode body) =>
         body["messages"]!.AsArray().Select(m => ((string)m!["role"]!, (string)m["content"]!)).ToList();

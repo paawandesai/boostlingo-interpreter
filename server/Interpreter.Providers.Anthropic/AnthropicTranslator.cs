@@ -23,14 +23,16 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
         foreach (var turn in TranslationPrompt.Turns(r))
             messages.Add(new JsonObject { ["role"] = turn.FromSpeaker ? "user" : "assistant", ["content"] = turn.Text });
 
-        return new JsonObject
+        var body = new JsonObject
         {
             ["model"] = _opts.Model,
-            ["max_tokens"] = _opts.MaxTokens,
+            ["max_tokens"] = TranslationPrompt.OutputTokenCap(r.Text, _opts.MaxTokens),
             ["stream"] = true,
             ["system"] = TranslationPrompt.System(r),
             ["messages"] = messages,
         };
+        if (_opts.Temperature is { } temperature) body["temperature"] = temperature;
+        return body;
     }
 
     public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)

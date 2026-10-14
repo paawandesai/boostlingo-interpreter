@@ -1,5 +1,5 @@
 {
-  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter.",
+  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter. outputChecks (G15): markers are common function words for a deterministic language check; assistantPatterns and refusalPatterns are lower-case substrings that mark an output as not a translation. Model-written and unverified.",
   "languages": [
     {
       "code": "en",
@@ -8,10 +8,76 @@
         "notice": "This conversation is interpreted by AI, not by a person. Your speech is sent to third-party AI services, which may transcribe it. The voice you hear is AI-generated. Audio is not saved by this app. Do not use it for medical, legal or other critical decisions; ask for a human interpreter instead.",
         "spoken": "This conversation is interpreted by an AI voice, not a person. Your speech is processed and may be transcribed by third-party AI services."
       },
-      "stt": { "deepgram": { "model": "nova-3", "language": "en" } },
-      "tts": { "elevenlabs": { "voiceId": null }, "openaiRealtime": { "voice": "marin" } },
-      "flush": { "sentenceEnd": [".", "?", "!"], "clauseBreak": [",", ";", ":"] },
-      "metric": "wer"
+      "stt": {
+        "deepgram": {
+          "model": "nova-3",
+          "language": "en"
+        }
+      },
+      "tts": {
+        "elevenlabs": {
+          "voiceId": null
+        },
+        "openaiRealtime": {
+          "voice": "marin"
+        }
+      },
+      "flush": {
+        "sentenceEnd": [".", "?", "!"],
+        "clauseBreak": [",", ";", ":"]
+      },
+      "metric": "wer",
+      "outputChecks": {
+        "markers": [
+          "the",
+          "and",
+          "is",
+          "are",
+          "you",
+          "i",
+          "to",
+          "of",
+          "a",
+          "my",
+          "your",
+          "it",
+          "that",
+          "what",
+          "do",
+          "for",
+          "in",
+          "this",
+          "we",
+          "have",
+          "with",
+          "not"
+        ],
+        "assistantPatterns": [
+          "as an ai",
+          "as a language model",
+          "i'm an ai",
+          "i am an ai",
+          "sure, here's",
+          "sure, here is",
+          "here's a joke",
+          "i'm an interpreter",
+          "i am an interpreter",
+          "i can only translate",
+          "my instructions",
+          "system prompt"
+        ],
+        "refusalPatterns": [
+          "i can't help",
+          "i cannot help",
+          "i can't assist",
+          "i cannot assist",
+          "i'm sorry, but i can't",
+          "i am unable to",
+          "i won't",
+          "i can't translate",
+          "i cannot translate"
+        ]
+      }
     },
     {
       "code": "es",
@@ -20,13 +86,75 @@
         "notice": "Esta conversación la interpreta una IA, no una persona. Lo que diga se envía a servicios de IA de terceros, que pueden transcribirlo. La voz que escucha está generada por IA. Esta aplicación no guarda el audio. No la use para decisiones médicas, legales ni otras decisiones críticas; pida un intérprete humano.",
         "spoken": "Esta conversación la interpreta una voz de inteligencia artificial, no una persona. Lo que diga lo procesan y pueden transcribirlo servicios de IA de terceros."
       },
-      "stt": { "deepgram": { "model": "nova-3", "language": "es" } },
-      "tts": { "elevenlabs": { "voiceId": null }, "openaiRealtime": { "voice": "marin" } },
-      "flush": { "sentenceEnd": [".", "?", "!"], "clauseBreak": [",", ";", ":"], "openers": ["¿", "¡"] },
-      "metric": "wer"
+      "stt": {
+        "deepgram": {
+          "model": "nova-3",
+          "language": "es"
+        }
+      },
+      "tts": {
+        "elevenlabs": {
+          "voiceId": null
+        },
+        "openaiRealtime": {
+          "voice": "marin"
+        }
+      },
+      "flush": {
+        "sentenceEnd": [".", "?", "!"],
+        "clauseBreak": [",", ";", ":"],
+        "openers": ["¿", "¡"]
+      },
+      "metric": "wer",
+      "outputChecks": {
+        "markers": [
+          "el",
+          "la",
+          "los",
+          "las",
+          "y",
+          "es",
+          "que",
+          "de",
+          "en",
+          "un",
+          "una",
+          "por",
+          "para",
+          "con",
+          "no",
+          "mi",
+          "su",
+          "usted",
+          "qué",
+          "está",
+          "yo",
+          "se",
+          "lo",
+          "me"
+        ],
+        "assistantPatterns": [
+          "como ia",
+          "como una ia",
+          "como modelo de lenguaje",
+          "soy una ia",
+          "claro, aquí",
+          "aquí tienes",
+          "aquí tiene",
+          "soy un intérprete",
+          "solo puedo traducir",
+          "mis instrucciones",
+          "indicaciones del sistema"
+        ],
+        "refusalPatterns": [
+          "no puedo ayudar",
+          "no puedo asistir",
+          "lo siento, pero no puedo",
+          "no me es posible",
+          "no puedo traducir"
+        ]
+      }
     }
   ],
-  "pairs": [
-    ["en", "es"]
-  ]
+  "pairs": [["en", "es"]]
 }
