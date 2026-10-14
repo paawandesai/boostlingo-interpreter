@@ -56,6 +56,11 @@ export function LiveSession({
         </button>
       </header>
       {state.error && <ErrorBanner error={state.error} onRetry={onRetry} onDismiss={onDismissError} />}
+      {state.notice && (
+        <p role="status" className="banner info">
+          {state.notice}
+        </p>
+      )}
       <section aria-label="Transcripts" className="columns">
         <TranscriptColumn title="Source" role="source" timeline={state.timeline} />
         <TranscriptColumn title="Target" role="target" timeline={state.timeline} />

@@ -65,9 +65,8 @@ export class CascadeTransport implements Transport {
         onActiveChange: (active) => this.gate?.setPlaybackActive(active),
         onDriftSkip: (sec) =>
           this.emitter.emit({
-            type: 'error',
-            kind: 'unavailable',
-            message: `Dropped ${sec.toFixed(1)} s of late audio`,
+            type: 'notice',
+            message: `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`,
           }),
       })
       this.connect(config.speaker)
