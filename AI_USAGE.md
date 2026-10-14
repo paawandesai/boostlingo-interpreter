@@ -16,5 +16,6 @@ Required by [docs/GUARDRAILS.md](docs/GUARDRAILS.md): every model-generated arti
 | `web/src/audio/*` | Resampler, energy VAD thresholds, playback scheduler, mic gate | Unit-tested by model-written tests. VAD thresholds were tuned on no real recordings. Mic behaviour was checked by Paawan by ear only. |
 | All tests (`server/Interpreter.Tests`, `web/src/**/*.test.ts`) | Every test | Written by the model. They pass in CI, but nobody has independently reviewed that they test the right thing. |
 | UI copy and error messages (`web/src/components/*`) | Labels, status text, error text | Unreviewed. |
+| AI disclosure notices in `config/languages.json` (`disclosure.notice`, `disclosure.spoken`) | English and Spanish consent text | **Unverified.** The Spanish was written by the model; a native speaker should check it, and the wording has had no legal review. |
 | `LICENSES.md` provider table | Summary of each provider's terms | The Deepgram clause was confirmed on the live page by Paawan (2026-10-14). The other providers' summaries come from search results and are unverified. |
 | Design canvas (Claude Design, linked from `docs/UI.md`) | Screens and states | Reviewed by Paawan as a direction, not a verified spec. |
