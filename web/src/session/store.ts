@@ -34,6 +34,8 @@ export interface SessionState {
   speaker: SpeakerSide
   /** Realtime model id; null means the server default. */
   realtimeModel: string | null
+  /** Glossary on for this session (T3.7); fixed at start like the language pair. */
+  glossary: boolean
   timeline: Array<Utterance | Marker>
   error: { kind: ErrorKind; message: string; retryAfterMs?: number } | null
   level: number
@@ -51,7 +53,15 @@ export interface SessionState {
 }
 
 export type SessionAction =
-  | { type: 'configure'; mode?: Mode; langA?: string; langB?: string; speaker?: SpeakerSide; realtimeModel?: string }
+  | {
+      type: 'configure'
+      mode?: Mode
+      langA?: string
+      langB?: string
+      speaker?: SpeakerSide
+      realtimeModel?: string
+      glossary?: boolean
+    }
   | { type: 'started'; at?: number }
   | { type: 'segmentEnded'; at: number }
   | { type: 'ended' }
@@ -67,6 +77,7 @@ export const initialState: SessionState = {
   langB: 'es',
   speaker: 'A',
   realtimeModel: null,
+  glossary: false,
   timeline: [],
   error: null,
   level: 0,
@@ -96,6 +107,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         langA: locked ? state.langA : (action.langA ?? state.langA),
         langB: locked ? state.langB : (action.langB ?? state.langB),
         realtimeModel: locked ? state.realtimeModel : (action.realtimeModel ?? state.realtimeModel),
+        glossary: locked ? state.glossary : (action.glossary ?? state.glossary),
       }
     }
     case 'started':

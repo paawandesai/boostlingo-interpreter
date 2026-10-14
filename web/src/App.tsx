@@ -9,7 +9,7 @@ import { fetchLanguages, type LanguagesResponse } from './session/languages'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
 import { buildSessionLog, download } from './session/export'
 import { fetchHealth } from './session/health'
-import { fetchCascadeProviders, fetchPrices, type CascadeProviders } from './session/providers'
+import { fetchCascadeProviders, fetchGlossaryInfo, fetchPrices, type CascadeProviders } from './session/providers'
 import { useSession } from './session/useSession'
 
 export default function App() {
@@ -18,6 +18,7 @@ export default function App() {
   const [models, setModels] = useState<RealtimeModels | null>(null)
   const [cascadeProviders, setCascadeProviders] = useState<CascadeProviders | null>(null)
   const [announcing, setAnnouncing] = useState(false)
+  const [glossaryTerms, setGlossaryTerms] = useState<number | null>(null)
 
   useEffect(() => {
     fetchLanguages()
@@ -29,6 +30,9 @@ export default function App() {
     fetchCascadeProviders()
       .then(setCascadeProviders)
       .catch(() => setCascadeProviders(null))
+    fetchGlossaryInfo()
+      .then((g) => setGlossaryTerms(g.count))
+      .catch(() => setGlossaryTerms(null))
   }, [])
 
   const exportLog = async () => {
@@ -122,6 +126,7 @@ export default function App() {
             languages={languages}
             models={models}
             cascadeProviders={cascadeProviders}
+            glossaryTerms={glossaryTerms}
             onConfigure={configure}
             onSpeaker={setSpeaker}
             onStart={(opts) => void startWithNotice(opts)}

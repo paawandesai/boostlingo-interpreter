@@ -114,7 +114,8 @@ export class CascadeTransport implements Transport {
     this.serverError = false
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'start', token: currentAccessToken(), source, target }))
+    const glossary = this.config!.glossary ?? false
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'start', token: currentAccessToken(), source, target, glossary }))
     ws.onmessage = (m: MessageEvent<string | ArrayBuffer>) => {
       if (typeof m.data === 'string') this.onMessage(m.data)
       else this.onAudio(m.data)

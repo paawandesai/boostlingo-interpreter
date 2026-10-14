@@ -12,6 +12,8 @@ export interface SessionConfig {
   speaker: SpeakerSide
   /** Realtime model id from the server's allowed list; the server default when absent. */
   realtimeModel?: string
+  /** Use the configured glossary (T3.7): STT keyterms and fixed term translations, same terms in both modes. */
+  glossary?: boolean
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
 }

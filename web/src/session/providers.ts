@@ -35,3 +35,10 @@ export async function fetchPrices(fetchImpl: typeof fetch = fetch): Promise<Pric
   if (!res.ok) throw new Error(`Could not load prices: HTTP ${res.status}`)
   return (await res.json()) as PriceList
 }
+
+/** Size of the server's glossary; 0 when none is configured. */
+export async function fetchGlossaryInfo(fetchImpl: typeof fetch = fetch): Promise<{ name: string; count: number }> {
+  const res = await fetchImpl('/api/glossary')
+  if (!res.ok) throw new Error(`Could not load glossary: HTTP ${res.status}`)
+  return (await res.json()) as { name: string; count: number }
+}

@@ -26,6 +26,7 @@ export interface SessionLog {
   appVersion: string | null
   userAgent: string
   languages: { a: string; b: string }
+  glossary: boolean
   providers: { cascade: CascadeProviders | null; realtimeModel: string | null }
   modes: Array<{
     mode: Mode
@@ -67,6 +68,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
     appVersion: ctx.appVersion,
     userAgent: ctx.userAgent,
     languages: { a: state.langA, b: state.langB },
+    glossary: state.glossary,
     providers: { cascade: ctx.cascadeProviders, realtimeModel },
     modes: modes.map((mode) => {
       const mine = utterances.filter((u) => u.mode === mode)

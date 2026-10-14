@@ -37,11 +37,12 @@ export async function createRealtimeSession(
   target: string,
   model?: string,
   fetchImpl: typeof fetch = fetch,
+  glossary = false,
 ): Promise<RealtimeSessionInfo> {
   const res = await fetchImpl('/api/realtime/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...accessHeaders() },
-    body: JSON.stringify(model ? { source, target, model } : { source, target }),
+    body: JSON.stringify({ source, target, ...(model ? { model } : {}), ...(glossary ? { glossary } : {}) }),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { kind?: string; detail?: string; retryAfterMs?: number }
