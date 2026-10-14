@@ -7,8 +7,8 @@ Do not edit the generated sections by hand; edit the provider table in the scrip
 
 | Provider | Used for | Terms that matter here | Plan tier |
 |---|---|---|---|
-| OpenAI | Realtime (`gpt-realtime`), input transcription (`gpt-4o-mini-transcribe`); planned cascade STT fallback and translator | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
-| Deepgram | Planned cascade STT (Nova-3) | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) |
+| OpenAI | Realtime (`gpt-realtime-2.1`, `gpt-realtime` selectable), input transcription (`gpt-4o-mini-transcribe`); cascade STT fallback (`gpt-4o-transcribe`); planned translator; TTS for synthetic test speech in live tests | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
+| Deepgram | Cascade STT (Nova-3), `mip_opt_out=true` on every connection | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) |
 | Anthropic | Planned cascade translator (Claude Haiku) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) |
 | ElevenLabs | Planned cascade TTS (Flash) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Paid plan (Paawan upgraded 2026-10-14; tier name to record) |
 
@@ -98,7 +98,7 @@ Reviewed 2026-10-14: `lightningcss` (MPL-2.0, CSS tooling inside Vite) and `cani
 | Microsoft.Extensions.Logging.EventLog | 10.0.13 | transitive | MIT |
 | Microsoft.Extensions.Logging.EventSource | 10.0.13 | transitive | MIT |
 | Microsoft.Extensions.Options | 10.0.13 | direct | MIT |
-| Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.13 | transitive | MIT |
+| Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.13 | direct | MIT |
 | Microsoft.Extensions.Primitives | 10.0.13 | transitive | MIT |
 | Microsoft.Testing.Extensions.Telemetry | 2.5.1 | transitive | MIT |
 | Microsoft.Testing.Extensions.TrxReport.Abstractions | 2.5.1 | transitive | MIT |
