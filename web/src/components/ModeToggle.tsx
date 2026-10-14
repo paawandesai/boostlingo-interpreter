@@ -2,7 +2,7 @@ import type { Mode } from '../transports/types'
 
 const modes: Array<{ value: Mode; label: string; available: boolean }> = [
   { value: 'realtime', label: 'Realtime', available: true },
-  { value: 'cascade', label: 'Cascade', available: false },
+  { value: 'cascade', label: 'Cascade', available: true },
 ]
 
 export function ModeToggle({
