@@ -22,6 +22,7 @@ internal sealed class FakeWebSocketServer : IAsyncDisposable
     public ConcurrentQueue<WebSocketText.Message> Received { get; } = new();
     public string? Query { get; private set; }
     public string? Authorization { get; private set; }
+    public Dictionary<string, string>? Headers { get; private set; }
     public Uri BaseUrl { get; private set; } = null!;
 
     private FakeWebSocketServer(WebApplication app) => _app = app;
@@ -41,6 +42,7 @@ internal sealed class FakeWebSocketServer : IAsyncDisposable
         {
             server.Query = ctx.Request.QueryString.Value;
             server.Authorization = ctx.Request.Headers.Authorization.ToString();
+            server.Headers = ctx.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase);
             if (rejectWith is { } status || !ctx.WebSockets.IsWebSocketRequest)
             {
                 ctx.Response.StatusCode = rejectWith ?? 400;
