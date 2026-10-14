@@ -1,4 +1,5 @@
 import type { Mode } from '../transports/types'
+import type { PriceList } from './cost'
 
 export interface CascadeProviders {
   stt: string
@@ -26,4 +27,11 @@ export function vendorsFor(mode: Mode, cascade: CascadeProviders | null): string
   if (!cascade) return null
   const names = [cascade.stt, cascade.translator, cascade.tts].map((v) => vendorNames[v] ?? v)
   return [...new Set(names)]
+}
+
+/** List prices from config/prices.json (null prices mean unchecked). */
+export async function fetchPrices(fetchImpl: typeof fetch = fetch): Promise<PriceList> {
+  const res = await fetchImpl('/api/prices')
+  if (!res.ok) throw new Error(`Could not load prices: HTTP ${res.status}`)
+  return (await res.json()) as PriceList
 }

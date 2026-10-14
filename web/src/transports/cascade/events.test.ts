@@ -100,6 +100,16 @@ describe('CascadeEventParser', () => {
     })
   })
 
+  it('maps per-utterance usage, leaving unreported token counts undefined', () => {
+    const p = parser()
+    expect(p.parse({ type: 'usage', u: 1, inputTokens: 120, outputTokens: 9, ttsCharacters: 30, t: 1 })).toEqual([
+      { type: 'usage', utteranceId: 'c1-1', usage: { inputTokens: 120, outputTokens: 9, ttsCharacters: 30 } },
+    ])
+    expect(p.parse({ type: 'usage', u: 2, ttsCharacters: 4, t: 1 })[0]).toMatchObject({
+      usage: { inputTokens: undefined, ttsCharacters: 4 },
+    })
+  })
+
   it('turns a retry into a notice and keeps Retry-After on errors', () => {
     const p = parser()
     expect(

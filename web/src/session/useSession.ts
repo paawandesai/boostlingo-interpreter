@@ -17,11 +17,13 @@ export function useSession() {
   }, [state])
 
   const teardown = useCallback(async () => {
-    unsubscribe.current?.()
-    unsubscribe.current = null
     const t = transport.current
     transport.current = null
+    // Stop before unsubscribing: stop() reports the session's STT usage (T3.5).
     await t?.stop()
+    unsubscribe.current?.()
+    unsubscribe.current = null
+    dispatch({ type: 'segmentEnded', at: Date.now() })
   }, [])
 
   const start = useCallback(async () => {
@@ -30,7 +32,7 @@ export function useSession() {
     const t = createTransport(mode)
     transport.current = t
     unsubscribe.current = t.subscribe((event) => dispatch({ type: 'transport', event }))
-    dispatch({ type: 'started' })
+    dispatch({ type: 'started', at: Date.now() })
     await t.start({ langA, langB, speaker, realtimeModel: realtimeModel ?? undefined })
   }, [teardown])
 

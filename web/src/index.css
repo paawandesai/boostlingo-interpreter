@@ -379,3 +379,8 @@ summary {
 .stage-6 {
   background-color: var(--stage-6);
 }
+.actions-row {
+  margin: 0;
+  display: flex;
+  justify-content: flex-end;
+}

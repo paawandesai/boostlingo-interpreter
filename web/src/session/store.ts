@@ -40,6 +40,10 @@ export interface SessionState {
   gated: boolean
   /** Client VAD speech end not yet matched to an utterance (vendor endpointing comes later). */
   pendingSpeechEnd: number | null
+  /** Wall-clock spans per mode (ms since epoch), for per-minute cost (T3.5). */
+  segments: Array<{ mode: Mode; startedAt: number; endedAt: number | null }>
+  /** Session-level usage that belongs to no single utterance (cascade STT audio time). */
+  sessionUsage: { sttAudioSeconds: number }
   /** Latest non-blocking notice (a retry in progress, dropped late audio); cleared by the next finished turn. */
   notice: string | null
   /** The user asked for a human interpreter; the AI session was ended (G7). */
@@ -48,7 +52,8 @@ export interface SessionState {
 
 export type SessionAction =
   | { type: 'configure'; mode?: Mode; langA?: string; langB?: string; speaker?: SpeakerSide; realtimeModel?: string }
-  | { type: 'started' }
+  | { type: 'started'; at?: number }
+  | { type: 'segmentEnded'; at: number }
   | { type: 'ended' }
   | { type: 'handoff' }
   | { type: 'dismissError' }
@@ -67,6 +72,8 @@ export const initialState: SessionState = {
   level: 0,
   gated: false,
   pendingSpeechEnd: null,
+  segments: [],
+  sessionUsage: { sttAudioSeconds: 0 },
   notice: null,
   handoffRequested: false,
 }
@@ -99,6 +106,15 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         notice: null,
         pendingSpeechEnd: null,
         handoffRequested: false,
+        segments:
+          action.at === undefined
+            ? state.segments
+            : [...state.segments, { mode: state.mode, startedAt: action.at, endedAt: null }],
+      }
+    case 'segmentEnded':
+      return {
+        ...state,
+        segments: state.segments.map((s) => (s.endedAt === null ? { ...s, endedAt: action.at } : s)),
       }
     case 'ended':
       return { ...state, status: 'ended', level: 0, gated: false }
@@ -155,7 +171,12 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       }))
     }
     case 'usage':
-      return e.utteranceId ? updateUtterance(state, e.utteranceId, (u) => ({ ...u, usage: e.usage })) : state
+      if (e.utteranceId)
+        return updateUtterance(state, e.utteranceId, (u) => ({ ...u, usage: addUsage(u.usage, e.usage) }))
+      return {
+        ...state,
+        sessionUsage: { sttAudioSeconds: state.sessionUsage.sttAudioSeconds + (e.usage.sttAudioSeconds ?? 0) },
+      }
     case 'mark': {
       if (!e.utteranceId) {
         if (e.name !== 'speech.end') return state
@@ -182,6 +203,17 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       return { ...next, pendingSpeechEnd: pending }
     }
   }
+}
+
+/** Sums usage reports; a field stays undefined until some report has it (never a made-up zero). */
+function addUsage(a: Usage | undefined, b: Usage): Usage {
+  if (!a) return b
+  const out: Usage = { ...a }
+  for (const k of Object.keys(b) as Array<keyof Usage>) {
+    const v = b[k]
+    if (v !== undefined) out[k] = (out[k] ?? 0) + v
+  }
+  return out
 }
 
 function updateUtterance(state: SessionState, id: string, f: (u: Utterance) => Utterance): SessionState {
