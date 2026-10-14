@@ -3,6 +3,14 @@
 # Fails on staged lines that look like a real credential.
 # Lists broader keyword matches so the committer confirms nothing real is staged.
 set -e
+
+# Secret scanner (docs/GUARDRAILS.md). CI always runs it; locally it runs when installed.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner .
+else
+  echo "Secret check: gitleaks not installed, so only the pattern check runs here (CI runs gitleaks). Install: brew install gitleaks" >&2
+fi
+
 added=$(git diff --cached -U0 --no-color | grep -E '^\+' | grep -vE '^\+\+\+ ' || true)
 [ -z "$added" ] && exit 0
 

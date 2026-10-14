@@ -14,6 +14,7 @@ Built for the Boostlingo Week 4 brief. Spec: [docs/SPEC.md](docs/SPEC.md) · Arc
 - .NET 10 SDK
 - Node 22 and npm
 - Headphones (the interpreter's voice otherwise leaks back into the mic)
+- Optional: [gitleaks](https://github.com/gitleaks/gitleaks) for the pre-commit secret scan (`brew install gitleaks`). CI runs it either way.
 
 ## Run locally
 
