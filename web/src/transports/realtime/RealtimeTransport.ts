@@ -8,7 +8,14 @@
  */
 import { MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
-import { TransportEmitter, type Mode, type SessionConfig, type SpeakerSide, type Transport } from '../types'
+import {
+  HISTORY_PAIRS,
+  TransportEmitter,
+  type Mode,
+  type SessionConfig,
+  type SpeakerSide,
+  type Transport,
+} from '../types'
 import { createRealtimeSession, exchangeSdp, RealtimeApiError, type RealtimeSessionInfo } from './api'
 import { RealtimeEventParser } from './events'
 import { createFirstAudioProbe, type FirstAudioProbe } from './firstAudioProbe'
@@ -107,6 +114,7 @@ export class RealtimeTransport implements Transport {
     dc.onmessage = (m) => this.onServerEvent(m.data as string)
     dc.onopen = () => {
       this.clearConnectTimer()
+      this.sendHistory(dc)
       this.emitter.emit({ type: 'state', state: 'live' })
       // G19: OpenAI bills while the connection is open, so a forgotten session is closed here.
       const max = info.maxSessionSeconds
@@ -171,6 +179,27 @@ export class RealtimeTransport implements Transport {
     }
   }
 
+  /**
+   * Earlier turns (G9) as conversation items: the speech as delimited user data, the interpretation as
+   * the assistant's. No response.create, so nothing is said; the next turn just has the context.
+   * Item formats checked live against gpt-realtime-2.1 on 2026-10-14.
+   */
+  private sendHistory(dc: RTCDataChannel): void {
+    for (const pair of this.config?.history?.().slice(-HISTORY_PAIRS) ?? []) {
+      const user = { type: 'input_text', text: `<speech>${escapeSpeech(pair.source)}</speech>` }
+      const assistant = { type: 'output_text', text: pair.target }
+      dc.send(
+        JSON.stringify({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [user] } }),
+      )
+      dc.send(
+        JSON.stringify({
+          type: 'conversation.item.create',
+          item: { type: 'message', role: 'assistant', content: [assistant] },
+        }),
+      )
+    }
+  }
+
   private clearConnectTimer(): void {
     if (this.connectTimer !== null) clearTimeout(this.connectTimer)
     this.connectTimer = null
@@ -209,4 +238,9 @@ export class RealtimeTransport implements Transport {
 /** Source and target language for the side that is speaking. */
 export function direction(config: SessionConfig, side: SpeakerSide): [string, string] {
   return side === 'A' ? [config.langA, config.langB] : [config.langB, config.langA]
+}
+
+/** Speech can't close the tag and pose as something else (same rule as the cascade prompt). */
+function escapeSpeech(text: string): string {
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

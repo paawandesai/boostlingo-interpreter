@@ -143,6 +143,21 @@ describe('CascadeTransport', () => {
     expect((mark as { t: number }).t).toBeCloseTo(c2 - 40 + 20 - 5 + 50, 5)
   })
 
+  it('sends the latest finished turns as context on every new socket (G9)', async () => {
+    const { CascadeTransport } = await import('./CascadeTransport')
+    CascadeTransport.url = () => 'ws://test/ws/cascade'
+    const t = new CascadeTransport()
+    const pairs = Array.from({ length: 8 }, (_, i) => ({ source: `s${i}`, target: `t${i}` }))
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A', history: () => pairs })
+    FakeSocket.all[0].open()
+    expect(FakeSocket.all[0].json()[0].history).toEqual(pairs.slice(-6))
+
+    pairs.push({ source: 'new', target: 'nuevo' })
+    t.setSpeaker('B')
+    FakeSocket.all[1].open()
+    expect((FakeSocket.all[1].json()[0].history as unknown[]).at(-1)).toEqual({ source: 'new', target: 'nuevo' })
+  })
+
   it('stop closes the socket and the mic', async () => {
     const { t, ws, events } = await started()
     await t.stop()

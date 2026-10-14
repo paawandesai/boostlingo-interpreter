@@ -72,7 +72,7 @@ public static class CascadeEndpoints
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(cascade.Value.StartTimeoutSeconds));
-            var first = await WebSocketText.ReceiveAsync(ws, timeout.Token, maxBytes: 4096);
+            var first = await WebSocketText.ReceiveAsync(ws, timeout.Token, maxBytes: 16 * 1024);
             start = first.Type == WebSocketMessageType.Text
                 ? JsonSerializer.Deserialize<CascadeProtocol.Start>(first.Data.Span, CascadeProtocol.Json)
                 : null;
@@ -121,7 +121,8 @@ public static class CascadeEndpoints
             source, languages.Find(source)!.Name, target, languages.Find(target)!.Name,
             Voice: opts.Voices.GetValueOrDefault(target),
             Keyterms: terms?.Keys.ToList(),
-            Glossary: terms);
+            Glossary: terms,
+            History: CascadeProtocol.History(start));
         await SendJson(new { type = "ready", stt = stt.Name, translator = translator.Name, tts = tts.Name, t = Now() });
         log.LogInformation("Cascade session started: {Source}>{Target} stt={Stt} translator={Translator} tts={Tts}",
             source, target, stt.Name, translator.Name, tts.Name);

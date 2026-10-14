@@ -3,7 +3,16 @@
  * side and latency marks, so a transport can be torn down and replaced without losing them.
  * Pure reducer; the controller feeds it transport events.
  */
-import type { ErrorKind, MarkName, Mode, SpeakerSide, TransportEvent, Usage } from '../transports/types'
+import {
+  HISTORY_PAIRS,
+  type ErrorKind,
+  type HistoryPair,
+  type MarkName,
+  type Mode,
+  type SpeakerSide,
+  type TransportEvent,
+  type Usage,
+} from '../transports/types'
 
 export type Status = 'idle' | 'connecting' | 'live' | 'ended'
 
@@ -90,6 +99,15 @@ export const initialState: SessionState = {
   notice: null,
   handoffRequested: false,
   incidents: [],
+}
+
+/** Finished turns, oldest first, for the next connection's context (G9). */
+export function recentPairs(state: SessionState): HistoryPair[] {
+  return state.timeline
+    .filter((x): x is Utterance => x.kind === 'utterance')
+    .filter((u) => u.source.final && u.target.final && u.source.text.trim() && u.target.text.trim())
+    .slice(-HISTORY_PAIRS)
+    .map((u) => ({ source: u.source.text, target: u.target.text }))
 }
 
 /** Drops everything said in the session (G20); settings stay. */

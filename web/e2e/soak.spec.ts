@@ -98,6 +98,8 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
       lastMb: +last.mb.toFixed(2),
       growthFromMinuteOnePct: +(((last.mb - minuteOne.mb) / minuteOne.mb) * 100).toFixed(1),
       slopeMbPerMin: +slope(samples.filter((s) => s.t >= 60_000)).toFixed(3),
+      // The visible transcript fills its 40-line window in the first minutes; the tail shows the steady state.
+      lastTwoMinutesSlopeMbPerMin: +slope(samples.filter((s) => s.t >= (minutes - 2) * 60_000)).toFixed(3),
       samples: samples.map((s) => ({ t: s.t, mb: +s.mb.toFixed(2) })),
     },
     latency: log.modes.find((m) => m.mode === mode.toLowerCase())?.latency ?? [],

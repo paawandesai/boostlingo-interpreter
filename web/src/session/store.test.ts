@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { TransportEvent } from '../transports/types'
-import { headlineLatencyMs, initialState, sessionReducer, type SessionState, type Utterance } from './store'
+import {
+  headlineLatencyMs,
+  initialState,
+  recentPairs,
+  sessionReducer,
+  type SessionState,
+  type Utterance,
+} from './store'
 
 const run = (events: TransportEvent[], from: SessionState = initialState) =>
   events.reduce((s, event) => sessionReducer(s, { type: 'transport', event }), from)
@@ -118,5 +125,14 @@ describe('sessionReducer', () => {
     expect(s.timeline).toEqual([])
     expect(s.incidents).toEqual([])
     expect(s.status).toBe('ended')
+  })
+
+  it('lists finished turns, newest last, for the next connection (G9)', () => {
+    const s = run([
+      { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hello', final: true },
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'transcript', role: 'source', utteranceId: 'u2', text: 'Still talk', final: false },
+    ])
+    expect(recentPairs(s)).toEqual([{ source: 'Hello', target: 'Hola' }])
   })
 })
