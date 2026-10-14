@@ -8,7 +8,7 @@ public class LanguagesEndpointTests(WebApplicationFactory<Program> factory) : IC
     [Fact]
     public async Task Lists_configured_languages_and_pairs()
     {
-        var json = JsonDocument.Parse(await factory.CreateClient().GetStringAsync("/api/languages")).RootElement;
+        var json = JsonDocument.Parse(await factory.CreateClient().GetStringAsync("/api/languages", TestContext.Current.CancellationToken)).RootElement;
 
         var codes = json.GetProperty("languages").EnumerateArray().Select(l => l.GetProperty("code").GetString()).ToList();
         Assert.Contains("en", codes);

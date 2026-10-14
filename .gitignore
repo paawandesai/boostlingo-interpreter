@@ -24,3 +24,6 @@ __pycache__/
 !.vscode/extensions.json
 .idea/
 .DS_Store
+
+# Test reports
+test-results/

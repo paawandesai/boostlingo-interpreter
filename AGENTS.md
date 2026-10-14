@@ -36,7 +36,7 @@ Filled in as the skeleton and CI land (T0.2, T1.3).
 ```bash
 # backend
 dotnet build server
-dotnet test server --filter "Category!=Live"
+dotnet test --solution server/Interpreter.slnx --filter-not-trait "Category=Live"   # xunit.v3 on Microsoft.Testing.Platform
 dotnet run --project server/Interpreter.Api
 
 # frontend

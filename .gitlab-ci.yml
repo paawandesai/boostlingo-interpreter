@@ -151,11 +151,12 @@ server:test:
   stage: test
   needs: [server:build]
   script:
-    - dotnet test server -c Release --no-build --filter "Category!=Live" --logger "junit;LogFilePath=$CI_PROJECT_DIR/server-junit.xml"
+    # xunit.v3 on Microsoft.Testing.Platform (opted in by global.json); the JUnit report is built into xunit.v3.
+    - dotnet test --solution server/Interpreter.slnx -c Release --no-build --filter-not-trait "Category=Live" --report-xunit-junit --report-xunit-junit-filename server-junit.xml --results-directory "$CI_PROJECT_DIR/test-results"
   artifacts:
     when: always
     reports:
-      junit: server-junit.xml
+      junit: test-results/server-junit.xml
     expire_in: 1 week
 
 # ---------- eval (Python, offline scripts) ----------

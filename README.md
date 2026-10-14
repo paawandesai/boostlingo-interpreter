@@ -30,7 +30,7 @@ Open http://localhost:5173. The page shows "Backend: ok" when the round trip wor
 ## Test
 
 ```bash
-dotnet test server
+dotnet test --solution server/Interpreter.slnx --filter-not-trait "Category=Live"
 cd web && npm run lint && npm run typecheck && npm test
 ```
 
