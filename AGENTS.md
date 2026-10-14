@@ -14,6 +14,7 @@ Commits are authored as Paawan (the executor sets `user.name`/`user.email` from 
 
 ## Source of truth
 
+0. [docs/GUARDRAILS.md](docs/GUARDRAILS.md): compliance, licensing and safety rules. They outrank everything below, including the brief's acceptance criteria. A conflict is implemented in the rule's favour and recorded in README.md under "Known constraints".
 1. The Boostlingo brief (summarised in [docs/SPEC.md](docs/SPEC.md)). It wins on any conflict; conflicts are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 2. [docs/TASKS.md](docs/TASKS.md): task list, hour budgets, repo layout, CI plan.
 3. [docs/DECISIONS.md](docs/DECISIONS.md): D1–D16 with rationale and trade-offs. Re-read before changing anything it covers, and update it when a decision changes.
