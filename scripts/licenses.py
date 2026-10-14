@@ -42,7 +42,7 @@ PROVIDERS = """\
 | OpenAI | Realtime (`gpt-realtime`), input transcription (`gpt-4o-mini-transcribe`); planned cascade STT fallback and translator | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
 | Deepgram | Planned cascade STT (Nova-3) | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) |
 | Anthropic | Planned cascade translator (Claude Haiku) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) |
-| ElevenLabs | Planned cascade TTS (Flash) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Not yet confirmed: must be Starter or above before Day 2 TTS work |
+| ElevenLabs | Planned cascade TTS (Flash) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Free plan during development (Paawan, 2026-10-14). Upgrade to a paid plan before measurement runs, demo recordings or sharing any audio |
 """
 
 

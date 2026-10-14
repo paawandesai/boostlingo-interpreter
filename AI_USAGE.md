@@ -2,7 +2,7 @@
 
 Required by [docs/GUARDRAILS.md](docs/GUARDRAILS.md): every model-generated artifact that was not independently verified, and the model that produced it. How the agents were directed is in [AGENTS.md](AGENTS.md).
 
-**Model.** Claude, through Claude Code (executor) and Claude Projects (architect and reviewer). Exact model and version: _to be filled in by Paawan from the session details_. Every commit an agent wrote carries a `Co-Authored-By` trailer, so `git log` shows which commits were model-written.
+**Model.** Claude, through Claude Code (executor) and Claude Projects (architect and reviewer). Exact model and version: _to be filled in by Paawan before submission_. Every commit an agent wrote carries a `Co-Authored-By` trailer, so `git log` shows which commits were model-written.
 
 **Verified** means a deterministic check passed (a test against a recorded or live vendor response, a type definition from the vendor's own SDK, or a measurement), or Paawan checked it by hand. Everything else is listed as unverified.
 
