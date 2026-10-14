@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Interpreter.Core\Interpreter.Core.csproj" />
+    <ProjectReference Include="..\Interpreter.Providers.Deepgram\Interpreter.Providers.Deepgram.csproj" />
+    <ProjectReference Include="..\Interpreter.Providers.OpenAI\Interpreter.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\Interpreter.Providers.Anthropic\Interpreter.Providers.Anthropic.csproj" />
+    <ProjectReference Include="..\Interpreter.Providers.ElevenLabs\Interpreter.Providers.ElevenLabs.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
