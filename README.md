@@ -19,6 +19,8 @@ Built for the Boostlingo Week 4 brief. Spec: [docs/SPEC.md](docs/SPEC.md) · Arc
 
 ```bash
 # terminal 1: backend on http://localhost:5080
+export OPENAI_API_KEY=...          # server only
+export DEMO_ACCESS_TOKEN=...       # any long random string; enter it in the setup screen
 dotnet run --project server/Interpreter.Api
 
 # terminal 2: frontend on http://localhost:5173 (proxies /health, /api, /ws to the backend)
@@ -64,7 +66,7 @@ Conflicts between [docs/GUARDRAILS.md](docs/GUARDRAILS.md) and the brief or plan
 | The brief ranks modes on latency, cost and quality. The guardrails require the recommendation to account for regulated settings first. | The write-up recommends AI modes for low-stakes and consumer use and a human in the loop for medical and legal use. Latency and cost are secondary factors. | Applies to the Day 4 write-up |
 | "Interpretation quality (subjective + WER)". WER measures STT only, and the Realtime source column comes from a separate transcription model. | WER is reported as transcription accuracy only. Translation quality uses chrF or COMET (`wmt22-comet-da`, Apache-2.0) against human-written or human-checked references, plus a blind human rubric labelled as subjective. | Applies to Day 4 measurement |
 | The guardrails forbid the ElevenLabs free plan (non-commercial, attribution required). | Paawan moved to a paid ElevenLabs plan on 2026-10-14. | Resolved |
-| The brief requires `gpt-realtime`. The guardrails say it is deprecated (removal 2027-01-20) and that the model id must be configuration, defaulting to `gpt-realtime-2.1`. | The model id becomes configuration with default `gpt-realtime-2.1`, and `gpt-realtime` stays selectable so the brief's model can still be measured. The write-up notes the deprecation. Both ids are listed by the OpenAI API (checked 2026-10-14). The deprecation dates are unverified. | Open: Day 2 (G1) |
+| The brief requires `gpt-realtime`. The guardrails say it is deprecated (removal 2027-01-20) and that the model id must be configuration, defaulting to `gpt-realtime-2.1`. | `OpenAI:Realtime:Model` defaults to `gpt-realtime-2.1`. `gpt-realtime` stays selectable in the setup screen so the brief's model can still be measured. The write-up notes the deprecation. Both ids are listed by the OpenAI API and both mint sessions (checked 2026-10-14). The deprecation dates are unverified. | Done (G1); write-up note on Day 4 |
 | The brief's Realtime/cascade framing has two options. The guardrails require evaluating `gpt-realtime-translate` as a third option. | It is measured on the same replay set, or the write-up explains why not. | Open: Day 4 (G11) |
-| The Realtime client-secret endpoint is unauthenticated, which is fine for a local run. The guardrails require it to be authenticated and rate-limited. | A demo access token and a per-client rate limit are added. | Open: Day 2 (G2) |
+| The Realtime client-secret endpoint was unauthenticated, which is fine for a local run. The guardrails require it to be authenticated and rate-limited. | It now requires the `DEMO_ACCESS_TOKEN` (sent as `X-Access-Token`, compared in constant time) and allows 10 requests per client per minute by default (`Access:PermitLimit`). The cascade WebSocket gets the same guard in T2.6. | Done (G2) |
 | AGENTS.md and CLAUDE.md are graded deliverables. The guardrails require them in the candidate's own voice with no internal URLs. They are currently agent-written and name the GitLab host. | Paawan rewrites them before submission. | Open: Day 4 (G13) |

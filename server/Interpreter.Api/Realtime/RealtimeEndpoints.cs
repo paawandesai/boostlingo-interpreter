@@ -2,6 +2,7 @@ using Interpreter.Core.Errors;
 using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
 using Interpreter.Core.Realtime;
+using Interpreter.Api.Security;
 
 namespace Interpreter.Api.Realtime;
 
@@ -30,7 +31,7 @@ public static class RealtimeEndpoints
     {
         app.MapGet("/api/realtime/models", (IRealtimeSessionMinter minter) =>
             Results.Ok(new RealtimeModelsResponse(minter.DefaultModel, minter.AllowedModels)));
-        app.MapPost("/api/realtime/session", CreateSession);
+        app.MapPost("/api/realtime/session", CreateSession).RequireAccess();
         return app;
     }
 

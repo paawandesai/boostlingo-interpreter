@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { getAccessToken, setAccessToken } from '../session/access'
 import type { LanguagesResponse } from '../session/languages'
 import type { RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, onStart }: Props) {
+  const [token, setToken] = useState(getAccessToken)
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
   return (
@@ -61,6 +64,22 @@ export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, o
           </select>
         </div>
       )}
+      <div className="field">
+        <label htmlFor="access-token" className="label">
+          Access token
+        </label>
+        <input
+          id="access-token"
+          type="password"
+          autoComplete="off"
+          value={token}
+          onChange={(e) => {
+            setToken(e.target.value)
+            setAccessToken(e.target.value)
+          }}
+          placeholder="The server's DEMO_ACCESS_TOKEN"
+        />
+      </div>
       <div className="field">
         <span className="label">Who speaks first</span>
         <SpeakerSideToggle

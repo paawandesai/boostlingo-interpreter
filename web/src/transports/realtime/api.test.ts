@@ -9,11 +9,24 @@ describe('createRealtimeSession', () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ source: 'en', target: 'es' })
   })
 
-  it('sends the chosen model', async () => {
+  it('sends the chosen model and the demo access token', async () => {
+    localStorage.setItem('workbench.accessToken', 'demo-token')
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ clientSecret: 'ek_1' })))
     await createRealtimeSession('en', 'es', 'gpt-realtime', fetchImpl)
     const init = fetchImpl.mock.calls[0][1]
     expect(JSON.parse(init.body)).toEqual({ source: 'en', target: 'es', model: 'gpt-realtime' })
+    expect(init.headers).toMatchObject({ 'X-Access-Token': 'demo-token' })
+    localStorage.removeItem('workbench.accessToken')
+  })
+
+  it('maps a 401 problem to auth', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ kind: 'Auth', detail: 'Missing or wrong access token.' }), { status: 401 }),
+      )
+    const err = await createRealtimeSession('en', 'es', undefined, fetchImpl).catch((e: unknown) => e)
+    expect(err).toMatchObject({ kind: 'auth', message: 'Missing or wrong access token.' })
   })
 
   it('maps a 429 problem to rate_limited with retry-after', async () => {
