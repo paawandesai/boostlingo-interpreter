@@ -109,6 +109,8 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   const out = resolve('test-results/soak')
   mkdirSync(out, { recursive: true })
   writeFileSync(join(out, `soak-${report.mode}-${label}.json`), JSON.stringify(report, null, 2))
+  // The session log holds only the synthetic or scripted clips' text; kept next to the report for line-level checks.
+  writeFileSync(join(out, `soak-${report.mode}-${label}-session-log.json`), readFileSync(logPath))
   // Transcripts stay out of the report; the raw session log is kept only as a local test artifact.
   await test.info().attach('session-log', { path: logPath, contentType: 'application/json' })
 

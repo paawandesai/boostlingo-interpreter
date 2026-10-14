@@ -222,6 +222,12 @@ e2e:switch:
 e2e:soak:
   extends: .e2e
   timeout: 30m
+  # A failed 5-minute run's trace is over the artifact size limit, which hid the report (2026-10-14).
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - web/test-results/soak/
   script:
     # Without REPLAY_DIR the job makes the labelled synthetic clips itself (stdlib Python, OpenAI speech).
     - if [ -z "$REPLAY_DIR" ]; then (command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3 >/dev/null)) && python3 ../eval/replay/synth.py && export REPLAY_DIR=../eval/replay/synthetic; fi
