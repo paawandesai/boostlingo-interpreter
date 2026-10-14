@@ -1,4 +1,5 @@
 using Interpreter.Api.Cascade;
+using Interpreter.Api.Health;
 using Interpreter.Api.Realtime;
 using Interpreter.Api.Security;
 using Interpreter.Core.Languages;
@@ -14,6 +15,7 @@ var languagesPath = builder.Configuration["Languages:Path"]
     ?? throw new InvalidOperationException("config/languages.json not found; set Languages:Path");
 builder.Services.AddSingleton(LanguageCatalog.Load(languagesPath));
 builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<ProviderActivity>();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
 builder.Services.AddAccessControl(builder.Configuration);
 builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
@@ -28,7 +30,7 @@ var app = builder.Build();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseRateLimiter();
 
-app.MapGet("/health", () => Results.Ok(new HealthResponse("ok", typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0")));
+app.MapHealthEndpoints();
 app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
 {
     languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure }),
@@ -39,7 +41,6 @@ app.MapCascadeEndpoints();
 
 app.Run();
 
-public sealed record HealthResponse(string Status, string Version);
 
 // Exposed so Interpreter.Tests can host the app with WebApplicationFactory.
 public partial class Program;

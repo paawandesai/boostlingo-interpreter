@@ -1,3 +1,4 @@
+using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Interpretation;
@@ -36,7 +37,8 @@ public static class RealtimeEndpoints
     }
 
     private static async Task<IResult> CreateSession(
-        CreateRealtimeSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ILoggerFactory logs, CancellationToken ct)
+        CreateRealtimeSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ProviderActivity activity,
+        ILoggerFactory logs, CancellationToken ct)
     {
         var source = catalog.Find(req.Source);
         var target = catalog.Find(req.Target);
@@ -56,6 +58,7 @@ public static class RealtimeEndpoints
         {
             var secret = await minter.CreateAsync(
                 new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"], req.Model), ct);
+            activity.Success("realtime:openai");
             return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions));
         }
         catch (ProviderException e)
