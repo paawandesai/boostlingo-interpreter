@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Interpreter.Core.Languages;
 
-public sealed record Language(string Code, string Name);
+/// <summary>The AI-use notice shown on screen and read aloud before capture starts (G7).</summary>
+public sealed record Disclosure(string Notice, string Spoken);
+
+public sealed record Language(string Code, string Name, Disclosure? Disclosure = null);
 
 /// <summary>
 /// Languages and pairs from config/languages.json (D16). Adding a pair is a config change;
@@ -47,7 +50,7 @@ public sealed class LanguageCatalog
         var file = JsonSerializer.Deserialize<LanguagesFile>(stream, JsonOptions)
             ?? throw new InvalidOperationException($"Empty language config: {path}");
         return new LanguageCatalog(
-            file.Languages.Select(l => new Language(l.Code, l.Name)),
+            file.Languages.Select(l => new Language(l.Code, l.Name, l.Disclosure)),
             file.Pairs.Select(p => p.Length == 2
                 ? (p[0], p[1])
                 : throw new InvalidOperationException("Each pair must have exactly two codes")));
@@ -70,5 +73,5 @@ public sealed class LanguageCatalog
         [property: JsonPropertyName("languages")] List<LanguageEntry> Languages,
         [property: JsonPropertyName("pairs")] List<string[]> Pairs);
 
-    private sealed record LanguageEntry(string Code, string Name);
+    private sealed record LanguageEntry(string Code, string Name, Disclosure? Disclosure);
 }

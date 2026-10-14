@@ -31,7 +31,7 @@ app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new HealthResponse("ok", typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0")));
 app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
 {
-    languages = catalog.Languages.Select(l => new { l.Code, l.Name }),
+    languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure }),
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
 }));
 app.MapRealtimeEndpoints();
