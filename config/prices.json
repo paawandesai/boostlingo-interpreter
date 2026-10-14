@@ -1,0 +1,74 @@
+{
+  "$comment": "List prices used for the cost-per-minute table (T3.5). Never estimate: a null price means 'not checked yet' and the UI shows no cost for it. Each entry records where the price came from and when it was checked. Prices change; re-check every entry before the write-up quotes it.",
+  "currency": "USD",
+  "entries": [
+    {
+      "key": "translator:anthropic",
+      "model": "claude-haiku-5-5",
+      "inputPerMTok": 0.10,
+      "outputPerMTok": 0.50,
+      "note": "Prompts up to 100K tokens; translation prompts are far below that.",
+      "source": "https://www.anthropic.com/pricing",
+      "checkedOn": "2026-10-14",
+      "checkedBy": "agent (page fetched from the cloud container)"
+    },
+    {
+      "key": "translator:openai",
+      "model": "gpt-5.4-mini",
+      "inputPerMTok": null,
+      "outputPerMTok": null,
+      "source": "https://openai.com/api/pricing/",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
+      "key": "stt:deepgram",
+      "model": "nova-3 (streaming)",
+      "perMinute": null,
+      "source": "https://deepgram.com/pricing",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
+      "key": "stt:openai",
+      "model": "gpt-4o-transcribe (realtime transcription)",
+      "perMinute": null,
+      "source": "https://openai.com/api/pricing/",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
+      "key": "tts:elevenlabs",
+      "model": "eleven_flash_v2_5",
+      "perThousandCharacters": null,
+      "note": "Depends on the plan tier; record the tier Paawan is on.",
+      "source": "https://elevenlabs.io/pricing/api",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
+      "key": "realtime:openai",
+      "model": "gpt-realtime-2.1",
+      "audioInputPerMTok": null,
+      "audioOutputPerMTok": null,
+      "textInputPerMTok": null,
+      "textOutputPerMTok": null,
+      "cachedInputPerMTok": null,
+      "source": "https://openai.com/api/pricing/",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
+      "key": "realtime:openai",
+      "model": "gpt-realtime",
+      "audioInputPerMTok": null,
+      "audioOutputPerMTok": null,
+      "textInputPerMTok": null,
+      "textOutputPerMTok": null,
+      "cachedInputPerMTok": null,
+      "source": "https://openai.com/api/pricing/",
+      "checkedOn": null,
+      "checkedBy": null
+    }
+  ]
+}
