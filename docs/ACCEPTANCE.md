@@ -22,7 +22,7 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **M4 Mode toggle pre- and mid-session**  
   Task(s): T1.7 (pre), T3.3 (mid)  
   Acceptance check: Playwright: switch mid-session, transcript history preserved, old transport fully closed (no open WS/peer)  
-  Evidence: _pending_
+  Evidence: partial (2026-10-14). `web/e2e/mode-switch.spec.ts` (Playwright, real backend): Cascade → Realtime → Cascade mid-session, switch markers shown, then after End no open socket, peer connection or audio context. In the cloud container Realtime only reaches "connecting" (ICE blocked), so the test checks teardown, not a live Realtime turn. The last 6 finished turns are carried into the new mode as context (G9, `CascadeTransport.test.ts`, `CascadePipelineTests.Carried_history_seeds_the_first_translation_context`). 🎧 pending: a live Realtime ↔ Cascade switch on Paawan's machine.
 
 - [ ] **M5 Language pairs ≥ EN↔ES both directions**  
   Task(s): T1.5, T2.6, T4.1 (VI)  
@@ -37,7 +37,7 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **M7 Per-stage latency visible**  
   Task(s): T3.1, T3.2  
   Acceptance check: Waterfall per utterance; cascade 6 stages, Realtime 3 observable stages plus a label saying model-internal time is opaque  
-  Evidence: _pending_
+  Evidence: partial (2026-10-14). `session/latency.test.ts` (cascade stages endpointing, STT, TTFT, flush, TTS TTFB, network, playback; Realtime endpointing, response, opaque model time); `LatencyPanel` draws the waterfall with p50/p95 tables; seen in headless Chromium on cascade. 🎧 pending for Realtime.
 
 - [ ] **M8 1–2 page comparison write-up**  
   Task(s): T4.4  
@@ -115,17 +115,17 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **5-min back-and-forth, no disconnect**  
   Measured by: T3.6 soak (Playwright, replay audio looped, both modes)  
   Pass condition: 0 disconnects  
-  Evidence: _pending_
+  Evidence: Cascade passed (2026-10-14): 5 min, 64 utterances (65 synthetic clips, OpenAI STT), 0 disconnects, production build, `eval/results/soak-2026-10-14-cascade-synthetic.json`. Synthetic TTS clips, not the measured replay set. Realtime pending: ICE is blocked in the cloud container, so Paawan runs `npm run e2e:soak` with `SOAK_MODE=realtime` locally.
 
 - [ ] **No audio drift**  
   Measured by: Soak: playback queue length and `drift.skip` count logged  
   Pass condition: Queue length bounded; skips reported  
-  Evidence: _pending_
+  Evidence: Reported, cascade (2026-10-14): 9 drift skips in 64 utterances over 5 min in the cloud container (2-vCPU headless Chromium); playback queue is bounded by the scheduler's skip. Same report file. Re-run on Paawan's machine before quoting.
 
 - [ ] **No memory leak**  
   Measured by: Soak: JS heap sampled every 30 s via CDP (`Performance.getMetrics`), plus server working set  
   Pass condition: Heap slope ≈ flat after warm-up (< 10% growth over minutes 1–5); 🎧 DevTools heap snapshot confirms  
-  Evidence: _pending_
+  Evidence: Cascade, not passed as written (2026-10-14): JS heap 3.91 MB at minute 1, 4.48 MB at minute 5 (+14.4%, criterion < 10%), slope over minutes 3–5 −0.07 MB/min (flat). The growth is the transcript filling its 40-line on-screen window and the store keeping every turn for export; heap snapshots showed no leaked transports or audio contexts. Before the render cap the same run grew +42% (fixed in MRs !24 and !25). 🎧 DevTools snapshot pending.
 
 ## 1e. Key impact metrics (brief §Key Impact Metrics)
 
