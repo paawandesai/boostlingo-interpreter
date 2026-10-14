@@ -25,4 +25,5 @@ Required by [docs/GUARDRAILS.md](docs/GUARDRAILS.md): every model-generated arti
 | `outputChecks` in `config/languages.json` | Function-word lists and assistant/refusal phrases for the output checks (G15) | **Unverified** heuristics; tuned on the unit-test examples only. |
 | `eval/replay/synthetic/` (not committed) | Synthetic TTS clips of the replay lines, made with OpenAI's speech endpoint by `eval/replay/synth.py` | Labelled synthetic; used only for the soak, never as the measured set. |
 | `eval/results/soak-2026-10-14-cascade-synthetic.json` | Soak report from the Playwright run | Measured, not generated; the input audio was synthetic. |
+| `web/src/transports/translate/` | Realtime translate transport and the line segmenter (gap rules: 800 ms source, 1500 ms target, 8 s no output) | Unit-tested against scripted event sequences; the gap values are guesses not yet tuned on real audio, and the data-channel event names are assumed to match the WebSocket ones checked live. |
 | Design canvas (Claude Design, linked from `docs/UI.md`) | Screens and states | Reviewed by Paawan as a direction, not a verified spec. |
