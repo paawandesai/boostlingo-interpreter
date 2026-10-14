@@ -47,6 +47,8 @@ export interface SessionLog {
     usage: Utterance['usage'] | null
   }>
   markers: string[]
+  /** Errors and notices (retries, dropped late audio, disconnects), app text only. */
+  incidents: SessionState['incidents']
   notes: string[]
 }
 
@@ -104,6 +106,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
       usage: u.usage ?? null,
     })),
     markers: state.timeline.flatMap((x) => (x.kind === 'marker' ? [x.text] : [])),
+    incidents: state.incidents,
     notes: [
       'Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.',
       'Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.',

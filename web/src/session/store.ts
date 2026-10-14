@@ -50,6 +50,8 @@ export interface SessionState {
   notice: string | null
   /** The user asked for a human interpreter; the AI session was ended (G7). */
   handoffRequested: boolean
+  /** Every error and notice, in order, for the session log and the soak report (T3.6). App text only, never transcripts. */
+  incidents: Array<{ mode: Mode; kind: ErrorKind | 'notice'; message: string }>
 }
 
 export type SessionAction =
@@ -87,6 +89,7 @@ export const initialState: SessionState = {
   sessionUsage: { sttAudioSeconds: 0 },
   notice: null,
   handoffRequested: false,
+  incidents: [],
 }
 
 /** Below this STT confidence a source line is flagged for the listener (G7). */
@@ -165,13 +168,21 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
     case 'gated':
       return { ...state, gated: e.gated }
     case 'error': {
-      const next = { ...state, error: { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs } }
+      const next = {
+        ...state,
+        error: { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs },
+        incidents: [...state.incidents, { mode: state.mode, kind: e.kind, message: e.message }],
+      }
       return e.kind === 'tts_failed' && e.utteranceId
         ? updateUtterance(next, e.utteranceId, (u) => ({ ...u, audioFailed: true }))
         : next
     }
     case 'notice':
-      return { ...state, notice: e.message }
+      return {
+        ...state,
+        notice: e.message,
+        incidents: [...state.incidents, { mode: state.mode, kind: 'notice', message: e.message }],
+      }
     case 'transcript': {
       const cleared = e.role === 'target' && e.final ? { ...state, notice: null } : state
       return updateUtterance(cleared, e.utteranceId, (u) => ({
@@ -195,12 +206,13 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
         // The previous turn's speech end was never claimed by an endpoint: nothing was recognised (T3.4).
         const missed =
           state.pendingSpeechEnd !== null && e.t - state.pendingSpeechEnd >= SPEECH_END_MATCH_WINDOW_MS && !state.error
+        if (!missed) return { ...state, pendingSpeechEnd: e.t }
+        const message = 'The provider recognised no speech in your last turn.'
         return {
           ...state,
           pendingSpeechEnd: e.t,
-          error: missed
-            ? { kind: 'empty_transcript', message: 'The provider recognised no speech in your last turn.' }
-            : state.error,
+          error: { kind: 'empty_transcript', message },
+          incidents: [...state.incidents, { mode: state.mode, kind: 'empty_transcript', message }],
         }
       }
       let pending = state.pendingSpeechEnd

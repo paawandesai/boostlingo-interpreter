@@ -100,4 +100,15 @@ describe('sessionReducer', () => {
     s = run([{ type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true }], s)
     expect(s.notice).toBeNull()
   })
+
+  it('keeps every error and notice for the session log', () => {
+    let s = run([{ type: 'notice', message: 'retrying' }])
+    s = run([{ type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true }], s)
+    s = run([{ type: 'error', kind: 'timeout', message: 'slow' }], s)
+    expect(s.notice).toBeNull()
+    expect(s.incidents).toEqual([
+      { mode: 'realtime', kind: 'notice', message: 'retrying' },
+      { mode: 'realtime', kind: 'timeout', message: 'slow' },
+    ])
+  })
 })
