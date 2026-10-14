@@ -131,4 +131,25 @@ public class OpenAIRealtimeSessionMinterTests
             Minter(handler).CreateAsync(Request with { Model = "gpt-4o-realtime-preview" }, CancellationToken.None));
         Assert.Empty(handler.Requests);
     }
+
+    [Fact]
+    public async Task Translation_session_takes_only_a_target_language_and_no_instructions_or_tools()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, """{"value":"ek_tr","expires_at":1760000000,"session":{"type":"translation"}}""");
+
+        var secret = await Minter(handler).CreateTranslationAsync("es", CancellationToken.None);
+
+        Assert.Equal("gpt-realtime-translate", secret.Model);
+        var (req, body) = Assert.Single(handler.Requests);
+        Assert.Equal("https://api.openai.com/v1/realtime/translations/client_secrets", req.RequestUri!.ToString());
+        Assert.Equal("Bearer test-key", req.Headers.Authorization!.ToString());
+        var root = JsonDocument.Parse(body).RootElement;
+        Assert.Equal(60, root.GetProperty("expires_after").GetProperty("seconds").GetInt32());
+        var session = root.GetProperty("session");
+        Assert.Equal("gpt-realtime-translate", session.GetProperty("model").GetString());
+        Assert.Equal("es", session.GetProperty("audio").GetProperty("output").GetProperty("language").GetString());
+        Assert.Equal("gpt-realtime-whisper", session.GetProperty("audio").GetProperty("input").GetProperty("transcription").GetProperty("model").GetString());
+        Assert.False(session.TryGetProperty("instructions", out _));
+        Assert.False(session.TryGetProperty("tools", out _));
+    }
 }

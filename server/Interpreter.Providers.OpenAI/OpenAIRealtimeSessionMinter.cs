@@ -20,17 +20,28 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
     public IReadOnlyList<string> AllowedModels =>
         _opts.AllowedModels.Contains(_opts.Model) ? _opts.AllowedModels : [_opts.Model, .. _opts.AllowedModels];
 
+    public string TranslateModel => _opts.TranslateModel;
+
     public async Task<RealtimeClientSecret> CreateAsync(RealtimeSessionRequest request, CancellationToken ct)
     {
         var model = request.Model ?? _opts.Model;
         if (!AllowedModels.Contains(model))
             throw new ArgumentException($"Model {model} is not in OpenAI:Realtime:AllowedModels", nameof(request));
+        return await MintAsync("realtime/client_secrets", BuildBody(request, model), model, _opts.TranscriptionModel, ct);
+    }
+
+    public Task<RealtimeClientSecret> CreateTranslationAsync(string targetLanguage, CancellationToken ct) =>
+        MintAsync("realtime/translations/client_secrets", BuildTranslationBody(targetLanguage),
+            _opts.TranslateModel, _opts.TranslateTranscriptionModel, ct);
+
+    private async Task<RealtimeClientSecret> MintAsync(string path, object body, string model, string transcriptionModel, CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "OPENAI_API_KEY is not configured on the server");
 
-        using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, "realtime/client_secrets"))
+        using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, path))
         {
-            Content = JsonContent.Create(BuildBody(request, model), options: JsonOptions),
+            Content = JsonContent.Create(body, options: JsonOptions),
         };
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opts.ApiKey);
 
@@ -51,10 +62,10 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
         using (res)
         {
             if (!res.IsSuccessStatusCode) throw MapError(res);
-            var body = await res.Content.ReadFromJsonAsync<ClientSecretResponse>(JsonOptions, ct);
-            if (body is null || string.IsNullOrEmpty(body.Value))
+            var secret = await res.Content.ReadFromJsonAsync<ClientSecretResponse>(JsonOptions, ct);
+            if (secret is null || string.IsNullOrEmpty(secret.Value))
                 throw new ProviderException(ProviderErrorKind.Empty, Provider, "Realtime API returned no client secret");
-            return new RealtimeClientSecret(body.Value, DateTimeOffset.FromUnixTimeSeconds(body.ExpiresAt), model, _opts.TranscriptionModel);
+            return new RealtimeClientSecret(secret.Value, DateTimeOffset.FromUnixTimeSeconds(secret.ExpiresAt), model, transcriptionModel);
         }
     }
 
@@ -83,6 +94,28 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
                     },
                 },
                 output = new { voice = _opts.Voice },
+            },
+        },
+    };
+
+    /// <summary>
+    /// Translation session (G17): the only settings are the target language, the source transcript model and
+    /// noise reduction. Source language is detected by the model.
+    /// </summary>
+    private object BuildTranslationBody(string targetLanguage) => new
+    {
+        expires_after = new { anchor = "created_at", seconds = _opts.SecretTtlSeconds },
+        session = new
+        {
+            model = _opts.TranslateModel,
+            audio = new
+            {
+                input = new
+                {
+                    transcription = new { model = _opts.TranslateTranscriptionModel },
+                    noise_reduction = new { type = "near_field" },
+                },
+                output = new { language = targetLanguage },
             },
         },
     };

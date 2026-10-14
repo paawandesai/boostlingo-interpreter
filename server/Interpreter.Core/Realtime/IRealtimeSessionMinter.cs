@@ -23,4 +23,13 @@ public interface IRealtimeSessionMinter
     IReadOnlyList<string> AllowedModels { get; }
 
     Task<RealtimeClientSecret> CreateAsync(RealtimeSessionRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// The purpose-built speech-to-speech translation model (G17). Its session takes only a target language:
+    /// no instructions and no tools, so speech has far less to take over.
+    /// </summary>
+    string TranslateModel { get; }
+
+    /// <summary>Mints a translation session secret that outputs <paramref name="targetLanguage"/>.</summary>
+    Task<RealtimeClientSecret> CreateTranslationAsync(string targetLanguage, CancellationToken ct);
 }

@@ -23,6 +23,16 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
             Calls.Add(request);
             return Task.FromResult(create(request));
         }
+
+        public List<string> TranslationTargets { get; } = [];
+
+        public string TranslateModel => "gpt-realtime-translate";
+
+        public Task<RealtimeClientSecret> CreateTranslationAsync(string targetLanguage, CancellationToken ct)
+        {
+            TranslationTargets.Add(targetLanguage);
+            return Task.FromResult(new RealtimeClientSecret("ek_tr", DateTimeOffset.UnixEpoch, TranslateModel, "gpt-realtime-whisper"));
+        }
     }
 
     private const string Token = "test-access-token";
@@ -172,5 +182,23 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         Assert.Empty(minter.Calls);
+    }
+
+    [Fact]
+    public async Task Mints_a_translation_session_for_a_supported_target_behind_the_access_token()
+    {
+        var minter = OkMinter();
+
+        var denied = await Client(minter, clientToken: null).PostAsJsonAsync("/api/realtime/translation-session", new { target = "es" }, TestContext.Current.CancellationToken);
+        var unsupported = await Client(minter).PostAsJsonAsync("/api/realtime/translation-session", new { target = "fr" }, TestContext.Current.CancellationToken);
+        var res = await Client(minter).PostAsJsonAsync("/api/realtime/translation-session", new { target = "es" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
+        res.EnsureSuccessStatusCode();
+        var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
+        Assert.Equal("ek_tr", json.GetProperty("clientSecret").GetString());
+        Assert.Equal("https://api.openai.com/v1/realtime/translations/calls", json.GetProperty("callsUrl").GetString());
+        Assert.Equal(["es"], minter.TranslationTargets);
     }
 }

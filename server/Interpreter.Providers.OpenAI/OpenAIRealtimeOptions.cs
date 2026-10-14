@@ -38,6 +38,15 @@ public sealed class OpenAIRealtimeOptions
     /// </summary>
     public int SecretTtlSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// Translation model (G17), on /v1/realtime/translations. Listed by GET /v1/models and probed live on
+    /// 2026-10-14; event and session shapes match the openai npm package v7.34.0 types.
+    /// </summary>
+    public string TranslateModel { get; set; } = "gpt-realtime-translate";
+
+    /// <summary>Source transcript for the translation session (optional in the API; the source column needs it).</summary>
+    public string TranslateTranscriptionModel { get; set; } = "gpt-realtime-whisper";
+
     /// <summary>The client ends a Realtime session after this long (G19); cascade has the same cap server-side.</summary>
     public int MaxSessionSeconds { get; set; } = 1800;
 }

@@ -35,7 +35,7 @@ app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
 {
-    languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure, l.OutputChecks }),
+    languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure, l.OutputChecks, l.RealtimeTranslate }),
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
     // The prompt-leak canary is not a secret: it only has to never appear in an output (G15).
     canary = InterpreterInstructions.Canary,

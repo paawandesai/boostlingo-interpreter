@@ -26,8 +26,21 @@ public sealed record CreateRealtimeSessionResponse(
     IReadOnlyDictionary<string, string> Instructions,
     int MaxSessionSeconds);
 
+/// <summary>Translation session (G17): the browser posts its SDP offer to <paramref name="CallsUrl"/> with the secret.</summary>
+public sealed record CreateTranslationSessionResponse(
+    string ClientSecret, DateTimeOffset ExpiresAt, string Model, string CallsUrl, string Target, int MaxSessionSeconds);
+
+/// <param name="Target">Language the translation is spoken in; the source is detected by the model.</param>
+public sealed record CreateTranslationSessionRequest(string Target);
+
 public static class RealtimeEndpoints
 {
+    /// <summary>
+    /// WebRTC SDP exchange for translation sessions. The path answers (HTTP 400 on an empty offer, not 404) as of
+    /// 2026-10-14; the full WebRTC flow can't be completed from the cloud container (ICE is blocked) and is a 🎧 check.
+    /// </summary>
+    public const string TranslationCallsUrl = "https://api.openai.com/v1/realtime/translations/calls";
+
     /// <summary>WebRTC SDP exchange URL (GA). Verified live 2026-10-14: POST with the ek_ secret returns 201 + SDP answer.</summary>
     public const string CallsUrl = "https://api.openai.com/v1/realtime/calls";
 
@@ -36,6 +49,7 @@ public static class RealtimeEndpoints
         app.MapGet("/api/realtime/models", (IRealtimeSessionMinter minter) =>
             Results.Ok(new RealtimeModelsResponse(minter.DefaultModel, minter.AllowedModels)));
         app.MapPost("/api/realtime/session", CreateSession).RequireAccess();
+        app.MapPost("/api/realtime/translation-session", CreateTranslationSession).RequireAccess();
         return app;
     }
 
@@ -71,6 +85,26 @@ public static class RealtimeEndpoints
         catch (ProviderException e)
         {
             logs.CreateLogger("Realtime").LogWarning("Realtime session mint failed: {Kind} {Message}", e.Kind, e.Message);
+            return ProviderProblem(e);
+        }
+    }
+
+    private static async Task<IResult> CreateTranslationSession(
+        CreateTranslationSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ProviderActivity activity,
+        IOptions<OpenAIRealtimeOptions> realtime, ILoggerFactory logs, CancellationToken ct)
+    {
+        if (catalog.Find(req.Target ?? "") is not { RealtimeTranslate: true } target)
+            return Results.Problem($"{minter.TranslateModel} does not output {req.Target} here", statusCode: StatusCodes.Status400BadRequest);
+        try
+        {
+            var secret = await minter.CreateTranslationAsync(target.Code, ct);
+            activity.Success("realtime-translate:openai");
+            return Results.Ok(new CreateTranslationSessionResponse(
+                secret.Value, secret.ExpiresAt, secret.Model, TranslationCallsUrl, target.Code, realtime.Value.MaxSessionSeconds));
+        }
+        catch (ProviderException e)
+        {
+            logs.CreateLogger("Realtime").LogWarning("Translation session mint failed: {Kind} {Message}", e.Kind, e.Message);
             return ProviderProblem(e);
         }
     }
