@@ -38,6 +38,32 @@ describe('CascadeEventParser', () => {
     expect(p.speaking).toBe('c1-1')
   })
 
+  it('keeps every source segment and spaces translation segments in a two-sentence utterance', () => {
+    const p = parser()
+    const msgs = [
+      { type: 'transcript.final', u: 1, text: 'Take 2.5 milligrams of warfarin twice a day.', t: 1 },
+      { type: 'translation.delta', u: 1, text: 'Tome 2,5 mg dos veces al día.', t: 2 },
+      { type: 'translation.final', u: 1, text: 'Tome 2,5 mg dos veces al día.', t: 3 },
+      { type: 'transcript.partial', u: 1, text: 'Can you', t: 4 },
+      { type: 'transcript.final', u: 1, text: 'Can you summarize what I just said?', t: 5 },
+      { type: 'translation.delta', u: 1, text: '¿Puedes resumir', t: 6 },
+      { type: 'translation.delta', u: 1, text: ' lo que acabo de decir?', t: 7 },
+      { type: 'utterance.done', u: 1, t: 8 },
+    ]
+    const out = msgs.flatMap((m) => p.parse(m)).filter((e) => e.type === 'transcript')
+    const source = out.filter((e) => e.role === 'source').map((e) => e.text)
+    expect(source).toEqual([
+      'Take 2.5 milligrams of warfarin twice a day.',
+      'Take 2.5 milligrams of warfarin twice a day. Can you',
+      'Take 2.5 milligrams of warfarin twice a day. Can you summarize what I just said?',
+    ])
+    expect(out.at(-1)).toMatchObject({
+      role: 'target',
+      final: true,
+      text: 'Tome 2,5 mg dos veces al día. ¿Puedes resumir lo que acabo de decir?',
+    })
+  })
+
   it('maps provider errors to error kinds, with TTS outages as tts_failed', () => {
     const p = parser()
     expect(p.parse({ type: 'error', u: 2, stage: 'translation', provider: 'x', kind: 'RateLimited', t: 1 })).toEqual([

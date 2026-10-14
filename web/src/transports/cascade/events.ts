@@ -26,6 +26,10 @@ const kindMap: Record<string, ErrorKind> = {
 
 export class CascadeEventParser {
   private target = new Map<string, string>()
+  /** Source text already finalised per utterance; an utterance can have several STT finals (segments). */
+  private source = new Map<string, string>()
+  /** Utterances whose last translation segment ended, so the next delta starts a new sentence. */
+  private segmentEnded = new Set<string>()
   /** Utterance whose audio the binary frames currently carry (set by its tts.first_byte mark). */
   speaking: string | null = null
   private readonly clock: ClockSync
@@ -50,20 +54,37 @@ export class CascadeEventParser {
       case 'ready':
         return [{ type: 'state', state: 'live' }]
       case 'transcript.partial':
-        return [{ type: 'transcript', role: 'source', utteranceId: u!, text: e.text as string, final: false }]
-      case 'transcript.final':
-        return [{ type: 'transcript', role: 'source', utteranceId: u!, text: e.text as string, final: true }]
+        return [
+          {
+            type: 'transcript',
+            role: 'source',
+            utteranceId: u!,
+            text: join(this.source.get(u!), e.text as string),
+            final: false,
+          },
+        ]
+      case 'transcript.final': {
+        // Each final is one segment; keep earlier segments rather than replacing them.
+        const text = join(this.source.get(u!), e.text as string)
+        this.source.set(u!, text)
+        return [{ type: 'transcript', role: 'source', utteranceId: u!, text, final: true }]
+      }
       case 'translation.delta': {
         // Segments of one utterance arrive one after another; keep them in one target line.
-        const text = (this.target.get(u!) ?? '') + (e.text as string)
+        const prev = this.target.get(u!) ?? ''
+        const delta = e.text as string
+        const text = this.segmentEnded.delete(u!) ? join(prev, delta) : prev + delta
         this.target.set(u!, text)
         return [{ type: 'transcript', role: 'target', utteranceId: u!, text, final: false }]
       }
       case 'translation.final':
+        this.segmentEnded.add(u!)
         return []
       case 'utterance.done': {
         const text = (this.target.get(u!) ?? '').trim()
         this.target.delete(u!)
+        this.source.delete(u!)
+        this.segmentEnded.delete(u!)
         return [{ type: 'transcript', role: 'target', utteranceId: u!, text, final: true }]
       }
       case 'latency.mark': {
@@ -87,4 +108,11 @@ export class CascadeEventParser {
         return []
     }
   }
+}
+
+/** Appends a segment with one space between segments. */
+function join(prev: string | undefined, next: string): string {
+  if (!prev) return next
+  if (!next) return prev
+  return /\s$/.test(prev) || /^\s/.test(next) ? prev + next : `${prev} ${next}`
 }
