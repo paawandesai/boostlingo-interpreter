@@ -90,6 +90,8 @@ public interface IStreamingTts {
 // All adapters throw only ProviderException { Kind: RateLimited | Timeout | Empty | Unavailable | Auth, RetryAfter? }
 ```
 
+**As built (T2.1, 2026-10-14):** the interfaces are in `server/Interpreter.Core/Cascade/`. Each adapter also exposes a short `Name` for latency labels and LICENSES.md. `SttFinal` carries `Confidence` (null when the provider gives none, never invented) for the low-confidence flags in guardrail task G7. `TranslationRequest` carries recent context pairs and an optional glossary. `DependencyRulesTests` enforces the boundaries by reflection, with no extra package.
+
 **Why:** the pipeline never sees vendor types; the UI maps `Kind` to a specific failure state. Provider choice is config (`appsettings.json` → DI), so a swap is "one new adapter class + one config line". **Trade-off:** a lowest-common-denominator interface hides vendor-specific strengths (e.g. Deepgram keyterms). Handle that with an optional `options` bag per adapter rather than widening the interface.
 
 ---
