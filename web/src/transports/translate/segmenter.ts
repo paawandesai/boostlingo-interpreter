@@ -176,7 +176,8 @@ export class TranslateSegmenter {
     if (line.sentences.length === 0 && line.target.trim() === '') return []
     const out: TransportEvent[] = []
     if (line.speechStart !== null) {
-      const until = next?.speechStart ?? Infinity
+      // Its speech ends before the next line's speech (or, failing that, its first text) begins.
+      const until = next?.speechStart ?? next?.sentences[0]?.wall ?? Infinity
       const end = this.ends.filter((e) => e > line.speechStart! && e < until).at(-1)
       if (end !== undefined) out.push({ type: 'mark', name: 'speech.end', t: end, utteranceId: line.id })
     }

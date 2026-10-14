@@ -39,6 +39,7 @@ export class TranslateTransport implements Transport {
   private connectTimer: ReturnType<typeof setTimeout> | null = null
   private limitTimer: ReturnType<typeof setTimeout> | null = null
   private ticker: ReturnType<typeof setInterval> | null = null
+  private pendingStart: number | null = null
 
   static connectTimeoutMs = 15000
 
@@ -94,7 +95,10 @@ export class TranslateTransport implements Transport {
     pc.ontrack = (e) => {
       const [remote] = e.streams
       audioEl.srcObject = remote
-      if (this.capture) this.probe = createFirstAudioProbe(this.capture.context, remote)
+      if (!this.capture) return
+      this.probe = createFirstAudioProbe(this.capture.context, remote)
+      // Speech that began before the remote track arrived still gets its first audio stamped.
+      if (this.pendingStart !== null) this.armProbe(this.pendingStart)
     }
     for (const track of mic.getAudioTracks()) pc.addTrack(track, mic)
 
@@ -158,7 +162,12 @@ export class TranslateTransport implements Transport {
 
   /** First audible output after a pause in both directions is that speech's start lag. */
   private onSpeechStart(t: number): void {
-    if (this.segmenter.speechStart(t)) this.probe?.arm((at) => this.emitAll(this.segmenter.audioOut(t, at)))
+    if (this.segmenter.speechStart(t)) this.armProbe(t)
+  }
+
+  private armProbe(start: number): void {
+    this.pendingStart = this.probe ? null : start
+    this.probe?.arm((at) => this.emitAll(this.segmenter.audioOut(start, at)))
   }
 
   private emitAll(events: TransportEvent[]): void {
@@ -190,6 +199,7 @@ export class TranslateTransport implements Transport {
     this.emitAll(this.segmenter.flush())
     this.probe?.stop()
     this.probe = null
+    this.pendingStart = null
     if (this.dc) {
       this.dc.onmessage = null
       this.dc.onopen = null
