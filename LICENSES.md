@@ -36,7 +36,7 @@ Reviewed 2026-10-14: `lightningcss` (MPL-2.0, CSS tooling inside Vite) and `cani
 | Licence | Packages |
 |---|---|
 | MIT | 166 |
-| Apache-2.0 | 17 |
+| Apache-2.0 | 20 |
 | ISC | 11 |
 | BSD-2-Clause | 8 |
 | BSD-3-Clause | 3 |

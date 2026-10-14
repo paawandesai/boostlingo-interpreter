@@ -182,6 +182,44 @@ eval:lint:
     - pip install --quiet ruff==0.17.0
     - ruff check eval
 
-# live:smoke and e2e:soak (manual/scheduled, real provider calls) are added in Day 3 (T3.6)
-# once there is something to soak. They need a runner tag for the heavy lane; this
-# project's runner currently has no tags and runs untagged jobs.
+# ---------- e2e (T3.6): manual, real provider calls ----------
+# Never automatic: each run makes billed calls with keys from masked CI variables (OPENAI_API_KEY,
+# DEMO_ACCESS_TOKEN, plus the cascade vendors'). Cascade runs use OpenAI STT (Cascade__Stt=openai):
+# Deepgram timing numbers are not recorded (docs/GUARDRAILS.md). The soak also needs replay clips:
+# REPLAY_DIR points at a folder the job can read (clips are never committed, eval/replay/README.md).
+# The runner has no tags yet, so these run untagged; they want more than the smallest slot.
+.e2e:
+  image: mcr.microsoft.com/playwright:v1.56.1-noble
+  stage: test
+  needs: []
+  timeout: 20m
+  interruptible: false
+  variables:
+    Cascade__Stt: openai
+    DOTNET_ROOT: /opt/dotnet
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  before_script:
+    - curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+    - bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /opt/dotnet
+    - export PATH=/opt/dotnet:$PATH
+    - cd web && npm ci --no-audit --no-fund
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - web/test-results/soak/
+      - web/test-results/e2e-report/
+
+e2e:switch:
+  extends: .e2e
+  script:
+    - npx playwright test e2e/mode-switch.spec.ts
+
+e2e:soak:
+  extends: .e2e
+  timeout: 30m
+  script:
+    - SOAK=1 SOAK_MODE=${SOAK_MODE:-cascade} npx playwright test e2e/soak.spec.ts
