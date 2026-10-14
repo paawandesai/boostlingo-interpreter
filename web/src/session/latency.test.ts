@@ -48,6 +48,12 @@ describe('computeLatency', () => {
     ])
   })
 
+  it('measures Realtime translate from speech start, and lets the total go negative while it speaks along', () => {
+    const b = computeLatency('translate', { 'speech.start': 1000, 'audio.first_out': 2400, 'speech.end': 4000 })
+    expect(b.stages.map((s) => [s.key, s.ms])).toEqual([['start_lag', 1400]])
+    expect(b.totalMs).toBe(-1600)
+  })
+
   it('uses offset-corrected server marks as given (the transport converts them)', () => {
     // Server clock is 1000 ms behind; the transport already added the offset to the marks.
     const b = computeLatency('cascade', { 'speech.end': 2000, 'stt.final': 2400, 'audio.first_out': 3000 })

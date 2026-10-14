@@ -50,8 +50,29 @@ const realtimeStages: StageDef[] = [
   { key: 'model', label: 'Model + audio (opaque)', from: 'response.created', to: 'audio.first_out', opaque: true },
 ]
 
+/**
+ * gpt-realtime-translate speaks while the speaker is still talking (G17), so the headline (speech end
+ * to first audio) is often negative. Start lag is the comparable number: how far behind the speaker
+ * the interpretation starts. There are no server marks in between.
+ */
+const translateStages: StageDef[] = [
+  {
+    key: 'start_lag',
+    label: 'Start lag (speech start → first audio)',
+    from: 'speech.start',
+    to: 'audio.first_out',
+    opaque: true,
+  },
+]
+
+const stagesFor: Record<Mode, StageDef[]> = {
+  cascade: cascadeStages,
+  realtime: realtimeStages,
+  translate: translateStages,
+}
+
 export function computeLatency(mode: Mode, marks: Partial<Record<MarkName, number>>): Breakdown {
-  const defs = mode === 'cascade' ? cascadeStages : realtimeStages
+  const defs = stagesFor[mode]
   const start = marks['speech.end']
   const end = marks['audio.first_out']
   const rel = (t: number | undefined) => (t === undefined || start === undefined ? null : t - start)

@@ -71,11 +71,11 @@ export const accessToken = () => process.env.DEMO_ACCESS_TOKEN ?? 'devtoken'
 /** Fills the setup screen and starts a session in the given mode. */
 export async function startSession(
   page: Page,
-  mode: 'Realtime' | 'Cascade',
+  mode: 'Realtime translate' | 'Realtime' | 'Cascade',
   opts: { replayFiles?: string[]; query?: string } = {},
 ): Promise<void> {
   await page.goto(`/${opts.query ?? ''}`)
-  await page.getByRole('radio', { name: mode }).click()
+  await page.getByRole('radio', { name: mode, exact: true }).click()
   await page.fill('#access-token', accessToken())
   if (opts.replayFiles?.length) {
     await page.setInputFiles('#replay-files', opts.replayFiles)

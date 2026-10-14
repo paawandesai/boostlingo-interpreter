@@ -100,6 +100,11 @@ export function computeCost(input: CostInput, prices: PriceList): CostReport {
     const chars = sum(usage, 'ttsCharacters')
     if (chars !== null)
       lines.push(line(`TTS (${providers.tts})`, chars / 1000, 'k chars', tts?.perThousandCharacters, tts))
+  } else if (input.mode === 'translate') {
+    // Billed per minute of session (G17); the price stays null until someone checks OpenAI's page.
+    const tr = find(prices, 'realtime-translate:openai')
+    if (input.minutes > 0)
+      lines.push(line('Realtime translate (session time)', input.minutes, 'min', tr?.perMinute, tr))
   } else {
     const rt = find(prices, 'realtime:openai', providers.realtimeModel)
     const parts: Array<[keyof Usage, string, number | null | undefined]> = [

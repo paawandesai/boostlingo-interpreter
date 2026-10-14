@@ -57,6 +57,40 @@ export async function createRealtimeSession(
   return (await res.json()) as RealtimeSessionInfo
 }
 
+export interface TranslationSessionInfo {
+  clientSecret: string
+  expiresAt: string
+  model: string
+  callsUrl: string
+  /** Language the translation is spoken in; the model detects the source (G17). */
+  target: string
+  maxSessionSeconds?: number
+}
+
+/**
+ * Ephemeral secret for gpt-realtime-translate (G17). The request carries only the target language:
+ * the session has no instructions and no tools, so nothing said can reconfigure it.
+ */
+export async function createTranslationSession(
+  target: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TranslationSessionInfo> {
+  const res = await fetchImpl('/api/realtime/translation-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...accessHeaders() },
+    body: JSON.stringify({ target }),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { kind?: string; detail?: string; retryAfterMs?: number }
+    throw new RealtimeApiError(
+      kindMap[body.kind ?? ''] ?? (res.status === 429 ? 'rate_limited' : 'unavailable'),
+      body.detail ?? `Translation session request failed (HTTP ${res.status})`,
+      body.retryAfterMs,
+    )
+  }
+  return (await res.json()) as TranslationSessionInfo
+}
+
 /** WebRTC SDP exchange with OpenAI using the ephemeral secret. */
 export async function exchangeSdp(
   callsUrl: string,

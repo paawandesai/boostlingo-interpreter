@@ -68,7 +68,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
   const checkCtx = checkContext(ctx.languages ?? null, state.langA, state.langB)
   const realtimeModel = state.realtimeModel ?? ctx.defaultRealtimeModel
-  const modes = (['realtime', 'cascade'] as const).filter(
+  const modes = (['translate', 'realtime', 'cascade'] as const).filter(
     (m) => utterances.some((u) => u.mode === m) || state.segments.some((s) => s.mode === m),
   )
   return {
@@ -118,6 +118,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
     notes: [
       'Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.',
       'Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.',
+      "Realtime translate lines are cut client-side from continuous transcript streams (VAD pauses plus idle gaps), so a line boundary is approximate and its source text is the model's own transcript, not ground truth.",
       'Realtime input-transcription usage is billed separately and is not captured here.',
       'Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.',
       'A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.',

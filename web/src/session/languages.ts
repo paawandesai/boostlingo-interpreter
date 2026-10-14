@@ -5,6 +5,8 @@ export interface LanguageInfo {
   disclosure?: { notice: string; spoken: string }
   /** Output-check word lists (G15). */
   outputChecks?: { markers: string[]; assistantPatterns: string[]; refusalPatterns: string[] }
+  /** gpt-realtime-translate can output this language (G17). */
+  realtimeTranslate?: boolean
 }
 
 export interface LanguagesResponse {
@@ -12,6 +14,12 @@ export interface LanguagesResponse {
   pairs: [string, string][]
   /** Prompt-leak canary from the interpreter instructions (G15); never expected in an output. */
   canary?: string
+}
+
+/** Realtime translate is offered only when the model can speak both languages of the pair. */
+export function translateSupported(langs: LanguagesResponse | null, a: string, b: string): boolean {
+  const ok = (code: string) => langs?.languages.find((l) => l.code === code)?.realtimeTranslate === true
+  return ok(a) && ok(b)
 }
 
 export async function fetchLanguages(fetchImpl: typeof fetch = fetch): Promise<LanguagesResponse> {

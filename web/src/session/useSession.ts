@@ -1,3 +1,4 @@
+import { MODE_LABEL } from './modes'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { createReplay, type ReplayClip, type ReplayHandle } from '../audio/replay'
 import { createTransport } from '../transports'
@@ -110,7 +111,10 @@ export function useSession() {
         dispatch({ type: 'configure', mode })
         dispatch({
           type: 'marker',
-          text: `Switched to ${mode}. The last ${HISTORY_PAIRS} finished turns go to it as context; it has no other memory of this conversation.`,
+          text:
+            mode === 'translate'
+              ? `Switched to ${MODE_LABEL[mode]}. It takes no context, so it starts with no memory of this conversation.`
+              : `Switched to ${MODE_LABEL[mode]}. The last ${HISTORY_PAIRS} finished turns go to it as context; it has no other memory of this conversation.`,
         })
         stateRef.current = { ...stateRef.current, mode }
       } finally {

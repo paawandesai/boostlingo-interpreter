@@ -114,8 +114,8 @@ describe('sessionReducer', () => {
     s = run([{ type: 'error', kind: 'timeout', message: 'slow' }], s)
     expect(s.notice).toBeNull()
     expect(s.incidents).toEqual([
-      { mode: 'realtime', kind: 'notice', message: 'retrying' },
-      { mode: 'realtime', kind: 'timeout', message: 'slow' },
+      { mode: initialState.mode, kind: 'notice', message: 'retrying' },
+      { mode: initialState.mode, kind: 'timeout', message: 'slow' },
     ])
   })
 
