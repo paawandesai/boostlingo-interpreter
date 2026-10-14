@@ -85,13 +85,15 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    private async Task<(WebSocket Ws, FakeStt Stt)> Connect(string? serverToken = Token, IStreamingTts? tts = null, IStreamingStt? sttOverride = null)
+    private async Task<(WebSocket Ws, FakeStt Stt)> Connect(
+        string? serverToken = Token, IStreamingTts? tts = null, IStreamingStt? sttOverride = null, int? maxSessionSeconds = null)
     {
         var stt = new FakeStt();
         var server = factory.WithWebHostBuilder(b =>
         {
             b.UseSetting("Access:Token", serverToken ?? "");
             b.UseSetting("Access:PermitLimit", "100");
+            if (maxSessionSeconds is { } max) b.UseSetting("Cascade:MaxSessionSeconds", max.ToString());
             b.ConfigureServices(s =>
             {
                 s.AddKeyedSingleton<IStreamingStt>("deepgram", sttOverride ?? stt);
@@ -197,5 +199,24 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "switch", ct);
 
         await tts.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+    }
+
+    [Fact]
+    public async Task Ends_the_session_at_the_duration_limit_and_says_why()
+    {
+        // G19: the client never sends stop; the server's limit ends the audio, finishes the turn and closes.
+        var (ws, stt) = await Connect(maxSessionSeconds: 1);
+        await Send(ws, new { type = "start", token = Token, source = "en", target = "es" });
+        await ws.SendAsync(new byte[640], WebSocketMessageType.Binary, true, TestContext.Current.CancellationToken);
+
+        var messages = await ReadAll(ws);
+
+        var texts = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json).ToList();
+        Assert.Contains(texts, m => (string?)m["type"] == "translation.final");
+        var error = texts.Last(m => (string?)m["type"] == "error");
+        Assert.Equal("session", (string?)error["stage"]);
+        Assert.Contains("limit", (string?)error["message"]);
+        Assert.NotNull(messages[^1].Close);
+        Assert.Equal(1, stt.Frames);
     }
 }

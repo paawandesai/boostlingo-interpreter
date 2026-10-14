@@ -27,6 +27,7 @@ export class RealtimeTransport implements Transport {
   private probe: FirstAudioProbe | null = null
   private stopped = false
   private connectTimer: ReturnType<typeof setTimeout> | null = null
+  private limitTimer: ReturnType<typeof setTimeout> | null = null
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -107,6 +108,18 @@ export class RealtimeTransport implements Transport {
     dc.onopen = () => {
       this.clearConnectTimer()
       this.emitter.emit({ type: 'state', state: 'live' })
+      // G19: OpenAI bills while the connection is open, so a forgotten session is closed here.
+      const max = info.maxSessionSeconds
+      if (max)
+        this.limitTimer = setTimeout(() => {
+          void this.release().then(() =>
+            this.emitter.emit({
+              type: 'error',
+              kind: 'unavailable',
+              message: `This session reached the ${Math.round(max / 6) / 10}-minute limit. Start a new session to continue.`,
+            }),
+          )
+        }, max * 1000)
     }
     // ICE can fail silently behind strict firewalls; surface it instead of "connecting" forever.
     this.connectTimer = setTimeout(() => {
@@ -165,6 +178,8 @@ export class RealtimeTransport implements Transport {
 
   private async release(): Promise<void> {
     this.clearConnectTimer()
+    if (this.limitTimer !== null) clearTimeout(this.limitTimer)
+    this.limitTimer = null
     this.probe?.stop()
     this.probe = null
     this.gate?.dispose()

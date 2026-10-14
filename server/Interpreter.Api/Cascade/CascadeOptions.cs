@@ -18,4 +18,10 @@ public sealed class CascadeOptions
 
     /// <summary>How long a new socket may wait before sending its start message.</summary>
     public int StartTimeoutSeconds { get; set; } = 10;
+
+    /// <summary>
+    /// Hard cap on one session (G19): after this the server stops taking audio, finishes the turns in flight
+    /// and closes, so a forgotten or looping session can't run up the bill.
+    /// </summary>
+    public int MaxSessionSeconds { get; set; } = 1800;
 }

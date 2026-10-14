@@ -132,6 +132,9 @@ public static class CascadeEndpoints
         var audio = System.Threading.Channels.Channel.CreateBounded<AudioFrame>(
             new System.Threading.Channels.BoundedChannelOptions(256) { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        // G19: at the limit, end the audio (the pipeline finishes queued turns) and tell the client why.
+        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(opts.MaxSessionSeconds), time);
+        using var onLimit = limit.Token.Register(() => audio.Writer.TryComplete());
         var receive = ReceiveAsync();
         var pipeline = new CascadePipeline(stt, translator, tts, time);
         try
@@ -155,7 +158,20 @@ public static class CascadeEndpoints
                     await SendJson(message);
                 }
             }
-            log.LogInformation("Cascade session ended normally");
+            if (limit.IsCancellationRequested)
+            {
+                await SendJson(new
+                {
+                    type = "error",
+                    stage = "session",
+                    provider = "workbench",
+                    kind = nameof(ProviderErrorKind.Unavailable),
+                    message = $"This session reached the {opts.MaxSessionSeconds / 60.0:0.#}-minute limit. Start a new session to continue.",
+                    t = Now(),
+                });
+                log.LogInformation("Cascade session ended: duration limit");
+            }
+            else log.LogInformation("Cascade session ended normally");
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -187,6 +203,7 @@ public static class CascadeEndpoints
                     }
                     if (msg.Type == WebSocketMessageType.Binary)
                     {
+                        if (limit.IsCancellationRequested) continue;
                         // Copy: the next receive reuses nothing, but the frame outlives this loop iteration.
                         await audio.Writer.WriteAsync(new AudioFrame(msg.Data.ToArray(), 16000), stop.Token);
                         continue;
