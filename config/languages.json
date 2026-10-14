@@ -1,0 +1,24 @@
+{
+  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter.",
+  "languages": [
+    {
+      "code": "en",
+      "name": "English",
+      "stt": { "deepgram": { "model": "nova-3", "language": "en" } },
+      "tts": { "elevenlabs": { "voiceId": null }, "openaiRealtime": { "voice": "marin" } },
+      "flush": { "sentenceEnd": [".", "?", "!"], "clauseBreak": [",", ";", ":"] },
+      "metric": "wer"
+    },
+    {
+      "code": "es",
+      "name": "Spanish",
+      "stt": { "deepgram": { "model": "nova-3", "language": "es" } },
+      "tts": { "elevenlabs": { "voiceId": null }, "openaiRealtime": { "voice": "marin" } },
+      "flush": { "sentenceEnd": [".", "?", "!"], "clauseBreak": [",", ";", ":"], "openers": ["¿", "¡"] },
+      "metric": "wer"
+    }
+  ],
+  "pairs": [
+    ["en", "es"]
+  ]
+}
