@@ -16,7 +16,15 @@ public sealed record CascadeSettings(
     FlushOptions? Flush = null,
     int ContextPairs = 3,
     IReadOnlyList<string>? Keyterms = null,
-    IReadOnlyDictionary<string, string>? Glossary = null);
+    IReadOnlyDictionary<string, string>? Glossary = null,
+    RetryOptions? Retry = null);
+
+/// <summary>
+/// Retries for a translation that fails with a rate limit or timeout before its first token (T3.4).
+/// After the first token nothing is retried, because the text is already on screen and in TTS.
+/// A Retry-After longer than <see cref="MaxDelayMs"/> is not waited out: the error is reported instead.
+/// </summary>
+public sealed record RetryOptions(int MaxRetries = 2, double BaseDelayMs = 250, double MaxDelayMs = 2000);
 
 /// <summary>
 /// Everything the cascade reports, in the order it happened. <see cref="AtMs"/> is milliseconds since the
@@ -46,7 +54,13 @@ public sealed record LatencyMark(int Utterance, string Name) : CascadeEvent(Utte
 public sealed record UtteranceDone(int Utterance) : CascadeEvent(Utterance);
 
 /// <param name="Stage">"stt", "translation" or "tts".</param>
-public sealed record CascadeError(int Utterance, string Stage, string Provider, ProviderErrorKind Kind) : CascadeEvent(Utterance);
+/// <param name="RetryAfterMs">The provider's Retry-After, when it sent one.</param>
+public sealed record CascadeError(int Utterance, string Stage, string Provider, ProviderErrorKind Kind, double? RetryAfterMs = null)
+    : CascadeEvent(Utterance);
+
+/// <summary>A failed call is being retried after <see cref="DelayMs"/>; attempt 1 is the first retry.</summary>
+public sealed record CascadeRetry(int Utterance, string Stage, string Provider, ProviderErrorKind Kind, int Attempt, double DelayMs)
+    : CascadeEvent(Utterance);
 
 /// <summary>
 /// The cascade (D8, D11): STT finals are translated as they arrive, translation streams through the
@@ -202,7 +216,7 @@ public sealed class CascadePipeline(
             }
             catch (ProviderException ex)
             {
-                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind));
+                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
             }
             finally
             {
@@ -247,8 +261,42 @@ public sealed class CascadePipeline(
                 _s.SourceName, _s.TargetName, source, _context.ToArray(), _s.Glossary);
             var policy = new FlushPolicy(_flush);
             var full = new StringBuilder();
-            var first = true;
+            var started = new StrongBox<bool>(false);
+            var retry = _s.Retry ?? new RetryOptions();
 
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    await StreamTranslationAsync(id, request, policy, full, started, speech);
+                    break;
+                }
+                catch (ProviderException ex) when (!started.Value && attempt < retry.MaxRetries
+                    && ex.Kind is ProviderErrorKind.RateLimited or ProviderErrorKind.Timeout
+                    && RetryDelay(ex, attempt, retry) is { } delay)
+                {
+                    // Nothing was said yet, so a retry costs only the delay; the client shows "retrying".
+                    await Emit(new CascadeRetry(id, "translation", ex.Provider, ex.Kind, attempt + 1, delay.TotalMilliseconds));
+                    await Task.Delay(delay, _p._time, _ct);
+                }
+                catch (ProviderException ex)
+                {
+                    await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                    return false;
+                }
+            }
+
+            if (policy.Complete() is { } rest) await speech.SayAsync(rest);
+            var target = full.ToString().Trim();
+            await Emit(new TranslationFinal(id, source, target));
+            Remember(source, target);
+            return true;
+        }
+
+        /// <summary>One translation call, streamed through the flush policy into TTS.</summary>
+        private async Task StreamTranslationAsync(
+            int id, TranslationRequest request, FlushPolicy policy, StringBuilder full, StrongBox<bool> started, Speech speech)
+        {
             await using var tokens = _p._translator.TranslateAsync(request, _ct).GetAsyncEnumerator(_ct);
             Task<bool>? next = null;
             try
@@ -270,9 +318,9 @@ public sealed class CascadePipeline(
                     if (!await next) break;
 
                     var delta = tokens.Current;
-                    if (first)
+                    if (!started.Value)
                     {
-                        first = false;
+                        started.Value = true;
                         await Emit(new LatencyMark(id, "translation.first_token"));
                     }
                     full.Append(delta);
@@ -281,22 +329,18 @@ public sealed class CascadePipeline(
                     next = tokens.MoveNextAsync().AsTask();
                 }
             }
-            catch (ProviderException ex)
-            {
-                await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind));
-                return false;
-            }
             finally
             {
                 // An enumerator can't be disposed mid-MoveNext; let a cancelled call finish first.
                 if (next is { IsCompleted: false }) await ((Task)next).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             }
+        }
 
-            if (policy.Complete() is { } rest) await speech.SayAsync(rest);
-            var target = full.ToString().Trim();
-            await Emit(new TranslationFinal(id, source, target));
-            Remember(source, target);
-            return true;
+        /// <summary>Retry-After if the provider sent one, else exponential backoff; null if longer than the cap.</summary>
+        private static TimeSpan? RetryDelay(ProviderException ex, int attempt, RetryOptions retry)
+        {
+            var ms = ex.RetryAfter?.TotalMilliseconds ?? retry.BaseDelayMs * Math.Pow(2, attempt);
+            return ms <= retry.MaxDelayMs ? TimeSpan.FromMilliseconds(Math.Max(0, ms)) : null;
         }
 
         private void Remember(string source, string target)
@@ -359,7 +403,7 @@ public sealed class CascadePipeline(
                 {
                     _failed = true;
                     _text!.Writer.TryComplete();
-                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind));
+                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
                 }
             }
         }
