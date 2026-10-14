@@ -1,3 +1,4 @@
+import { accessHeaders } from '../../session/access'
 import type { ErrorKind } from '../types'
 
 export interface RealtimeSessionInfo {
@@ -34,12 +35,13 @@ const kindMap: Record<string, ErrorKind> = {
 export async function createRealtimeSession(
   source: string,
   target: string,
+  model?: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<RealtimeSessionInfo> {
   const res = await fetchImpl('/api/realtime/session', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source, target }),
+    headers: { 'Content-Type': 'application/json', ...accessHeaders() },
+    body: JSON.stringify(model ? { source, target, model } : { source, target }),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { kind?: string; detail?: string; retryAfterMs?: number }

@@ -14,8 +14,15 @@ public sealed class OpenAIRealtimeOptions
 
     public Uri BaseUrl { get; set; } = new("https://api.openai.com/v1/");
 
-    /// <summary>The brief requires gpt-realtime.</summary>
-    public string Model { get; set; } = "gpt-realtime";
+    /// <summary>
+    /// Default Realtime model. The brief names gpt-realtime; docs/GUARDRAILS.md (v2) says it is deprecated
+    /// and makes gpt-realtime-2.1 the default. Both were listed by GET /v1/models and minted a session
+    /// on 2026-10-14. Never a *-preview model and never the OpenAI-Beta: realtime=v1 header.
+    /// </summary>
+    public string Model { get; set; } = "gpt-realtime-2.1";
+
+    /// <summary>Models a client may ask for. gpt-realtime stays selectable so the brief's model can be measured.</summary>
+    public List<string> AllowedModels { get; set; } = ["gpt-realtime-2.1", "gpt-realtime"];
 
     public string Voice { get; set; } = "marin";
 

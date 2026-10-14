@@ -1,4 +1,5 @@
 using Interpreter.Api.Realtime;
+using Interpreter.Api.Security;
 using Interpreter.Core.Languages;
 using Interpreter.Providers.OpenAI;
 
@@ -10,8 +11,11 @@ var languagesPath = builder.Configuration["Languages:Path"]
 builder.Services.AddSingleton(LanguageCatalog.Load(languagesPath));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
+builder.Services.AddAccessControl(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new HealthResponse("ok", typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0")));
 app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new

@@ -10,6 +10,8 @@ export interface SessionConfig {
   langA: string
   langB: string
   speaker: SpeakerSide
+  /** Realtime model id from the server's allowed list; the server default when absent. */
+  realtimeModel?: string
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
 }
