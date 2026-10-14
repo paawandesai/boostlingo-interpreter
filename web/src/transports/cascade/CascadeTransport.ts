@@ -112,6 +112,9 @@ export class CascadeTransport implements Transport {
     this.ws = ws
     this.ready = false
     this.serverError = false
+    // Each socket has its own server clock (it starts at the connection), so the offset is re-measured.
+    // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
+    this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
     const glossary = this.config!.glossary ?? false
