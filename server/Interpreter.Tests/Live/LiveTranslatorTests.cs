@@ -19,7 +19,8 @@ public class LiveTranslatorTests
     {
         "openai" when SyntheticSpeech.Env("OPENAI_API_KEY") is { } key =>
             new OpenAITranslator(new HttpClient(), Options.Create(new OpenAITranslationOptions { ApiKey = key })),
-        "anthropic" when SyntheticSpeech.Env("ANTHROPIC_API_KEY") is { } key =>
+        "anthropic" when (SyntheticSpeech.Env(AnthropicTranslationOptions.ApiKeyEnv)
+                          ?? SyntheticSpeech.Env(AnthropicTranslationOptions.FallbackApiKeyEnv)) is { } key =>
             new AnthropicTranslator(new HttpClient(), Options.Create(new AnthropicTranslationOptions { ApiKey = key })),
         _ => null,
     };
