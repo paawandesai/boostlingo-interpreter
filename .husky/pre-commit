@@ -1,1 +1,2 @@
+sh scripts/hooks/staged-secrets.sh
 npx lint-staged

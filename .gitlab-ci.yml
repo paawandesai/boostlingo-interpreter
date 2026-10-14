@@ -110,8 +110,8 @@ web:build:
   needs: [web:install]
   script:
     - npx vite build
-    # M2 guardrail: no OpenAI key or key-like string may ship in the browser bundle.
-    - if grep -rEn 'sk-[A-Za-z0-9_-]{16,}|OPENAI_API_KEY' dist; then echo "Secret-like string found in web bundle" >&2; exit 1; fi
+    # Guardrail (docs/GUARDRAILS.md, Keys and transport): no provider key or key name may ship in the bundle.
+    - sh ../scripts/check-bundle-secrets.sh dist
   artifacts:
     paths: [web/dist/]
     expire_in: 1 day
