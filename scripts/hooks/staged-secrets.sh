@@ -13,8 +13,8 @@ if printf '%s\n' "$added" | grep -qE "$strong"; then
   exit 1
 fi
 
-broad=$(printf '%s\n' "$added" | grep -inE 'api[_-]?key|secret|token|passw|Bearer ' || true)
+broad=$(printf '%s\n' "$added" | grep -inE 'api[_-]?key|secret|token|passw|Bearer |sk-' || true)
 if [ -n "$broad" ]; then
   echo "Secret check: $(printf '%s\n' "$broad" | wc -l | tr -d ' ') staged line(s) mention keys, secrets or tokens." >&2
-  echo "None looks like a real credential. Run 'git diff --cached | grep -iE \"api[_-]?key|secret|token|passw|Bearer \"' to review them." >&2
+  echo "None looks like a real credential. Run 'git diff --cached | grep -iE \"api[_-]?key|secret|token|passw|Bearer |sk-\"' to review them." >&2
 fi
