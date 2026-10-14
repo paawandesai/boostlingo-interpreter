@@ -1,0 +1,123 @@
+/**
+ * Maps Realtime API data-channel events to transport events. Pure apart from the clock, so it
+ * is tested against recorded event fixtures. Event names and fields checked against the
+ * openai npm v7.32.0 type definitions (2026-10-14).
+ *
+ * Utterance identity: the user's input item id (from speech_stopped / committed). A response
+ * is attributed to the most recently committed input item.
+ */
+import type { TransportEvent, Usage } from '../types'
+
+type Json = Record<string, unknown>
+
+export class RealtimeEventParser {
+  private sourceText = new Map<string, string>()
+  private targetText = new Map<string, string>()
+  private lastInputItem: string | null = null
+  private responseToItem = new Map<string, string>()
+  private readonly now: () => number
+
+  constructor(now: () => number = () => performance.now()) {
+    this.now = now
+  }
+
+  /** Utterance whose translation is currently playing, for gating and the first-audio probe. */
+  get currentUtterance(): string | null {
+    return this.lastInputItem
+  }
+
+  parse(raw: string | Json): TransportEvent[] {
+    const e = typeof raw === 'string' ? (JSON.parse(raw) as Json) : raw
+    const t = this.now()
+    switch (e.type) {
+      case 'input_audio_buffer.speech_stopped': {
+        const id = e.item_id as string
+        this.lastInputItem = id
+        return [{ type: 'mark', name: 'endpoint', t, utteranceId: id }]
+      }
+      case 'input_audio_buffer.committed':
+        this.lastInputItem = e.item_id as string
+        return []
+      case 'conversation.item.input_audio_transcription.delta': {
+        const id = e.item_id as string
+        const text = (this.sourceText.get(id) ?? '') + ((e.delta as string | undefined) ?? '')
+        this.sourceText.set(id, text)
+        return [{ type: 'transcript', role: 'source', utteranceId: id, text, final: false }]
+      }
+      case 'conversation.item.input_audio_transcription.completed': {
+        const id = e.item_id as string
+        this.sourceText.delete(id)
+        const text = ((e.transcript as string) ?? '').trim()
+        if (!text) return [{ type: 'error', kind: 'empty_transcript', message: 'No speech recognised' }]
+        return [{ type: 'transcript', role: 'source', utteranceId: id, text, final: true }]
+      }
+      case 'conversation.item.input_audio_transcription.failed':
+        return [{ type: 'error', kind: 'unavailable', message: 'Input transcription failed' }]
+      case 'response.created': {
+        const responseId = (e.response as Json | undefined)?.id as string | undefined
+        const id = this.lastInputItem
+        if (responseId && id) this.responseToItem.set(responseId, id)
+        return [{ type: 'mark', name: 'response.created', t, utteranceId: id ?? undefined }]
+      }
+      case 'response.output_audio_transcript.delta': {
+        const id = this.itemFor(e.response_id as string)
+        const text = (this.targetText.get(id) ?? '') + (e.delta as string)
+        this.targetText.set(id, text)
+        return [{ type: 'transcript', role: 'target', utteranceId: id, text, final: false }]
+      }
+      case 'response.output_audio_transcript.done': {
+        const id = this.itemFor(e.response_id as string)
+        this.targetText.delete(id)
+        return [
+          {
+            type: 'transcript',
+            role: 'target',
+            utteranceId: id,
+            text: ((e.transcript as string) ?? '').trim(),
+            final: true,
+          },
+        ]
+      }
+      case 'response.done': {
+        const response = (e.response as Json | undefined) ?? {}
+        const id = this.itemFor(response.id as string)
+        const out: TransportEvent[] = []
+        const usage = toUsage(response.usage as Json | undefined)
+        if (usage) out.push({ type: 'usage', utteranceId: id, usage })
+        if (response.status === 'failed') {
+          out.push({ type: 'error', kind: 'unavailable', message: 'Realtime response failed' })
+        }
+        if (response.id) this.responseToItem.delete(response.id as string)
+        return out
+      }
+      case 'error': {
+        const err = (e.error as Json | undefined) ?? {}
+        const code = String(err.code ?? '')
+        const kind = code.includes('rate_limit') ? 'rate_limited' : 'unavailable'
+        return [{ type: 'error', kind, message: String(err.message ?? 'Realtime API error') }]
+      }
+      case 'rate_limits.updated':
+      default:
+        return []
+    }
+  }
+
+  private itemFor(responseId: string | undefined): string {
+    return (responseId && this.responseToItem.get(responseId)) || this.lastInputItem || responseId || 'unknown'
+  }
+}
+
+function toUsage(u: Json | undefined): Usage | undefined {
+  if (!u) return undefined
+  const inD = (u.input_token_details as Json | undefined) ?? {}
+  const outD = (u.output_token_details as Json | undefined) ?? {}
+  return {
+    inputTokens: u.input_tokens as number | undefined,
+    outputTokens: u.output_tokens as number | undefined,
+    inputAudioTokens: inD.audio_tokens as number | undefined,
+    inputTextTokens: inD.text_tokens as number | undefined,
+    cachedTokens: inD.cached_tokens as number | undefined,
+    outputAudioTokens: outD.audio_tokens as number | undefined,
+    outputTextTokens: outD.text_tokens as number | undefined,
+  }
+}

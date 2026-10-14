@@ -1,0 +1,61 @@
+import type { LanguagesResponse } from '../session/languages'
+import type { SessionState } from '../session/store'
+import type { Mode, SpeakerSide } from '../transports/types'
+import { ModeToggle } from './ModeToggle'
+import { SpeakerSideToggle } from './SpeakerSideToggle'
+
+interface Props {
+  state: SessionState
+  languages: LanguagesResponse | null
+  onConfigure(c: { mode?: Mode; langA?: string; langB?: string }): void
+  onSpeaker(s: SpeakerSide): void
+  onStart(): void
+}
+
+export function SetupPanel({ state, languages, onConfigure, onSpeaker, onStart }: Props) {
+  const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
+  const pairKey = `${state.langA}|${state.langB}`
+  return (
+    <section aria-labelledby="setup-h" className="panel setup">
+      <h2 id="setup-h">New session</h2>
+      <div className="field">
+        <span className="label">Mode</span>
+        <ModeToggle value={state.mode} onChange={(mode) => onConfigure({ mode })} />
+      </div>
+      <div className="field">
+        <label htmlFor="pair" className="label">
+          Language pair
+        </label>
+        <select
+          id="pair"
+          value={pairKey}
+          onChange={(e) => {
+            const [langA, langB] = e.target.value.split('|')
+            onConfigure({ langA, langB })
+          }}
+        >
+          {(languages?.pairs ?? [[state.langA, state.langB]]).map(([a, b]) => (
+            <option key={`${a}|${b}`} value={`${a}|${b}`}>
+              {name(a)} ↔ {name(b)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <span className="label">Who speaks first</span>
+        <SpeakerSideToggle
+          value={state.speaker}
+          onChange={onSpeaker}
+          nameA={name(state.langA)}
+          nameB={name(state.langB)}
+        />
+      </div>
+      <div className="actions">
+        <p className="hint">Use headphones. The mic is muted while the interpreter speaks.</p>
+        <button type="button" className="primary" onClick={onStart} disabled={state.mode !== 'realtime'}>
+          Start session
+        </button>
+      </div>
+    </section>
+  )
+}

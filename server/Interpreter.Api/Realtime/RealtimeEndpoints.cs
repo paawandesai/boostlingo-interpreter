@@ -14,6 +14,7 @@ public sealed record CreateRealtimeSessionResponse(
     string ClientSecret,
     DateTimeOffset ExpiresAt,
     string Model,
+    string TranscriptionModel,
     string CallsUrl,
     IReadOnlyDictionary<string, string> Instructions);
 
@@ -46,7 +47,7 @@ public static class RealtimeEndpoints
         {
             var secret = await minter.CreateAsync(
                 new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"]), ct);
-            return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, CallsUrl, instructions));
+            return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions));
         }
         catch (ProviderException e)
         {

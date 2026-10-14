@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest'
+import type { TransportEvent } from '../transports/types'
+import { headlineLatencyMs, initialState, sessionReducer, type SessionState, type Utterance } from './store'
+
+const run = (events: TransportEvent[], from: SessionState = initialState) =>
+  events.reduce((s, event) => sessionReducer(s, { type: 'transport', event }), from)
+
+const utterances = (s: SessionState) => s.timeline.filter((x): x is Utterance => x.kind === 'utterance')
+
+describe('sessionReducer', () => {
+  it('builds one utterance from partials, finals and marks', () => {
+    const s = run([
+      { type: 'mark', name: 'speech.end', t: 1000 },
+      { type: 'mark', name: 'endpoint', t: 1500, utteranceId: 'u1' },
+      { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hel', final: false },
+      { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hello', final: true },
+      { type: 'mark', name: 'response.created', t: 1600, utteranceId: 'u1' },
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'mark', name: 'audio.first_out', t: 2100, utteranceId: 'u1' },
+    ])
+    const [u] = utterances(s)
+    expect(u.source).toEqual({ text: 'Hello', final: true })
+    expect(u.target).toEqual({ text: 'Hola', final: true })
+    expect(u.marks).toEqual({ 'speech.end': 1000, endpoint: 1500, 'response.created': 1600, 'audio.first_out': 2100 })
+    expect(headlineLatencyMs(u)).toBe(1100)
+    expect(s.pendingSpeechEnd).toBeNull()
+  })
+
+  it('tags utterances with the mode and speaker at the time they started', () => {
+    let s = sessionReducer(initialState, { type: 'configure', mode: 'realtime', speaker: 'B' })
+    s = run([{ type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hola', final: true }], s)
+    expect(utterances(s)[0]).toMatchObject({ mode: 'realtime', side: 'B' })
+  })
+
+  it('does not attach a stale speech end to a later endpoint', () => {
+    const s = run([
+      { type: 'mark', name: 'speech.end', t: 1000 },
+      { type: 'mark', name: 'endpoint', t: 9000, utteranceId: 'u1' },
+    ])
+    expect(utterances(s)[0].marks['speech.end']).toBeUndefined()
+  })
+
+  it('keeps the first value of a mark', () => {
+    const s = run([
+      { type: 'mark', name: 'audio.first_out', t: 5, utteranceId: 'u1' },
+      { type: 'mark', name: 'audio.first_out', t: 9, utteranceId: 'u1' },
+    ])
+    expect(utterances(s)[0].marks['audio.first_out']).toBe(5)
+  })
+
+  it('locks the language pair while a session runs, but not the mode', () => {
+    let s = sessionReducer(initialState, { type: 'started' })
+    s = sessionReducer(s, { type: 'configure', langB: 'vi', mode: 'cascade' })
+    expect(s.langB).toBe('es')
+    expect(s.mode).toBe('cascade')
+  })
+
+  it('records errors with their kind and clears them on dismiss', () => {
+    let s = run([{ type: 'error', kind: 'rate_limited', message: 'slow', retryAfterMs: 1000 }])
+    expect(s.error).toEqual({ kind: 'rate_limited', message: 'slow', retryAfterMs: 1000 })
+    s = sessionReducer(s, { type: 'dismissError' })
+    expect(s.error).toBeNull()
+  })
+})

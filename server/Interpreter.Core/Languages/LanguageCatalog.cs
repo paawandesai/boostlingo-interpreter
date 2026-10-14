@@ -13,11 +13,13 @@ public sealed class LanguageCatalog
 {
     private readonly Dictionary<string, Language> _languages;
     private readonly HashSet<(string, string)> _pairs;
+    private readonly List<(string A, string B)> _configuredPairs;
 
     public LanguageCatalog(IEnumerable<Language> languages, IEnumerable<(string A, string B)> pairs)
     {
         _languages = languages.ToDictionary(l => l.Code, StringComparer.OrdinalIgnoreCase);
         _pairs = [];
+        _configuredPairs = [];
         foreach (var (a, b) in pairs)
         {
             if (!_languages.ContainsKey(a) || !_languages.ContainsKey(b))
@@ -25,10 +27,14 @@ public sealed class LanguageCatalog
             // A configured pair is usable in both directions.
             _pairs.Add((a.ToLowerInvariant(), b.ToLowerInvariant()));
             _pairs.Add((b.ToLowerInvariant(), a.ToLowerInvariant()));
+            _configuredPairs.Add((a, b));
         }
     }
 
     public IReadOnlyCollection<Language> Languages => _languages.Values;
+
+    /// <summary>Pairs as configured (each usable in both directions).</summary>
+    public IReadOnlyList<(string A, string B)> Pairs => _configuredPairs;
 
     public Language? Find(string code) => _languages.GetValueOrDefault(code);
 

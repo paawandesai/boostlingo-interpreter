@@ -1,0 +1,158 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { TransportEvent } from '../types'
+
+const capture = {
+  stream: { getAudioTracks: () => [{ kind: 'audio' }] } as unknown as MediaStream,
+  context: {} as AudioContext,
+  setGated: vi.fn(),
+  stop: vi.fn().mockResolvedValue(undefined),
+}
+vi.mock('../../audio/capture', () => ({
+  MicDeniedError: class MicDeniedError extends Error {},
+  startCapture: vi.fn(async () => capture),
+}))
+vi.mock('./firstAudioProbe', () => ({ createFirstAudioProbe: () => ({ arm: vi.fn(), stop: vi.fn() }) }))
+
+class FakeDataChannel {
+  readyState = 'connecting'
+  sent: string[] = []
+  onopen: (() => void) | null = null
+  onmessage: ((m: { data: string }) => void) | null = null
+  close = vi.fn(() => {
+    this.readyState = 'closed'
+  })
+  send(s: string) {
+    this.sent.push(s)
+  }
+  open() {
+    this.readyState = 'open'
+    this.onopen?.()
+  }
+}
+
+class FakePeer {
+  static last: FakePeer
+  dc = new FakeDataChannel()
+  tracks: unknown[] = []
+  connectionState = 'new'
+  localDescription: { sdp: string } | null = null
+  remote: unknown = null
+  ontrack: unknown = null
+  onconnectionstatechange: (() => void) | null = null
+  close = vi.fn()
+  constructor() {
+    FakePeer.last = this
+  }
+  addTrack(t: unknown) {
+    this.tracks.push(t)
+  }
+  createDataChannel(name: string) {
+    expect(name).toBe('oai-events')
+    return this.dc
+  }
+  async createOffer() {
+    return { type: 'offer', sdp: 'v=0 offer' }
+  }
+  async setLocalDescription(d: { sdp: string }) {
+    this.localDescription = d
+  }
+  async setRemoteDescription(d: unknown) {
+    this.remote = d
+  }
+}
+
+const session = {
+  clientSecret: 'ek_test',
+  expiresAt: '',
+  model: 'gpt-realtime',
+  transcriptionModel: 'gpt-4o-mini-transcribe',
+  callsUrl: 'https://api.openai.com/v1/realtime/calls',
+  instructions: { 'en>es': 'EN to ES', 'es>en': 'ES to EN' },
+}
+
+describe('RealtimeTransport', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('RTCPeerConnection', FakePeer)
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(session)))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    capture.stop.mockClear()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function started() {
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    return { t, events, pc: FakePeer.last }
+  }
+
+  it('gets the secret from our backend and exchanges SDP with it', async () => {
+    const { pc } = await started()
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/realtime/session')
+    expect(fetchMock.mock.calls[1][0]).toBe(session.callsUrl)
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer ek_test')
+    expect(pc.remote).toEqual({ type: 'answer', sdp: 'v=0 answer' })
+    expect(pc.tracks).toHaveLength(1)
+  })
+
+  it('reports live when the data channel opens and forwards parsed events', async () => {
+    const { pc, events } = await started()
+    pc.dc.open()
+    pc.dc.onmessage?.({
+      data: JSON.stringify({ type: 'input_audio_buffer.speech_stopped', item_id: 'u1', audio_end_ms: 1 }),
+    })
+    expect(events).toContainEqual({ type: 'state', state: 'live' })
+    expect(events).toContainEqual(expect.objectContaining({ type: 'mark', name: 'endpoint', utteranceId: 'u1' }))
+  })
+
+  it('gates the mic while OpenAI plays audio', async () => {
+    vi.useFakeTimers()
+    const { pc } = await started()
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'output_audio_buffer.started', response_id: 'r' }) })
+    expect(capture.setGated).toHaveBeenLastCalledWith(true)
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'output_audio_buffer.stopped', response_id: 'r' }) })
+    vi.advanceTimersByTime(200)
+    expect(capture.setGated).toHaveBeenLastCalledWith(false)
+    vi.useRealTimers()
+  })
+
+  it('switches direction with session.update on a speaker flip', async () => {
+    const { t, pc } = await started()
+    pc.dc.open()
+    t.setSpeaker('B')
+    const update = JSON.parse(pc.dc.sent[0])
+    expect(update.type).toBe('session.update')
+    expect(update.session.instructions).toBe('ES to EN')
+    expect(update.session.audio.input.transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'es' })
+  })
+
+  it('stop() closes the data channel, peer and capture', async () => {
+    const { t, pc, events } = await started()
+    await t.stop()
+    expect(pc.dc.close).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+    expect(capture.stop).toHaveBeenCalled()
+    expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+    await t.stop() // idempotent
+  })
+
+  it('surfaces a backend rate limit as a typed error and releases resources', async () => {
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ kind: 'RateLimited', detail: 'slow', retryAfterMs: 1500 }), { status: 429 }),
+    )
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'rate_limited', message: 'slow', retryAfterMs: 1500 })
+  })
+})

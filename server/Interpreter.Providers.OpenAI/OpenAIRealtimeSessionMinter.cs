@@ -46,7 +46,7 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
             var body = await res.Content.ReadFromJsonAsync<ClientSecretResponse>(JsonOptions, ct);
             if (body is null || string.IsNullOrEmpty(body.Value))
                 throw new ProviderException(ProviderErrorKind.Empty, Provider, "Realtime API returned no client secret");
-            return new RealtimeClientSecret(body.Value, DateTimeOffset.FromUnixTimeSeconds(body.ExpiresAt), _opts.Model);
+            return new RealtimeClientSecret(body.Value, DateTimeOffset.FromUnixTimeSeconds(body.ExpiresAt), _opts.Model, _opts.TranscriptionModel);
         }
     }
 
