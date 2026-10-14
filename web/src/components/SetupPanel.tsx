@@ -91,7 +91,7 @@ export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, o
       </div>
       <div className="actions">
         <p className="hint">Use headphones. The mic is muted while the interpreter speaks.</p>
-        <button type="button" className="primary" onClick={onStart} disabled={state.mode !== 'realtime'}>
+        <button type="button" className="primary" onClick={onStart}>
           Start session
         </button>
       </div>

@@ -53,6 +53,8 @@ One WS per session. Binary frames carry PCM16 mono audio up (16 kHz) and down (T
 
 **Why:** all provider keys stay server-side; one socket keeps it simple. **Trade-off:** raw WS has no jitter buffer, so the client must buffer and bound playback itself (D14). Fine over localhost/LAN; gets worse over bad networks, which is honest to note.
 
+**As built (T2.6, 2026-10-14):** the socket is `/ws/cascade`. The first client message is `{"type":"start","token","source","target","translator?"}`; the server answers `ready` or an `error` and a policy-violation close. Server messages are `transcript.partial`, `transcript.final`, `translation.delta`, `translation.final`, `latency.mark`, `utterance.done`, `error` and `pong`, each with `t` on the session clock that the pipeline also uses. TTS audio for an utterance follows its `tts.first_byte` mark, so binary frames need no header. The client sends `ping` five times at connect and every 30 s, and `stop` to end the audio. A speaker switch opens a new socket for the new direction; capture and playback stay up. If STT falls more than about 5 s behind, the oldest audio frames are dropped rather than stalling the socket.
+
 ### D6. Audio formats and resampling — Locked
 
 Capture at the AudioContext's native rate (usually 48 kHz). The worklet downsamples to 16 kHz PCM16 for cascade STT. Realtime doesn't need it, because WebRTC handles the codec. TTS playback: request PCM 24 kHz from TTS providers where supported (verify per provider) and schedule `AudioBuffer`s on the AudioContext. Conversion lives in the cascade transport module, never in UI components.

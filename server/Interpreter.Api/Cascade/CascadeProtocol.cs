@@ -1,0 +1,40 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Interpreter.Core.Cascade;
+using Interpreter.Core.Errors;
+
+namespace Interpreter.Api.Cascade;
+
+/// <summary>
+/// Wire format of the cascade WebSocket (D5). Binary frames carry PCM16 mono audio: 16 kHz up, 24 kHz down.
+/// Text frames carry the JSON messages below. Every server message has <c>t</c>, milliseconds on the session's
+/// server clock; the client maps it to its own clock with the ping/pong offset (D9).
+/// </summary>
+public static class CascadeProtocol
+{
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    /// <summary>First client message. The token goes here because browsers can't set WebSocket headers.</summary>
+    public sealed record Start(string Type, string? Token, string? Source, string? Target, string? Translator);
+
+    public sealed record ClientMessage(string Type, double? C);
+
+    /// <summary>Maps a pipeline event to its wire message, or null for audio (sent as a binary frame).</summary>
+    public static object? ToWire(CascadeEvent e) => e switch
+    {
+        SourcePartial p => new { type = "transcript.partial", u = p.Utterance, text = p.Text, t = p.AtMs },
+        SourceFinal f => new { type = "transcript.final", u = f.Utterance, text = f.Text, confidence = f.Confidence, t = f.AtMs },
+        TranslationDelta d => new { type = "translation.delta", u = d.Utterance, text = d.Text, t = d.AtMs },
+        TranslationFinal f => new { type = "translation.final", u = f.Utterance, text = f.Text, t = f.AtMs },
+        LatencyMark m => new { type = "latency.mark", u = m.Utterance, name = m.Name, t = m.AtMs },
+        UtteranceDone d => new { type = "utterance.done", u = d.Utterance, t = d.AtMs },
+        CascadeError err => Error(err.Utterance, err.Stage, err.Provider, err.Kind, err.AtMs),
+        _ => null,
+    };
+
+    public static object Error(int? utterance, string stage, string provider, ProviderErrorKind kind, double t) =>
+        new { type = "error", u = utterance, stage, provider, kind = kind.ToString(), t };
+}

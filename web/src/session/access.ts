@@ -25,8 +25,13 @@ export function setAccessToken(token: string): void {
 
 let memory = ''
 
+/** The token for this page, from storage or typed in this session. */
+export function currentAccessToken(): string {
+  return getAccessToken() || memory
+}
+
 /** Headers for guarded backend calls. */
 export function accessHeaders(): Record<string, string> {
-  const token = getAccessToken() || memory
+  const token = currentAccessToken()
   return token ? { 'X-Access-Token': token } : {}
 }

@@ -54,8 +54,9 @@ export class PlaybackScheduler {
     return this.active
   }
 
-  enqueue(samples: Float32Array, sampleRate: number): void {
-    if (samples.length === 0) return
+  /** Schedules a chunk and returns the AudioContext time (s) it starts at, or null for an empty chunk. */
+  enqueue(samples: Float32Array, sampleRate: number): number | null {
+    if (samples.length === 0) return null
     const buffer = this.ctx.createBuffer(1, samples.length, sampleRate)
     buffer.getChannelData(0).set(samples)
     this.prune()
@@ -72,6 +73,7 @@ export class PlaybackScheduler {
       this.events.onFirstAudio?.(item.start)
       this.setActive(true)
     }
+    return item.start
   }
 
   /** Stops everything and forgets the queue (mode switch, end of session). */

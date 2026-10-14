@@ -1,6 +1,10 @@
+using Interpreter.Api.Cascade;
 using Interpreter.Api.Realtime;
 using Interpreter.Api.Security;
 using Interpreter.Core.Languages;
+using Interpreter.Providers.Anthropic;
+using Interpreter.Providers.Deepgram;
+using Interpreter.Providers.ElevenLabs;
 using Interpreter.Providers.OpenAI;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,9 +16,16 @@ builder.Services.AddSingleton(LanguageCatalog.Load(languagesPath));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
 builder.Services.AddAccessControl(builder.Configuration);
+builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
+builder.Services.AddDeepgramStt(builder.Configuration);
+builder.Services.AddOpenAIStt(builder.Configuration);
+builder.Services.AddOpenAITranslator(builder.Configuration);
+builder.Services.AddAnthropicTranslator(builder.Configuration);
+builder.Services.AddElevenLabsTts(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new HealthResponse("ok", typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0")));
@@ -24,6 +35,7 @@ app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
 }));
 app.MapRealtimeEndpoints();
+app.MapCascadeEndpoints();
 
 app.Run();
 
