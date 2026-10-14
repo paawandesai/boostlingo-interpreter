@@ -1,4 +1,5 @@
 import type { LanguagesResponse } from '../session/languages'
+import type { RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
 import { ModeToggle } from './ModeToggle'
@@ -7,12 +8,13 @@ import { SpeakerSideToggle } from './SpeakerSideToggle'
 interface Props {
   state: SessionState
   languages: LanguagesResponse | null
-  onConfigure(c: { mode?: Mode; langA?: string; langB?: string }): void
+  models: RealtimeModels | null
+  onConfigure(c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string }): void
   onSpeaker(s: SpeakerSide): void
   onStart(): void
 }
 
-export function SetupPanel({ state, languages, onConfigure, onSpeaker, onStart }: Props) {
+export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, onStart }: Props) {
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
   return (
@@ -41,6 +43,24 @@ export function SetupPanel({ state, languages, onConfigure, onSpeaker, onStart }
           ))}
         </select>
       </div>
+      {state.mode === 'realtime' && models && (
+        <div className="field">
+          <label htmlFor="rt-model" className="label">
+            Realtime model
+          </label>
+          <select
+            id="rt-model"
+            value={state.realtimeModel ?? models.default}
+            onChange={(e) => onConfigure({ realtimeModel: e.target.value })}
+          >
+            {models.allowed.map((m) => (
+              <option key={m} value={m}>
+                {m === models.default ? `${m} (default)` : m}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="field">
         <span className="label">Who speaks first</span>
         <SpeakerSideToggle

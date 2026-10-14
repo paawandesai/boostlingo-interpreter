@@ -4,16 +4,21 @@ import { BackendStatus } from './components/BackendStatus'
 import { LiveSession } from './components/LiveSession'
 import { SetupPanel } from './components/SetupPanel'
 import { fetchLanguages, type LanguagesResponse } from './session/languages'
+import { fetchRealtimeModels, type RealtimeModels } from './session/models'
 import { useSession } from './session/useSession'
 
 export default function App() {
   const { state, start, end, configure, setSpeaker, dismissError } = useSession()
   const [languages, setLanguages] = useState<LanguagesResponse | null>(null)
+  const [models, setModels] = useState<RealtimeModels | null>(null)
 
   useEffect(() => {
     fetchLanguages()
       .then(setLanguages)
       .catch(() => setLanguages(null))
+    fetchRealtimeModels()
+      .then(setModels)
+      .catch(() => setModels(null))
   }, [])
 
   const inSession = state.status === 'connecting' || state.status === 'live'
@@ -46,6 +51,7 @@ export default function App() {
           <SetupPanel
             state={state}
             languages={languages}
+            models={models}
             onConfigure={configure}
             onSpeaker={setSpeaker}
             onStart={() => void start()}

@@ -5,7 +5,10 @@ using Interpreter.Core.Realtime;
 
 namespace Interpreter.Api.Realtime;
 
-public sealed record CreateRealtimeSessionRequest(string Source, string Target);
+/// <param name="Model">Optional; must be one of GET /api/realtime/models' allowed list.</param>
+public sealed record CreateRealtimeSessionRequest(string Source, string Target, string? Model = null);
+
+public sealed record RealtimeModelsResponse(string Default, IReadOnlyList<string> Allowed);
 
 /// <param name="ClientSecret">Ephemeral ek_ secret; the only credential the browser ever sees.</param>
 /// <param name="Instructions">Interpreter instructions per direction ("en>es"), so a speaker flip can
@@ -25,6 +28,8 @@ public static class RealtimeEndpoints
 
     public static IEndpointRouteBuilder MapRealtimeEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/realtime/models", (IRealtimeSessionMinter minter) =>
+            Results.Ok(new RealtimeModelsResponse(minter.DefaultModel, minter.AllowedModels)));
         app.MapPost("/api/realtime/session", CreateSession);
         return app;
     }
@@ -37,6 +42,9 @@ public static class RealtimeEndpoints
         if (source is null || target is null || !catalog.IsSupportedDirection(source.Code, target.Code))
             return Results.Problem($"Unsupported language direction {req.Source} -> {req.Target}", statusCode: StatusCodes.Status400BadRequest);
 
+        if (req.Model is { } model && !minter.AllowedModels.Contains(model))
+            return Results.Problem($"Model {model} is not allowed", statusCode: StatusCodes.Status400BadRequest);
+
         var instructions = new Dictionary<string, string>
         {
             [$"{source.Code}>{target.Code}"] = InterpreterInstructions.Build(source.Name, target.Name),
@@ -46,7 +54,7 @@ public static class RealtimeEndpoints
         try
         {
             var secret = await minter.CreateAsync(
-                new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"]), ct);
+                new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"], req.Model), ct);
             return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions));
         }
         catch (ProviderException e)

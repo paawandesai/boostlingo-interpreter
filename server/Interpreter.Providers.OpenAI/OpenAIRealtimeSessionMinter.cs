@@ -15,14 +15,22 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
     private const string Provider = "openai-realtime";
     private readonly OpenAIRealtimeOptions _opts = options.Value;
 
+    public string DefaultModel => _opts.Model;
+
+    public IReadOnlyList<string> AllowedModels =>
+        _opts.AllowedModels.Contains(_opts.Model) ? _opts.AllowedModels : [_opts.Model, .. _opts.AllowedModels];
+
     public async Task<RealtimeClientSecret> CreateAsync(RealtimeSessionRequest request, CancellationToken ct)
     {
+        var model = request.Model ?? _opts.Model;
+        if (!AllowedModels.Contains(model))
+            throw new ArgumentException($"Model {model} is not in OpenAI:Realtime:AllowedModels", nameof(request));
         if (string.IsNullOrWhiteSpace(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "OPENAI_API_KEY is not configured on the server");
 
         using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, "realtime/client_secrets"))
         {
-            Content = JsonContent.Create(BuildBody(request), options: JsonOptions),
+            Content = JsonContent.Create(BuildBody(request, model), options: JsonOptions),
         };
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opts.ApiKey);
 
@@ -46,17 +54,17 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
             var body = await res.Content.ReadFromJsonAsync<ClientSecretResponse>(JsonOptions, ct);
             if (body is null || string.IsNullOrEmpty(body.Value))
                 throw new ProviderException(ProviderErrorKind.Empty, Provider, "Realtime API returned no client secret");
-            return new RealtimeClientSecret(body.Value, DateTimeOffset.FromUnixTimeSeconds(body.ExpiresAt), _opts.Model, _opts.TranscriptionModel);
+            return new RealtimeClientSecret(body.Value, DateTimeOffset.FromUnixTimeSeconds(body.ExpiresAt), model, _opts.TranscriptionModel);
         }
     }
 
-    private object BuildBody(RealtimeSessionRequest r) => new
+    private object BuildBody(RealtimeSessionRequest r, string model) => new
     {
         expires_after = new { anchor = "created_at", seconds = _opts.SecretTtlSeconds },
         session = new
         {
             type = "realtime",
-            model = _opts.Model,
+            model,
             instructions = r.Instructions,
             output_modalities = new[] { "audio" },
             audio = new

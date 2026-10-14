@@ -22,7 +22,7 @@ public class OpenAIRealtimeSessionMinterTests
         var secret = await Minter(handler).CreateAsync(Request, CancellationToken.None);
 
         Assert.Equal("ek_abc", secret.Value);
-        Assert.Equal("gpt-realtime", secret.Model);
+        Assert.Equal("gpt-realtime-2.1", secret.Model);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1760000000), secret.ExpiresAt);
 
         var (req, body) = Assert.Single(handler.Requests);
@@ -32,7 +32,10 @@ public class OpenAIRealtimeSessionMinterTests
 
         var session = JsonDocument.Parse(body).RootElement.GetProperty("session");
         Assert.Equal("realtime", session.GetProperty("type").GetString());
-        Assert.Equal("gpt-realtime", session.GetProperty("model").GetString());
+        Assert.Equal("gpt-realtime-2.1", session.GetProperty("model").GetString());
+        // Guardrail: never the retired beta header or a preview model.
+        Assert.False(req.Headers.Contains("OpenAI-Beta"));
+        Assert.DoesNotContain("preview", session.GetProperty("model").GetString());
         Assert.Equal("INSTRUCTIONS", session.GetProperty("instructions").GetString());
         var input = session.GetProperty("audio").GetProperty("input");
         Assert.Equal("en", input.GetProperty("transcription").GetProperty("language").GetString());
@@ -99,5 +102,27 @@ public class OpenAIRealtimeSessionMinterTests
         var e = await Assert.ThrowsAsync<ProviderException>(() => Minter(handler).CreateAsync(Request, CancellationToken.None));
 
         Assert.Equal(ProviderErrorKind.Timeout, e.Kind);
+    }
+
+    [Fact]
+    public async Task Uses_the_requested_model_when_it_is_allowed()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, """{"value":"ek_abc","expires_at":1760000000,"session":{}}""");
+
+        var secret = await Minter(handler).CreateAsync(Request with { Model = "gpt-realtime" }, CancellationToken.None);
+
+        Assert.Equal("gpt-realtime", secret.Model);
+        var (_, body) = Assert.Single(handler.Requests);
+        Assert.Equal("gpt-realtime", JsonDocument.Parse(body).RootElement.GetProperty("session").GetProperty("model").GetString());
+    }
+
+    [Fact]
+    public async Task Refuses_a_model_outside_the_allow_list_without_calling_OpenAI()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, "{}");
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Minter(handler).CreateAsync(Request with { Model = "gpt-4o-realtime-preview" }, CancellationToken.None));
+        Assert.Empty(handler.Requests);
     }
 }

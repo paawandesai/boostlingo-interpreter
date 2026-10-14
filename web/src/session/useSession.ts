@@ -26,12 +26,12 @@ export function useSession() {
 
   const start = useCallback(async () => {
     await teardown()
-    const { mode, langA, langB, speaker } = stateRef.current
+    const { mode, langA, langB, speaker, realtimeModel } = stateRef.current
     const t = createTransport(mode)
     transport.current = t
     unsubscribe.current = t.subscribe((event) => dispatch({ type: 'transport', event }))
     dispatch({ type: 'started' })
-    await t.start({ langA, langB, speaker })
+    await t.start({ langA, langB, speaker, realtimeModel: realtimeModel ?? undefined })
   }, [teardown])
 
   const end = useCallback(async () => {
@@ -39,7 +39,7 @@ export function useSession() {
     dispatch({ type: 'ended' })
   }, [teardown])
 
-  const configure = useCallback((c: { mode?: Mode; langA?: string; langB?: string }) => {
+  const configure = useCallback((c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string }) => {
     dispatch({ type: 'configure', ...c })
   }, [])
 

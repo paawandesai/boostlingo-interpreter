@@ -14,6 +14,10 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     {
         public List<RealtimeSessionRequest> Calls { get; } = [];
 
+        public string DefaultModel => "gpt-realtime-2.1";
+
+        public IReadOnlyList<string> AllowedModels => ["gpt-realtime-2.1", "gpt-realtime"];
+
         public Task<RealtimeClientSecret> CreateAsync(RealtimeSessionRequest request, CancellationToken ct)
         {
             Calls.Add(request);
@@ -67,5 +71,26 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
         var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
         Assert.Equal("RateLimited", json.GetProperty("kind").GetString());
         Assert.Equal(3000, json.GetProperty("retryAfterMs").GetInt64());
+    }
+
+    [Fact]
+    public async Task Lists_default_and_allowed_models()
+    {
+        var json = JsonDocument.Parse(await Client(new FakeMinter(_ => throw new InvalidOperationException()))
+            .GetStringAsync("/api/realtime/models", TestContext.Current.CancellationToken)).RootElement;
+
+        Assert.Equal("gpt-realtime-2.1", json.GetProperty("default").GetString());
+        Assert.Equal(["gpt-realtime-2.1", "gpt-realtime"], json.GetProperty("allowed").EnumerateArray().Select(e => e.GetString()!));
+    }
+
+    [Fact]
+    public async Task Rejects_a_model_that_is_not_allowed()
+    {
+        var minter = new FakeMinter(_ => throw new InvalidOperationException("should not be called"));
+
+        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "es", model = "gpt-4o-realtime-preview" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Empty(minter.Calls);
     }
 }
