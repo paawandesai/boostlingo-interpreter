@@ -24,4 +24,14 @@ public static class ServiceCollectionExtensions
         services.AddKeyedSingleton<IStreamingStt, OpenAIRealtimeStt>("openai");
         return services;
     }
+
+    public static IServiceCollection AddOpenAITranslator(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddOptions<OpenAITranslationOptions>()
+            .Bind(config.GetSection(OpenAITranslationOptions.Section))
+            .PostConfigure(o => o.ApiKey ??= config["OPENAI_API_KEY"]);
+        services.AddHttpClient<OpenAITranslator>(c => c.Timeout = TimeSpan.FromSeconds(15));
+        services.AddKeyedTransient<IStreamingTranslator>("openai", (sp, _) => sp.GetRequiredService<OpenAITranslator>());
+        return services;
+    }
 }

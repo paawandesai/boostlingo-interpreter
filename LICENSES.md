@@ -7,9 +7,9 @@ Do not edit the generated sections by hand; edit the provider table in the scrip
 
 | Provider | Used for | Terms that matter here | Plan tier |
 |---|---|---|---|
-| OpenAI | Realtime (`gpt-realtime-2.1`, `gpt-realtime` selectable), input transcription (`gpt-4o-mini-transcribe`); cascade STT fallback (`gpt-4o-transcribe`); planned translator; TTS for synthetic test speech in live tests | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
+| OpenAI | Realtime (`gpt-realtime-2.1`, `gpt-realtime` selectable), input transcription (`gpt-4o-mini-transcribe`); cascade STT fallback (`gpt-4o-transcribe`); cascade translator (`gpt-5.4-mini`); TTS for synthetic test speech in live tests | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
 | Deepgram | Cascade STT (Nova-3), `mip_opt_out=true` on every connection | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) |
-| Anthropic | Planned cascade translator (Claude Haiku) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) |
+| Anthropic | Cascade translator (Claude Haiku tier; not yet checked live, no key in the build environment) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) |
 | ElevenLabs | Planned cascade TTS (Flash) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Paid plan (Paawan upgraded 2026-10-14; tier name to record) |
 
 ## Packages needing a human look
