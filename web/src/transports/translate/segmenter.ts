@@ -2,153 +2,224 @@
  * gpt-realtime-translate streams both transcripts as continuous deltas with no turn events (G17,
  * probed live 2026-10-14), so the transcript lines are cut here. Pure apart from the times passed in.
  *
- * Rules: client VAD speech start opens a segment; source text goes to the newest segment and is
- * final once the speaker has stopped and no source text came for SOURCE_IDLE_MS. Target text goes to
- * the oldest segment whose target is not final, and is final once its source is final and no target
- * text came for TARGET_IDLE_MS. The cut is approximate: if the speaker keeps talking without a pause,
- * one segment's translation can spill into the next. The UI says so.
+ * Both streams carry elapsed_ms, the position in the input audio when the delta was produced, so
+ * they share one clock. A translated sentence belongs to the latest source sentence that had started
+ * by the time the translation started. Source sentences with no translation of their own stay in the
+ * line that gets the next one, so "Interpreter. Can you summarize…?" stays one line when the model
+ * renders it as one. A recorded 10-clip stream paired every sentence this way; pairing by sentence
+ * count or by client VAD pauses did not (first soak run, 2026-10-14). When both sides have been quiet
+ * for RESYNC_MS every open line closes; a line still without a translation closes empty, which the
+ * output checks flag as an omission.
+ *
+ * Latency marks: every line gets the client time its first source and first translated text arrived
+ * (text lag). A line that starts after a pause also gets the client VAD speech start, and the first
+ * audible output after it, which is only measured when nothing was playing (start lag).
  */
 import type { TransportEvent } from '../types'
 
-export const SOURCE_IDLE_MS = 800
-export const TARGET_IDLE_MS = 1500
-/** A finished source with no translation after this long is closed empty, so the output checks flag it. */
-export const NO_OUTPUT_MS = 8000
+/** Both streams quiet this long: close every open line. */
+export const RESYNC_MS = 1500
+/** Output quiet this long at a speech start: the next audible frame belongs to the new speech. */
+export const OUTPUT_IDLE_MS = 800
 
-interface Segment {
+const SENTENCE_END = /[.?!。？！…]["'»”)\]]*\s*$/
+
+interface Sentence {
+  text: string
+  /** Input-audio position (elapsed_ms, else client time) of its first delta. */
+  at: number
+  /** Client time of its first delta. */
+  wall: number
+}
+
+interface Line {
   id: string
-  source: string
+  sentences: Sentence[]
   target: string
-  speechEnd: number | null
-  lastInput: number | null
-  lastOutput: number | null
-  sourceFinalAt: number | null
-  targetFinal: boolean
-  /** VAD marks held back until the segment has text, so noise never makes an empty line. */
-  held: TransportEvent[]
+  speechStart: number | null
+  /** Index of the last source sentence a translation was matched to; -1 before any. */
+  matched: number
+  final: boolean
 }
 
 export class TranslateSegmenter {
-  private segments: Segment[] = []
+  private lines: Line[] = []
   private n = 0
   private speaking = false
-
+  private lastInput = -Infinity
+  private lastOutput = -Infinity
+  private lastSpeech = -Infinity
+  /** The line the current translated sentence is going to; null between sentences. */
+  private outLine: Line | null = null
+  /** Client VAD starts not yet given to a line, and speech ends. */
+  private starts: number[] = []
+  private ends: number[] = []
+  private firstAudio = new Map<number, number>()
   private readonly prefix: string
 
   constructor(prefix = 'tr') {
     this.prefix = prefix
   }
 
-  speechStart(t: number): TransportEvent[] {
+  /** True when the transport should stamp the next audible frame as this start's first audio. */
+  speechStart(t: number): boolean {
     this.speaking = true
-    const cur = this.current()
-    // A noise blip that produced no text keeps its segment rather than leaving an empty line.
-    const seg = cur && cur.sourceFinalAt === null && cur.source === '' ? cur : this.open()
-    seg.speechEnd = null
-    return this.release(seg, { type: 'mark', name: 'speech.start', t, utteranceId: seg.id })
+    this.lastSpeech = t
+    this.starts.push(t)
+    return t - this.lastOutput >= OUTPUT_IDLE_MS
   }
 
-  speechEnd(t: number): TransportEvent[] {
+  speechEnd(t: number): void {
     this.speaking = false
-    const seg = this.current()
-    if (!seg || seg.sourceFinalAt !== null) return []
-    seg.speechEnd = t
-    return this.release(seg, { type: 'mark', name: 'speech.end', t, utteranceId: seg.id })
+    this.lastSpeech = t
+    this.ends.push(t)
   }
 
-  inputDelta(delta: string, t: number): TransportEvent[] {
-    let seg = this.current()
-    if (!seg || seg.sourceFinalAt !== null) seg = this.open()
-    const held = seg.held
-    seg.held = []
-    seg.source += delta
-    seg.lastInput = t
-    return [...held, { type: 'transcript', role: 'source', utteranceId: seg.id, text: seg.source.trim(), final: false }]
+  /** The first audible frame after the speech start `start`. */
+  audioOut(start: number, t: number): TransportEvent[] {
+    this.firstAudio.set(start, t)
+    const line = this.lines.find((l) => l.speechStart === start)
+    return line ? [{ type: 'mark', name: 'audio.first_out', t, utteranceId: line.id }] : []
   }
 
-  /** `first` is true on the first target text of a segment, which arms the first-audio probe. */
-  outputDelta(delta: string, t: number): { events: TransportEvent[]; first: string | null } {
-    const seg = this.segments.find((s) => !s.targetFinal) ?? this.open()
-    const first = seg.target === '' ? seg.id : null
-    seg.target += delta
-    seg.lastOutput = t
-    return {
-      events: [{ type: 'transcript', role: 'target', utteranceId: seg.id, text: seg.target.trim(), final: false }],
-      first,
+  inputDelta(delta: string, t: number, at = t): TransportEvent[] {
+    this.lastInput = t
+    const out: TransportEvent[] = []
+    let line = this.lines.at(-1)
+    if (!line || line.final) {
+      line = this.newLine()
+      out.push(...this.startMarks(line))
     }
+    const last = line.sentences.at(-1)
+    // A new sentence starts only after a sentence end and a space: "2." + "5 mg" and "cost?" + "?" stay one.
+    if (last && (!SENTENCE_END.test(last.text) || !/^\s/.test(delta))) last.text += delta
+    else {
+      line.sentences.push({ text: delta, at, wall: t })
+      if (line.sentences.length === 1) out.push({ type: 'mark', name: 'source.first_text', t, utteranceId: line.id })
+    }
+    out.push(this.source(line, false))
+    return out
   }
 
-  /** Call on a timer; closes segments whose idle windows have passed. */
+  outputDelta(delta: string, t: number, at = t): TransportEvent[] {
+    this.lastOutput = t
+    const out: TransportEvent[] = []
+    if (!this.outLine) out.push(...this.assign(at))
+    const line = this.outLine!
+    if (line.target === '') out.push({ type: 'mark', name: 'target.first_text', t, utteranceId: line.id })
+    line.target += delta
+    if (SENTENCE_END.test(line.target)) this.outLine = null
+    out.push({ type: 'transcript', role: 'target', utteranceId: line.id, text: line.target.trim(), final: false })
+    return out
+  }
+
+  /** Call on a timer: once both sides have paused, every open line is closed. */
   tick(t: number): TransportEvent[] {
-    const out: TransportEvent[] = []
-    for (const s of this.segments) {
-      if (s.sourceFinalAt === null && this.sourceDone(s, t)) {
-        s.sourceFinalAt = t
-        if (s.source === '' && s.target === '') {
-          s.targetFinal = true // nothing was said: dropped without a line
-          continue
-        }
-        out.push({ type: 'transcript', role: 'source', utteranceId: s.id, text: s.source.trim(), final: true })
-      }
-      if (s.sourceFinalAt === null || s.targetFinal) continue
-      const idle = s.lastOutput !== null && t - s.lastOutput >= TARGET_IDLE_MS
-      const none = s.target === '' && t - s.sourceFinalAt >= NO_OUTPUT_MS
-      if (idle || none) {
-        s.targetFinal = true
-        out.push({ type: 'transcript', role: 'target', utteranceId: s.id, text: s.target.trim(), final: true })
-      }
-    }
-    // Finished segments are only kept until nothing can reach them.
-    this.segments = this.segments.filter((s) => !(s.targetFinal && s.sourceFinalAt !== null))
-    return out
+    const inputQuiet = !this.speaking && t - Math.max(this.lastInput, this.lastSpeech) >= RESYNC_MS
+    if (!inputQuiet || t - this.lastOutput < RESYNC_MS || this.lines.length === 0) return []
+    return this.flush()
   }
 
-  /** The connection closed: every open line gets its final text now. */
+  /** The connection closed or both sides paused: every open line gets its final text now. */
   flush(): TransportEvent[] {
-    const out: TransportEvent[] = []
-    for (const s of this.segments) {
-      if (s.source === '' && s.target === '') continue
-      if (s.sourceFinalAt === null)
-        out.push({ type: 'transcript', role: 'source', utteranceId: s.id, text: s.source.trim(), final: true })
-      if (!s.targetFinal)
-        out.push({ type: 'transcript', role: 'target', utteranceId: s.id, text: s.target.trim(), final: true })
-    }
-    this.segments = []
-    this.speaking = false
+    const out = this.lines.flatMap((l, i) => this.finish(l, this.lines[i + 1]))
+    this.lines = []
+    this.outLine = null
     return out
   }
 
-  private sourceDone(s: Segment, t: number): boolean {
-    // A segment that is no longer the newest stopped being spoken into.
-    const ended = s !== this.current() || !this.speaking
-    if (!ended) return false
-    const last = Math.max(s.lastInput ?? 0, s.speechEnd ?? 0)
-    return s.source !== '' ? t - last >= SOURCE_IDLE_MS : t - last >= NO_OUTPUT_MS
-  }
-
-  private release(seg: Segment, mark: TransportEvent): TransportEvent[] {
-    if (seg.source !== '') return [mark]
-    seg.held.push(mark)
-    return []
-  }
-
-  private current(): Segment | undefined {
-    return this.segments.at(-1)
-  }
-
-  private open(): Segment {
-    const seg: Segment = {
-      id: `${this.prefix}${++this.n}`,
-      source: '',
-      target: '',
-      speechEnd: null,
-      lastInput: null,
-      lastOutput: null,
-      sourceFinalAt: null,
-      targetFinal: false,
-      held: [],
+  /** Points outLine at the line a new translated sentence belongs to; returns the events that causes. */
+  private assign(at: number): TransportEvent[] {
+    const out: TransportEvent[] = []
+    let line: Line | undefined
+    let idx = -1
+    for (const l of this.lines)
+      l.sentences.forEach((s, i) => {
+        if (s.at <= at) {
+          line = l
+          idx = i
+        }
+      })
+    if (!line) {
+      // Translation ahead of any source text: the oldest open line, or a new one the source will fill.
+      line = this.lines[0] ?? this.newLine()
+      // With no source yet, the first sentence still to come is the one being translated.
+      idx = Math.max(0, line.sentences.length - 1)
+      if (this.lines.length === 1 && line.sentences.length === 0) out.push(...this.startMarks(line))
+    } else if (line.target !== '' && idx > line.matched) {
+      // The line already has a translation for its earlier sentences: these start a new line.
+      idx -= line.matched + 1
+      line = this.splitAfter(line, line.matched, out)
     }
-    this.segments.push(seg)
-    return seg
+    line.matched = Math.max(line.matched, idx)
+    // Sentences after the one being translated were spoken later: they move to a new line.
+    if (idx < line.sentences.length - 1) this.splitAfter(line, idx, out)
+    // Everything before this line is done: the model has moved on.
+    const pos = this.lines.indexOf(line)
+    for (let i = 0; i < pos; i++) out.push(...this.finish(this.lines[i], this.lines[i + 1]))
+    this.lines = this.lines.slice(pos)
+    this.outLine = line
+    return out
+  }
+
+  private splitAfter(line: Line, k: number, out: TransportEvent[]): Line {
+    const rest = this.newLine(this.lines.indexOf(line) + 1)
+    rest.sentences = line.sentences.splice(k + 1)
+    out.push(this.source(line, false), this.source(rest, false))
+    out.push({ type: 'mark', name: 'source.first_text', t: rest.sentences[0].wall, utteranceId: rest.id })
+    return rest
+  }
+
+  private finish(line: Line, next: Line | undefined): TransportEvent[] {
+    if (line.final) return []
+    line.final = true
+    if (line.sentences.length === 0 && line.target.trim() === '') return []
+    const out: TransportEvent[] = []
+    if (line.speechStart !== null) {
+      const until = next?.speechStart ?? Infinity
+      const end = this.ends.filter((e) => e > line.speechStart! && e < until).at(-1)
+      if (end !== undefined) out.push({ type: 'mark', name: 'speech.end', t: end, utteranceId: line.id })
+    }
+    out.push(this.source(line, true), {
+      type: 'transcript',
+      role: 'target',
+      utteranceId: line.id,
+      text: line.target.trim(),
+      final: true,
+    })
+    return out
+  }
+
+  /** Only the first line after a pause has a speech start of its own; later ones run on from it. */
+  private startMarks(line: Line): TransportEvent[] {
+    if (this.lines.some((l) => l !== line && !l.final) || this.starts.length === 0) return []
+    const start = this.starts[0]
+    this.starts = []
+    line.speechStart = start
+    const out: TransportEvent[] = [{ type: 'mark', name: 'speech.start', t: start, utteranceId: line.id }]
+    const audio = this.firstAudio.get(start)
+    if (audio !== undefined) out.push({ type: 'mark', name: 'audio.first_out', t: audio, utteranceId: line.id })
+    return out
+  }
+
+  private source(line: Line, final: boolean): TransportEvent {
+    const text = line.sentences
+      .map((s) => s.text)
+      .join('')
+      .trim()
+    return { type: 'transcript', role: 'source', utteranceId: line.id, text, final }
+  }
+
+  private newLine(at = this.lines.length): Line {
+    const line: Line = {
+      id: `${this.prefix}${++this.n}`,
+      sentences: [],
+      target: '',
+      speechStart: null,
+      matched: -1,
+      final: false,
+    }
+    this.lines.splice(at, 0, line)
+    return line
   }
 }

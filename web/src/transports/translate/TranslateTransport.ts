@@ -57,8 +57,7 @@ export class TranslateTransport implements Transport {
 
       this.capture = await startCapture({
         stream: config.inputStream,
-        onVad: (kind, t) =>
-          this.emitAll(kind === 'speech.start' ? this.segmenter.speechStart(t) : this.segmenter.speechEnd(t)),
+        onVad: (kind, t) => (kind === 'speech.start' ? this.onSpeechStart(t) : this.segmenter.speechEnd(t)),
         onLevel: (rms) => this.emitter.emit({ type: 'level', rms }),
       })
       if (this.stopped) return void (await this.release())
@@ -142,25 +141,24 @@ export class TranslateTransport implements Transport {
   }
 
   private onServerEvent(raw: string): void {
-    const e = JSON.parse(raw) as { type: string; delta?: string; error?: { message?: string } }
+    const e = JSON.parse(raw) as { type: string; delta?: string; elapsed_ms?: number; error?: { message?: string } }
     const t = performance.now()
     switch (e.type) {
       case 'session.input_transcript.delta':
-        this.emitAll(this.segmenter.inputDelta(e.delta ?? '', t))
+        this.emitAll(this.segmenter.inputDelta(e.delta ?? '', t, e.elapsed_ms))
         return
-      case 'session.output_transcript.delta': {
-        const { events, first } = this.segmenter.outputDelta(e.delta ?? '', t)
-        this.emitAll(events)
-        if (first)
-          this.probe?.arm((at) =>
-            this.emitter.emit({ type: 'mark', name: 'audio.first_out', t: at, utteranceId: first }),
-          )
+      case 'session.output_transcript.delta':
+        this.emitAll(this.segmenter.outputDelta(e.delta ?? '', t, e.elapsed_ms))
         return
-      }
       case 'error':
         this.emitter.emit({ type: 'error', kind: 'unavailable', message: e.error?.message ?? 'Translation error' })
         return
     }
+  }
+
+  /** First audible output after a pause in both directions is that speech's start lag. */
+  private onSpeechStart(t: number): void {
+    if (this.segmenter.speechStart(t)) this.probe?.arm((at) => this.emitAll(this.segmenter.audioOut(t, at)))
   }
 
   private emitAll(events: TransportEvent[]): void {

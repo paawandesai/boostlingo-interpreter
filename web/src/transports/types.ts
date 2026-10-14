@@ -45,6 +45,9 @@ export type MarkName =
   | 'audio.first_received'
   | 'response.created'
   | 'audio.first_out'
+  /** Realtime translate (G17): client time the first source / translated text of a line arrived. */
+  | 'source.first_text'
+  | 'target.first_text'
 
 export type ErrorKind =
   | 'rate_limited'

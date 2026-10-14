@@ -50,7 +50,10 @@ describe('computeLatency', () => {
 
   it('measures Realtime translate from speech start, and lets the total go negative while it speaks along', () => {
     const b = computeLatency('translate', { 'speech.start': 1000, 'audio.first_out': 2400, 'speech.end': 4000 })
-    expect(b.stages.map((s) => [s.key, s.ms])).toEqual([['start_lag', 1400]])
+    expect(b.stages.map((s) => [s.key, s.ms])).toEqual([
+      ['start_lag', 1400],
+      ['text_lag', null],
+    ])
     expect(b.totalMs).toBe(-1600)
   })
 

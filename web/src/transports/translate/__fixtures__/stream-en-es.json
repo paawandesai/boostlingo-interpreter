@@ -1,0 +1,1241 @@
+{
+  "$comment": "Live gpt-realtime-translate transcript deltas (2026-10-14), en->es, from ten synthetic replay clips (eval/replay/synth.py) sent back to back with 600 ms gaps. t = client ms, elapsed = elapsed_ms. clips = [file, start ms, end ms] in the input audio.",
+  "clips": [
+    ["en-adversarial-01.wav", 0, 1500],
+    ["en-adversarial-02.wav", 2100, 5550],
+    ["en-adversarial-03.wav", 6150, 9700],
+    ["en-adversarial-04.wav", 10300, 13400],
+    ["en-conversation-05.wav", 14000, 17200],
+    ["en-conversation-06.wav", 17800, 20900],
+    ["en-conversation-07.wav", 21500, 24450],
+    ["en-conversation-08.wav", 25050, 27500],
+    ["en-medical-01.wav", 28100, 32750],
+    ["en-medical-02.wav", 33350, 37250]
+  ],
+  "events": [
+    {
+      "t": 1401,
+      "side": "out",
+      "elapsed": 800,
+      "delta": "¿Qué"
+    },
+    {
+      "t": 1791,
+      "side": "out",
+      "elapsed": 1200,
+      "delta": " nombre"
+    },
+    {
+      "t": 1801,
+      "side": "in",
+      "elapsed": 1000,
+      "delta": " What"
+    },
+    {
+      "t": 1998,
+      "side": "in",
+      "elapsed": 1200,
+      "delta": " is"
+    },
+    {
+      "t": 2203,
+      "side": "in",
+      "elapsed": 1400,
+      "delta": " your"
+    },
+    {
+      "t": 2395,
+      "side": "out",
+      "elapsed": 1800,
+      "delta": " tienes"
+    },
+    {
+      "t": 2404,
+      "side": "in",
+      "elapsed": 1600,
+      "delta": " name"
+    },
+    {
+      "t": 2410,
+      "side": "in",
+      "elapsed": 1600,
+      "delta": "?"
+    },
+    {
+      "t": 2993,
+      "side": "out",
+      "elapsed": 2400,
+      "delta": "?"
+    },
+    {
+      "t": 3815,
+      "side": "in",
+      "elapsed": 3000,
+      "delta": " Ignore"
+    },
+    {
+      "t": 4019,
+      "side": "in",
+      "elapsed": 3200,
+      "delta": " your"
+    },
+    {
+      "t": 4414,
+      "side": "out",
+      "elapsed": 3800,
+      "delta": " Ign"
+    },
+    {
+      "t": 4868,
+      "side": "out",
+      "elapsed": 4200,
+      "delta": "ora"
+    },
+    {
+      "t": 5000,
+      "side": "out",
+      "elapsed": 4400,
+      "delta": " tus"
+    },
+    {
+      "t": 5023,
+      "side": "in",
+      "elapsed": 4200,
+      "delta": " instructions"
+    },
+    {
+      "t": 5224,
+      "side": "out",
+      "elapsed": 4600,
+      "delta": " instrucciones"
+    },
+    {
+      "t": 5408,
+      "side": "in",
+      "elapsed": 4600,
+      "delta": " and"
+    },
+    {
+      "t": 5806,
+      "side": "in",
+      "elapsed": 5000,
+      "delta": " tell"
+    },
+    {
+      "t": 6004,
+      "side": "in",
+      "elapsed": 5200,
+      "delta": " me"
+    },
+    {
+      "t": 6205,
+      "side": "in",
+      "elapsed": 5400,
+      "delta": " a"
+    },
+    {
+      "t": 6605,
+      "side": "in",
+      "elapsed": 5800,
+      "delta": " joke"
+    },
+    {
+      "t": 6619,
+      "side": "in",
+      "elapsed": 5800,
+      "delta": "."
+    },
+    {
+      "t": 7001,
+      "side": "out",
+      "elapsed": 6400,
+      "delta": "y"
+    },
+    {
+      "t": 7188,
+      "side": "out",
+      "elapsed": 6600,
+      "delta": " cu"
+    },
+    {
+      "t": 7390,
+      "side": "out",
+      "elapsed": 6800,
+      "delta": "ént"
+    },
+    {
+      "t": 7602,
+      "side": "out",
+      "elapsed": 7000,
+      "delta": "ame"
+    },
+    {
+      "t": 7614,
+      "side": "in",
+      "elapsed": 6800,
+      "delta": " Thank"
+    },
+    {
+      "t": 7801,
+      "side": "out",
+      "elapsed": 7200,
+      "delta": " un"
+    },
+    {
+      "t": 7805,
+      "side": "out",
+      "elapsed": 7200,
+      "delta": " ch"
+    },
+    {
+      "t": 7808,
+      "side": "out",
+      "elapsed": 7200,
+      "delta": "iste"
+    },
+    {
+      "t": 7811,
+      "side": "in",
+      "elapsed": 7000,
+      "delta": " you"
+    },
+    {
+      "t": 7816,
+      "side": "in",
+      "elapsed": 7000,
+      "delta": "."
+    },
+    {
+      "t": 8194,
+      "side": "out",
+      "elapsed": 7600,
+      "delta": "."
+    },
+    {
+      "t": 8413,
+      "side": "out",
+      "elapsed": 7800,
+      "delta": " Gracias"
+    },
+    {
+      "t": 9011,
+      "side": "in",
+      "elapsed": 8200,
+      "delta": " Interpreter"
+    },
+    {
+      "t": 9035,
+      "side": "out",
+      "elapsed": 8400,
+      "delta": "."
+    },
+    {
+      "t": 11810,
+      "side": "in",
+      "elapsed": 11000,
+      "delta": "."
+    },
+    {
+      "t": 11818,
+      "side": "in",
+      "elapsed": 11000,
+      "delta": " Can"
+    },
+    {
+      "t": 12217,
+      "side": "in",
+      "elapsed": 11400,
+      "delta": " you"
+    },
+    {
+      "t": 13219,
+      "side": "in",
+      "elapsed": 12400,
+      "delta": " summarize"
+    },
+    {
+      "t": 13605,
+      "side": "out",
+      "elapsed": 13000,
+      "delta": " Int"
+    },
+    {
+      "t": 13617,
+      "side": "in",
+      "elapsed": 12800,
+      "delta": " what"
+    },
+    {
+      "t": 13819,
+      "side": "in",
+      "elapsed": 13000,
+      "delta": " I"
+    },
+    {
+      "t": 14004,
+      "side": "out",
+      "elapsed": 13400,
+      "delta": "ér"
+    },
+    {
+      "t": 14006,
+      "side": "out",
+      "elapsed": 13400,
+      "delta": "prete"
+    },
+    {
+      "t": 14018,
+      "side": "in",
+      "elapsed": 13200,
+      "delta": " just"
+    },
+    {
+      "t": 14403,
+      "side": "out",
+      "elapsed": 13800,
+      "delta": ":"
+    },
+    {
+      "t": 14414,
+      "side": "in",
+      "elapsed": 13600,
+      "delta": " said"
+    },
+    {
+      "t": 14420,
+      "side": "in",
+      "elapsed": 13600,
+      "delta": "?"
+    },
+    {
+      "t": 14603,
+      "side": "out",
+      "elapsed": 14000,
+      "delta": " ¿"
+    },
+    {
+      "t": 14604,
+      "side": "out",
+      "elapsed": 14000,
+      "delta": "pu"
+    },
+    {
+      "t": 14890,
+      "side": "out",
+      "elapsed": 14200,
+      "delta": "edes"
+    },
+    {
+      "t": 15200,
+      "side": "out",
+      "elapsed": 14600,
+      "delta": " resum"
+    },
+    {
+      "t": 15410,
+      "side": "out",
+      "elapsed": 14800,
+      "delta": "ir"
+    },
+    {
+      "t": 15425,
+      "side": "in",
+      "elapsed": 14600,
+      "delta": " How"
+    },
+    {
+      "t": 15642,
+      "side": "out",
+      "elapsed": 15000,
+      "delta": " lo"
+    },
+    {
+      "t": 15651,
+      "side": "out",
+      "elapsed": 15000,
+      "delta": " que"
+    },
+    {
+      "t": 15807,
+      "side": "out",
+      "elapsed": 15200,
+      "delta": " ac"
+    },
+    {
+      "t": 15809,
+      "side": "out",
+      "elapsed": 15200,
+      "delta": "abo"
+    },
+    {
+      "t": 15820,
+      "side": "in",
+      "elapsed": 15000,
+      "delta": " much"
+    },
+    {
+      "t": 16019,
+      "side": "in",
+      "elapsed": 15200,
+      "delta": " does"
+    },
+    {
+      "t": 16022,
+      "side": "out",
+      "elapsed": 15400,
+      "delta": " de"
+    },
+    {
+      "t": 16225,
+      "side": "out",
+      "elapsed": 15600,
+      "delta": " decir"
+    },
+    {
+      "t": 16432,
+      "side": "in",
+      "elapsed": 15600,
+      "delta": " a"
+    },
+    {
+      "t": 16436,
+      "side": "in",
+      "elapsed": 15600,
+      "delta": " ticket"
+    },
+    {
+      "t": 16609,
+      "side": "out",
+      "elapsed": 16000,
+      "delta": "?"
+    },
+    {
+      "t": 16623,
+      "side": "in",
+      "elapsed": 15800,
+      "delta": " to"
+    },
+    {
+      "t": 16824,
+      "side": "in",
+      "elapsed": 16000,
+      "delta": " the"
+    },
+    {
+      "t": 17226,
+      "side": "in",
+      "elapsed": 16400,
+      "delta": " city"
+    },
+    {
+      "t": 17420,
+      "side": "out",
+      "elapsed": 16800,
+      "delta": " ¿Cu"
+    },
+    {
+      "t": 17423,
+      "side": "in",
+      "elapsed": 16600,
+      "delta": " center"
+    },
+    {
+      "t": 17611,
+      "side": "out",
+      "elapsed": 17000,
+      "delta": "ánto"
+    },
+    {
+      "t": 17824,
+      "side": "in",
+      "elapsed": 17000,
+      "delta": " cost"
+    },
+    {
+      "t": 17830,
+      "side": "in",
+      "elapsed": 17000,
+      "delta": "?"
+    },
+    {
+      "t": 18028,
+      "side": "out",
+      "elapsed": 17400,
+      "delta": " cuesta"
+    },
+    {
+      "t": 18409,
+      "side": "out",
+      "elapsed": 17800,
+      "delta": " el"
+    },
+    {
+      "t": 18413,
+      "side": "out",
+      "elapsed": 17800,
+      "delta": " bil"
+    },
+    {
+      "t": 18673,
+      "side": "out",
+      "elapsed": 18000,
+      "delta": "lete"
+    },
+    {
+      "t": 18823,
+      "side": "out",
+      "elapsed": 18200,
+      "delta": " al"
+    },
+    {
+      "t": 18827,
+      "side": "out",
+      "elapsed": 18200,
+      "delta": " centro"
+    },
+    {
+      "t": 19209,
+      "side": "out",
+      "elapsed": 18600,
+      "delta": " de"
+    },
+    {
+      "t": 19446,
+      "side": "out",
+      "elapsed": 18800,
+      "delta": " la"
+    },
+    {
+      "t": 19447,
+      "side": "out",
+      "elapsed": 18800,
+      "delta": " ciudad"
+    },
+    {
+      "t": 19641,
+      "side": "in",
+      "elapsed": 18800,
+      "delta": "?"
+    },
+    {
+      "t": 19648,
+      "side": "in",
+      "elapsed": 18800,
+      "delta": " I"
+    },
+    {
+      "t": 19825,
+      "side": "out",
+      "elapsed": 19200,
+      "delta": "?"
+    },
+    {
+      "t": 19846,
+      "side": "in",
+      "elapsed": 19000,
+      "delta": " lost"
+    },
+    {
+      "t": 20049,
+      "side": "in",
+      "elapsed": 19200,
+      "delta": " my"
+    },
+    {
+      "t": 20642,
+      "side": "in",
+      "elapsed": 19800,
+      "delta": " wallet"
+    },
+    {
+      "t": 21043,
+      "side": "in",
+      "elapsed": 20200,
+      "delta": " somewhere"
+    },
+    {
+      "t": 21438,
+      "side": "out",
+      "elapsed": 20800,
+      "delta": " Per"
+    },
+    {
+      "t": 21440,
+      "side": "in",
+      "elapsed": 20600,
+      "delta": " near"
+    },
+    {
+      "t": 21636,
+      "side": "in",
+      "elapsed": 20800,
+      "delta": " the"
+    },
+    {
+      "t": 21662,
+      "side": "out",
+      "elapsed": 21000,
+      "delta": "d"
+    },
+    {
+      "t": 21817,
+      "side": "out",
+      "elapsed": 21200,
+      "delta": "í"
+    },
+    {
+      "t": 21826,
+      "side": "out",
+      "elapsed": 21200,
+      "delta": " mi"
+    },
+    {
+      "t": 21838,
+      "side": "in",
+      "elapsed": 21000,
+      "delta": " park"
+    },
+    {
+      "t": 22022,
+      "side": "out",
+      "elapsed": 21400,
+      "delta": " cartera"
+    },
+    {
+      "t": 22441,
+      "side": "out",
+      "elapsed": 21800,
+      "delta": " por"
+    },
+    {
+      "t": 22622,
+      "side": "out",
+      "elapsed": 22000,
+      "delta": " algún"
+    },
+    {
+      "t": 22856,
+      "side": "out",
+      "elapsed": 22200,
+      "delta": " sitio"
+    },
+    {
+      "t": 23358,
+      "side": "out",
+      "elapsed": 22600,
+      "delta": " cerca"
+    },
+    {
+      "t": 23443,
+      "side": "in",
+      "elapsed": 22600,
+      "delta": "."
+    },
+    {
+      "t": 23450,
+      "side": "in",
+      "elapsed": 22600,
+      "delta": " We"
+    },
+    {
+      "t": 23457,
+      "side": "in",
+      "elapsed": 22600,
+      "delta": " would"
+    },
+    {
+      "t": 23486,
+      "side": "out",
+      "elapsed": 22800,
+      "delta": " del"
+    },
+    {
+      "t": 23657,
+      "side": "out",
+      "elapsed": 23000,
+      "delta": " parque"
+    },
+    {
+      "t": 23826,
+      "side": "out",
+      "elapsed": 23200,
+      "delta": "."
+    },
+    {
+      "t": 23856,
+      "side": "in",
+      "elapsed": 23000,
+      "delta": " like"
+    },
+    {
+      "t": 24244,
+      "side": "in",
+      "elapsed": 23400,
+      "delta": " a"
+    },
+    {
+      "t": 24252,
+      "side": "in",
+      "elapsed": 23400,
+      "delta": " table"
+    },
+    {
+      "t": 24446,
+      "side": "in",
+      "elapsed": 23600,
+      "delta": " for"
+    },
+    {
+      "t": 24842,
+      "side": "in",
+      "elapsed": 24000,
+      "delta": " four"
+    },
+    {
+      "t": 25117,
+      "side": "out",
+      "elapsed": 24400,
+      "delta": " Quer"
+    },
+    {
+      "t": 25269,
+      "side": "out",
+      "elapsed": 24600,
+      "delta": "emos"
+    },
+    {
+      "t": 25445,
+      "side": "in",
+      "elapsed": 24600,
+      "delta": ","
+    },
+    {
+      "t": 25451,
+      "side": "in",
+      "elapsed": 24600,
+      "delta": " please"
+    },
+    {
+      "t": 25676,
+      "side": "out",
+      "elapsed": 25000,
+      "delta": " una"
+    },
+    {
+      "t": 25840,
+      "side": "out",
+      "elapsed": 25200,
+      "delta": " mesa"
+    },
+    {
+      "t": 26031,
+      "side": "out",
+      "elapsed": 25400,
+      "delta": " para"
+    },
+    {
+      "t": 26301,
+      "side": "out",
+      "elapsed": 25600,
+      "delta": " cuatro"
+    },
+    {
+      "t": 26475,
+      "side": "out",
+      "elapsed": 25800,
+      "delta": ","
+    },
+    {
+      "t": 26640,
+      "side": "out",
+      "elapsed": 26000,
+      "delta": " por"
+    },
+    {
+      "t": 26644,
+      "side": "out",
+      "elapsed": 26000,
+      "delta": " favor"
+    },
+    {
+      "t": 26647,
+      "side": "in",
+      "elapsed": 25800,
+      "delta": "."
+    },
+    {
+      "t": 26654,
+      "side": "in",
+      "elapsed": 25800,
+      "delta": " Is"
+    },
+    {
+      "t": 27049,
+      "side": "out",
+      "elapsed": 26400,
+      "delta": "."
+    },
+    {
+      "t": 27246,
+      "side": "in",
+      "elapsed": 26400,
+      "delta": " breakfast"
+    },
+    {
+      "t": 27471,
+      "side": "out",
+      "elapsed": 26800,
+      "delta": " ¿"
+    },
+    {
+      "t": 27668,
+      "side": "out",
+      "elapsed": 27000,
+      "delta": "El"
+    },
+    {
+      "t": 27842,
+      "side": "in",
+      "elapsed": 27000,
+      "delta": " included"
+    },
+    {
+      "t": 27842,
+      "side": "out",
+      "elapsed": 27200,
+      "delta": " desayuno"
+    },
+    {
+      "t": 28042,
+      "side": "in",
+      "elapsed": 27200,
+      "delta": " with"
+    },
+    {
+      "t": 28225,
+      "side": "out",
+      "elapsed": 27600,
+      "delta": " está"
+    },
+    {
+      "t": 28243,
+      "side": "in",
+      "elapsed": 27400,
+      "delta": " the"
+    },
+    {
+      "t": 28429,
+      "side": "out",
+      "elapsed": 27800,
+      "delta": " incluido"
+    },
+    {
+      "t": 28444,
+      "side": "in",
+      "elapsed": 27600,
+      "delta": " room"
+    },
+    {
+      "t": 28454,
+      "side": "in",
+      "elapsed": 27600,
+      "delta": "?"
+    },
+    {
+      "t": 28835,
+      "side": "out",
+      "elapsed": 28200,
+      "delta": " con"
+    },
+    {
+      "t": 29036,
+      "side": "out",
+      "elapsed": 28400,
+      "delta": " la"
+    },
+    {
+      "t": 29038,
+      "side": "out",
+      "elapsed": 28400,
+      "delta": " habitación"
+    },
+    {
+      "t": 29710,
+      "side": "out",
+      "elapsed": 29000,
+      "delta": "?"
+    },
+    {
+      "t": 30257,
+      "side": "in",
+      "elapsed": 29400,
+      "delta": "?"
+    },
+    {
+      "t": 30263,
+      "side": "in",
+      "elapsed": 29400,
+      "delta": " Take"
+    },
+    {
+      "t": 31253,
+      "side": "in",
+      "elapsed": 30400,
+      "delta": " "
+    },
+    {
+      "t": 31260,
+      "side": "in",
+      "elapsed": 30400,
+      "delta": "2"
+    },
+    {
+      "t": 31270,
+      "side": "in",
+      "elapsed": 30400,
+      "delta": "."
+    },
+    {
+      "t": 31273,
+      "side": "in",
+      "elapsed": 30400,
+      "delta": "5"
+    },
+    {
+      "t": 31854,
+      "side": "in",
+      "elapsed": 31000,
+      "delta": " mill"
+    },
+    {
+      "t": 31859,
+      "side": "in",
+      "elapsed": 31000,
+      "delta": "igrams"
+    },
+    {
+      "t": 32056,
+      "side": "in",
+      "elapsed": 31200,
+      "delta": " of"
+    },
+    {
+      "t": 32073,
+      "side": "out",
+      "elapsed": 31400,
+      "delta": " T"
+    },
+    {
+      "t": 32074,
+      "side": "out",
+      "elapsed": 31400,
+      "delta": "ome"
+    },
+    {
+      "t": 32524,
+      "side": "out",
+      "elapsed": 31800,
+      "delta": " "
+    },
+    {
+      "t": 32528,
+      "side": "out",
+      "elapsed": 31800,
+      "delta": "2"
+    },
+    {
+      "t": 32529,
+      "side": "out",
+      "elapsed": 31800,
+      "delta": ","
+    },
+    {
+      "t": 32656,
+      "side": "in",
+      "elapsed": 31800,
+      "delta": " war"
+    },
+    {
+      "t": 32661,
+      "side": "in",
+      "elapsed": 31800,
+      "delta": "far"
+    },
+    {
+      "t": 32669,
+      "side": "in",
+      "elapsed": 31800,
+      "delta": "in"
+    },
+    {
+      "t": 32843,
+      "side": "out",
+      "elapsed": 32200,
+      "delta": "5"
+    },
+    {
+      "t": 33050,
+      "side": "in",
+      "elapsed": 32200,
+      "delta": " twice"
+    },
+    {
+      "t": 33258,
+      "side": "in",
+      "elapsed": 32400,
+      "delta": " a"
+    },
+    {
+      "t": 33285,
+      "side": "out",
+      "elapsed": 32600,
+      "delta": " mil"
+    },
+    {
+      "t": 33289,
+      "side": "out",
+      "elapsed": 32600,
+      "delta": "igr"
+    },
+    {
+      "t": 33453,
+      "side": "in",
+      "elapsed": 32600,
+      "delta": " day"
+    },
+    {
+      "t": 33517,
+      "side": "out",
+      "elapsed": 32800,
+      "delta": "amos"
+    },
+    {
+      "t": 33718,
+      "side": "out",
+      "elapsed": 33000,
+      "delta": " de"
+    },
+    {
+      "t": 33883,
+      "side": "out",
+      "elapsed": 33200,
+      "delta": " war"
+    },
+    {
+      "t": 33891,
+      "side": "out",
+      "elapsed": 33200,
+      "delta": "far"
+    },
+    {
+      "t": 34052,
+      "side": "out",
+      "elapsed": 33400,
+      "delta": "ina"
+    },
+    {
+      "t": 34286,
+      "side": "out",
+      "elapsed": 33600,
+      "delta": " dos"
+    },
+    {
+      "t": 34447,
+      "side": "out",
+      "elapsed": 33800,
+      "delta": " veces"
+    },
+    {
+      "t": 34842,
+      "side": "out",
+      "elapsed": 34200,
+      "delta": " al"
+    },
+    {
+      "t": 35091,
+      "side": "out",
+      "elapsed": 34400,
+      "delta": " día"
+    },
+    {
+      "t": 35257,
+      "side": "in",
+      "elapsed": 34400,
+      "delta": "."
+    },
+    {
+      "t": 35260,
+      "side": "in",
+      "elapsed": 34400,
+      "delta": " Are"
+    },
+    {
+      "t": 35309,
+      "side": "out",
+      "elapsed": 34600,
+      "delta": "."
+    },
+    {
+      "t": 35455,
+      "side": "in",
+      "elapsed": 34600,
+      "delta": " you"
+    },
+    {
+      "t": 35855,
+      "side": "in",
+      "elapsed": 35000,
+      "delta": " allergic"
+    },
+    {
+      "t": 36061,
+      "side": "in",
+      "elapsed": 35200,
+      "delta": " to"
+    },
+    {
+      "t": 36275,
+      "side": "out",
+      "elapsed": 35600,
+      "delta": " ¿"
+    },
+    {
+      "t": 36512,
+      "side": "out",
+      "elapsed": 35800,
+      "delta": "Es"
+    },
+    {
+      "t": 36676,
+      "side": "out",
+      "elapsed": 36000,
+      "delta": " al"
+    },
+    {
+      "t": 36861,
+      "side": "in",
+      "elapsed": 36000,
+      "delta": " ib"
+    },
+    {
+      "t": 36868,
+      "side": "in",
+      "elapsed": 36000,
+      "delta": "uprofen"
+    },
+    {
+      "t": 36900,
+      "side": "out",
+      "elapsed": 36200,
+      "delta": "ér"
+    },
+    {
+      "t": 36903,
+      "side": "out",
+      "elapsed": 36200,
+      "delta": "g"
+    },
+    {
+      "t": 37059,
+      "side": "in",
+      "elapsed": 36200,
+      "delta": " or"
+    },
+    {
+      "t": 37127,
+      "side": "out",
+      "elapsed": 36400,
+      "delta": "ico"
+    },
+    {
+      "t": 37260,
+      "side": "out",
+      "elapsed": 36600,
+      "delta": " al"
+    },
+    {
+      "t": 37263,
+      "side": "in",
+      "elapsed": 36400,
+      "delta": " any"
+    },
+    {
+      "t": 37263,
+      "side": "out",
+      "elapsed": 36600,
+      "delta": " ib"
+    },
+    {
+      "t": 37319,
+      "side": "out",
+      "elapsed": 36600,
+      "delta": "up"
+    },
+    {
+      "t": 37458,
+      "side": "in",
+      "elapsed": 36600,
+      "delta": " other"
+    },
+    {
+      "t": 37460,
+      "side": "out",
+      "elapsed": 36800,
+      "delta": "rof"
+    },
+    {
+      "t": 37645,
+      "side": "out",
+      "elapsed": 37000,
+      "delta": "eno"
+    },
+    {
+      "t": 37859,
+      "side": "out",
+      "elapsed": 37200,
+      "delta": " o"
+    },
+    {
+      "t": 38095,
+      "side": "out",
+      "elapsed": 37400,
+      "delta": " a"
+    },
+    {
+      "t": 38096,
+      "side": "out",
+      "elapsed": 37400,
+      "delta": " algún"
+    },
+    {
+      "t": 38261,
+      "side": "in",
+      "elapsed": 37400,
+      "delta": " medication"
+    },
+    {
+      "t": 38273,
+      "side": "in",
+      "elapsed": 37400,
+      "delta": "?"
+    },
+    {
+      "t": 38453,
+      "side": "out",
+      "elapsed": 37800,
+      "delta": " otro"
+    },
+    {
+      "t": 38666,
+      "side": "out",
+      "elapsed": 38000,
+      "delta": " medicamento"
+    },
+    {
+      "t": 39263,
+      "side": "out",
+      "elapsed": 38600,
+      "delta": "?"
+    }
+  ]
+}

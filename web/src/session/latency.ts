@@ -52,8 +52,9 @@ const realtimeStages: StageDef[] = [
 
 /**
  * gpt-realtime-translate speaks while the speaker is still talking (G17), so the headline (speech end
- * to first audio) is often negative. Start lag is the comparable number: how far behind the speaker
- * the interpretation starts. There are no server marks in between.
+ * to first audio) is often negative. Start lag (speech start to first audible output) is measured on
+ * lines that start after a pause; text lag (first source text to first translated text, both as they
+ * reach this browser) on every line.
  */
 const translateStages: StageDef[] = [
   {
@@ -61,7 +62,14 @@ const translateStages: StageDef[] = [
     label: 'Start lag (speech start → first audio)',
     from: 'speech.start',
     to: 'audio.first_out',
-    opaque: true,
+    parallel: true,
+  },
+  {
+    key: 'text_lag',
+    label: 'Text lag (source text → translated text)',
+    from: 'source.first_text',
+    to: 'target.first_text',
+    parallel: true,
   },
 ]
 

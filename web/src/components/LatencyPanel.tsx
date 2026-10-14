@@ -123,8 +123,9 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
         back-dated to the last voiced frame) in both modes, so the vendors' own silence timeouts show up as endpointing.
         Server marks are offset-corrected with ping/pong. Cascade measures audio scheduled; Realtime measures audio
         heard on the WebRTC track, and its model time is opaque. Realtime translate speaks while the speaker is still
-        talking, so its total is often negative; its start lag (speech start to first audio) is the comparable number.
-        The dashed line is the brief&apos;s budget ({budgetMs.realtime} ms Realtime, {budgetMs.cascade} ms cascade).
+        talking, so its total is often negative; start lag (speech start to first audio, on lines after a pause) and
+        text lag (source text to translated text, every line) are the comparable numbers. The dashed line is the
+        brief&apos;s budget ({budgetMs.realtime} ms Realtime, {budgetMs.cascade} ms cascade).
       </p>
     </section>
   )

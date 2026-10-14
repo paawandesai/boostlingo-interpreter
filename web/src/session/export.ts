@@ -118,7 +118,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
     notes: [
       'Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.',
       'Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.',
-      "Realtime translate lines are cut client-side from continuous transcript streams (VAD pauses plus idle gaps), so a line boundary is approximate and its source text is the model's own transcript, not ground truth.",
+      "Realtime translate lines are cut client-side: each translated sentence is paired with the source sentence that had started when it began (both streams carry elapsed_ms). Boundaries are approximate, the source text is the model's own transcript, not ground truth, and start lag is measured only on lines that start after a pause.",
       'Realtime input-transcription usage is billed separately and is not captured here.',
       'Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.',
       'A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.',
