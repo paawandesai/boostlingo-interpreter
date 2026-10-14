@@ -166,7 +166,7 @@ eval:lint:
   stage: check
   needs: []
   script:
-    - pip install --quiet ruff
+    - pip install --quiet ruff==0.17.0
     - ruff check eval
 
 # live:smoke and e2e:soak (manual/scheduled, real provider calls) are added in Day 3 (T3.6)
