@@ -111,4 +111,12 @@ describe('sessionReducer', () => {
       { mode: 'realtime', kind: 'timeout', message: 'slow' },
     ])
   })
+
+  it('discards the transcript at the end of a session (G20)', () => {
+    let s = run([{ type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true }])
+    s = sessionReducer(s, { type: 'ended' })
+    expect(s.timeline).toEqual([])
+    expect(s.incidents).toEqual([])
+    expect(s.status).toBe('ended')
+  })
 })

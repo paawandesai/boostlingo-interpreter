@@ -1,0 +1,104 @@
+import type { LanguagesResponse } from './languages'
+import type { Utterance } from './store'
+
+/**
+ * Deterministic checks on every output segment, both modes (G15). They decide nothing on their own:
+ * a failed check marks the line "possibly not a translation" and offers the human handoff, and the
+ * text is always kept. Heuristics, not proof; a passing line is not verified either.
+ */
+export type CheckFlag =
+  | 'refusal' // the model declined; shown as "[segment not interpreted — model declined]"
+  | 'omission' // speech was recognised but nothing came out
+  | 'prompt_leak' // the instructions' canary appeared in the output
+  | 'assistant_reply' // assistant-style phrasing ("As an AI", "Sure, here's")
+  | 'wrong_language' // the output reads as the source language, not the target
+  | 'length_ratio' // far shorter or longer than the source
+
+export interface OutputChecks {
+  markers: string[]
+  assistantPatterns: string[]
+  refusalPatterns: string[]
+}
+
+export interface CheckContext {
+  sourceLang: string
+  targetLang: string
+  checks: Record<string, OutputChecks | undefined>
+  canary: string | null
+}
+
+export const FLAG_TEXT: Record<CheckFlag, string> = {
+  refusal: 'the model declined',
+  omission: 'nothing was interpreted',
+  prompt_leak: 'it repeated its instructions',
+  assistant_reply: 'it reads like an assistant reply',
+  wrong_language: 'it is not in the target language',
+  length_ratio: 'its length does not match what was said',
+}
+
+/** Length bounds (target chars / source chars) and the minimum source size they apply to. */
+const RATIO_MIN = 0.4
+const RATIO_MAX = 2.5
+const RATIO_MIN_SOURCE_CHARS = 15
+/** Language check needs this many words to say anything. */
+const LANG_MIN_WORDS = 4
+
+const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
+const squash = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+const hasAny = (text: string, patterns: string[] = []) => {
+  const t = text.toLowerCase().replace(/[’]/g, "'")
+  return patterns.some((p) => t.includes(p))
+}
+
+export function checkContext(
+  languages: LanguagesResponse | null,
+  sourceLang: string,
+  targetLang: string,
+): CheckContext {
+  return {
+    sourceLang,
+    targetLang,
+    checks: Object.fromEntries((languages?.languages ?? []).map((l) => [l.code, l.outputChecks])),
+    canary: languages?.canary ?? null,
+  }
+}
+
+/** Flags for a finished target segment; [] while it is still partial. */
+export function checkSegment(source: string, target: string, sourceFinal: boolean, ctx: CheckContext): CheckFlag[] {
+  const flags: CheckFlag[] = []
+  const tgt = ctx.checks[ctx.targetLang]
+  const src = ctx.checks[ctx.sourceLang]
+  const sourceWords = words(source)
+  const targetWords = words(target)
+
+  if (target.trim() === '') {
+    if (sourceFinal && sourceWords.length >= 3) flags.push('omission')
+    return flags
+  }
+  if (hasAny(target, tgt?.refusalPatterns) || hasAny(target, src?.refusalPatterns)) flags.push('refusal')
+  if (ctx.canary && squash(target).includes(squash(ctx.canary))) flags.push('prompt_leak')
+  if (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) flags.push('assistant_reply')
+  if (targetWords.length >= LANG_MIN_WORDS && tgt && src) {
+    const hits = (markers: string[]) => targetWords.filter((w) => markers.includes(w)).length
+    const asTarget = hits(tgt.markers)
+    const asSource = hits(src.markers)
+    if (asSource >= 2 && asSource > asTarget) flags.push('wrong_language')
+  }
+  if (sourceFinal && source.trim().length >= RATIO_MIN_SOURCE_CHARS) {
+    const ratio = target.trim().length / source.trim().length
+    if (ratio < RATIO_MIN || ratio > RATIO_MAX) flags.push('length_ratio')
+  }
+  return flags
+}
+
+/** Checks one utterance; the source language is the speaking side's. */
+export function checkUtterance(
+  u: Utterance,
+  langA: string,
+  langB: string,
+  ctx: Omit<CheckContext, 'sourceLang' | 'targetLang'>,
+): CheckFlag[] {
+  if (!u.target.final) return []
+  const [sourceLang, targetLang] = u.side === 'A' ? [langA, langB] : [langB, langA]
+  return checkSegment(u.source.text, u.target.text, u.source.final, { ...ctx, sourceLang, targetLang })
+}

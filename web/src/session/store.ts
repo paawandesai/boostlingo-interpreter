@@ -92,6 +92,19 @@ export const initialState: SessionState = {
   incidents: [],
 }
 
+/** Drops everything said in the session (G20); settings stay. */
+function discardTranscript(state: SessionState): SessionState {
+  return {
+    ...state,
+    timeline: [],
+    incidents: [],
+    segments: [],
+    sessionUsage: { sttAudioSeconds: 0 },
+    pendingSpeechEnd: null,
+    notice: null,
+  }
+}
+
 /** Below this STT confidence a source line is flagged for the listener (G7). */
 export const LOW_CONFIDENCE = 0.8
 
@@ -132,10 +145,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         segments: state.segments.map((s) => (s.endedAt === null ? { ...s, endedAt: action.at } : s)),
       }
     case 'ended':
-      return { ...state, status: 'ended', level: 0, gated: false }
+      // G20: transcripts live only for the session view; export before End to keep them.
+      return { ...discardTranscript(state), status: 'ended', level: 0, gated: false }
     case 'handoff':
       return {
-        ...state,
+        ...discardTranscript(state),
         status: 'ended',
         level: 0,
         gated: false,

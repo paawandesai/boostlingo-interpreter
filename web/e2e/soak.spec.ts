@@ -63,10 +63,11 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   samples.push({ t: Date.now() - t0, mb: await heap() })
   const drops = await page.evaluate(() => window.__live.drops)
 
-  await page.getByRole('button', { name: 'End' }).click()
+  // End discards the transcript (G20), so the log is exported first.
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Export last session log/ }).click()
+  await page.getByRole('button', { name: 'Export log', exact: true }).click()
   const logPath = await (await download).path()
+  await page.getByRole('button', { name: 'End', exact: true }).click()
   const log = JSON.parse(readFileSync(logPath, 'utf8')) as {
     modes: Array<{ mode: string; utterances: number; latency: unknown[] }>
     utterances: Array<{ target: { text: string; final: boolean } | null; audioFailed: boolean }>

@@ -384,3 +384,17 @@ summary {
   display: flex;
   justify-content: flex-end;
 }
+
+/* Output checks (G15): a flagged line stays visible, marked, with the handoff next to it. */
+.transcript li.flagged {
+  border-left: 3px solid var(--warn, #b45309);
+  padding-left: 0.5rem;
+}
+.check-flag {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--warn, #b45309);
+}

@@ -50,10 +50,10 @@ export default function App() {
         defaultRealtimeModel: models?.default ?? null,
         prices,
         userAgent: navigator.userAgent,
+        languages,
       }),
     )
   }
-  const hasLog = state.timeline.some((x) => x.kind === 'utterance')
 
   // The spoken notice plays before the transport starts, so the mic is not open yet (G7).
   const startWithNotice = async ({ spokenNotice }: { spokenNotice: boolean }) => {
@@ -117,13 +117,6 @@ export default function App() {
           {state.error && (
             <p role="alert" className="banner">
               {state.error.message}
-            </p>
-          )}
-          {hasLog && (
-            <p className="actions-row">
-              <button type="button" onClick={() => void exportLog()}>
-                Export last session log (JSON)
-              </button>
             </p>
           )}
           <SetupPanel
