@@ -31,6 +31,7 @@ public static class CascadeProtocol
         TranslationFinal f => new { type = "translation.final", u = f.Utterance, text = f.Text, t = f.AtMs },
         LatencyMark m => new { type = "latency.mark", u = m.Utterance, name = m.Name, t = m.AtMs },
         UtteranceDone d => new { type = "utterance.done", u = d.Utterance, t = d.AtMs },
+        UtteranceUsage x => new { type = "usage", u = x.Utterance, inputTokens = x.InputTokens, outputTokens = x.OutputTokens, ttsCharacters = x.TtsCharacters, t = x.AtMs },
         CascadeError err => Error(err.Utterance, err.Stage, err.Provider, err.Kind, err.AtMs, err.RetryAfterMs),
         CascadeRetry r => new { type = "retry", u = r.Utterance, stage = r.Stage, provider = r.Provider, kind = r.Kind.ToString(), attempt = r.Attempt, delayMs = r.DelayMs, t = r.AtMs },
         _ => null,

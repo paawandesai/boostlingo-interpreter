@@ -28,6 +28,8 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
         {
             ["model"] = _opts.Model,
             ["stream"] = true,
+            // The last chunk then carries the billed token counts (choices is empty on that chunk).
+            ["stream_options"] = new JsonObject { ["include_usage"] = true },
             ["max_completion_tokens"] = _opts.MaxOutputTokens,
             ["messages"] = messages,
         };
@@ -60,6 +62,9 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
                     type == "rate_limit_error" ? ProviderErrorKind.RateLimited : ProviderErrorKind.Unavailable,
                     Provider, $"OpenAI translation stream error ({type ?? "unknown"})");
             }
+            if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object
+                && usage.TryGetProperty("prompt_tokens", out var pt) && usage.TryGetProperty("completion_tokens", out var ctk))
+                request.OnUsage?.Invoke(new TokenUsage(pt.GetInt32(), ctk.GetInt32()));
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0
                 && choices[0].GetProperty("delta").TryGetProperty("content", out var content)
                 && content.GetString() is { Length: > 0 } text)

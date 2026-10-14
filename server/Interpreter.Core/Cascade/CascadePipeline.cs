@@ -53,6 +53,13 @@ public sealed record LatencyMark(int Utterance, string Name) : CascadeEvent(Utte
 /// <summary>Translation and speech for this utterance are finished (or abandoned after an error).</summary>
 public sealed record UtteranceDone(int Utterance) : CascadeEvent(Utterance);
 
+/// <summary>
+/// What one utterance consumed, for the cost table (T3.5): translation tokens as billed by the provider
+/// (null when it reported none) and characters sent to TTS. STT is billed by audio time, counted per session.
+/// </summary>
+public sealed record UtteranceUsage(int Utterance, int? InputTokens, int? OutputTokens, int TtsCharacters)
+    : CascadeEvent(Utterance);
+
 /// <param name="Stage">"stt", "translation" or "tts".</param>
 /// <param name="RetryAfterMs">The provider's Retry-After, when it sent one.</param>
 public sealed record CascadeError(int Utterance, string Stage, string Provider, ProviderErrorKind Kind, double? RetryAfterMs = null)
@@ -230,14 +237,29 @@ public sealed class CascadePipeline(
         {
             await foreach (var u in _utterances.Reader.ReadAllAsync(_ct))
             {
-                await InterpretUtteranceAsync(u);
+                var usage = await InterpretUtteranceAsync(u);
+                await Emit(new UtteranceUsage(u.Id, usage.InputTokens, usage.OutputTokens, usage.TtsCharacters));
                 await Emit(new UtteranceDone(u.Id));
             }
         }
 
-        private async Task InterpretUtteranceAsync(Utterance u)
+        private sealed class UsageTotals
         {
-            var speech = new Speech(this, u.Id);
+            public int? InputTokens;
+            public int? OutputTokens;
+            public int TtsCharacters;
+
+            public void Add(TokenUsage u)
+            {
+                InputTokens = (InputTokens ?? 0) + u.InputTokens;
+                OutputTokens = (OutputTokens ?? 0) + u.OutputTokens;
+            }
+        }
+
+        private async Task<UsageTotals> InterpretUtteranceAsync(Utterance u)
+        {
+            var usage = new UsageTotals();
+            var speech = new Speech(this, u.Id, usage);
             var translating = true;
             try
             {
@@ -245,20 +267,21 @@ public sealed class CascadePipeline(
                 {
                     // After a translation error, drain the rest of the utterance so STT is never blocked.
                     if (!translating) continue;
-                    translating = await TranslateSegmentAsync(u.Id, segment.Text, speech);
+                    translating = await TranslateSegmentAsync(u.Id, segment.Text, speech, usage);
                 }
             }
             finally
             {
                 await speech.FinishAsync();
             }
+            return usage;
         }
 
         /// <returns>False if the translator failed and the rest of this utterance should be skipped.</returns>
-        private async Task<bool> TranslateSegmentAsync(int id, string source, Speech speech)
+        private async Task<bool> TranslateSegmentAsync(int id, string source, Speech speech, UsageTotals usage)
         {
             var request = new TranslationRequest(
-                _s.SourceName, _s.TargetName, source, _context.ToArray(), _s.Glossary);
+                _s.SourceName, _s.TargetName, source, _context.ToArray(), _s.Glossary, usage.Add);
             var policy = new FlushPolicy(_flush);
             var full = new StringBuilder();
             var started = new StrongBox<bool>(false);
@@ -351,7 +374,7 @@ public sealed class CascadePipeline(
         }
 
         /// <summary>The utterance's TTS stream: opened on the first flushed chunk, closed when the utterance ends.</summary>
-        private sealed class Speech(Run run, int id)
+        private sealed class Speech(Run run, int id, UsageTotals usage)
         {
             private Channel<string>? _text;
             private Task? _speaking;
@@ -369,6 +392,7 @@ public sealed class CascadePipeline(
                 try
                 {
                     await _text.Writer.WriteAsync(chunk, run._ct);
+                    usage.TtsCharacters += chunk.Length;
                 }
                 catch (ChannelClosedException)
                 {
