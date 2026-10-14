@@ -13,6 +13,7 @@ export function useSession() {
   const transport = useRef<Transport | null>(null)
   const unsubscribe = useRef<(() => void) | null>(null)
   const replay = useRef<ReplayHandle | null>(null)
+  const startGen = useRef(0)
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -46,11 +47,15 @@ export function useSession() {
    * flips the speaker side to the side whose language it is in.
    */
   const start = useCallback(
-    async (opts: { replay?: ReplayClip[] } = {}) => {
+    async (opts: { replay?: ReplayClip[]; replayGapMs?: number } = {}) => {
+      const gen = ++startGen.current
       await teardown()
+      // A newer start (a quick second mode switch) began while this one waited; let it win.
+      if (gen !== startGen.current) return
       if (opts.replay?.length) {
         await stopReplay()
         const r = createReplay(opts.replay, {
+          gapMs: opts.replayGapMs,
           // The capture gate disables the input track while the interpreter speaks.
           isBusy: () => r.stream.getAudioTracks().some((t) => !t.enabled),
           onClip: (clip) => {
@@ -99,10 +104,12 @@ export function useSession() {
           text: `Switched to ${mode}. Earlier turns stay here but are not sent to the new mode.`,
         })
         stateRef.current = { ...stateRef.current, mode }
-        await start()
       } finally {
         switching.current = false
       }
+      // Not under the guard: a Realtime start can sit in "connecting" for a long time, and the user
+      // must be able to switch back meanwhile (start() supersedes an earlier start).
+      await start()
     },
     [teardown, start],
   )

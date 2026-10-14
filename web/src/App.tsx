@@ -13,6 +13,9 @@ import { fetchHealth } from './session/health'
 import { fetchCascadeProviders, fetchGlossaryInfo, fetchPrices, type CascadeProviders } from './session/providers'
 import { useSession } from './session/useSession'
 
+/** `?replayGap=800` shortens the pause between replay clips, for the soak (T3.6). */
+const replayGapMs = Number(new URLSearchParams(window.location.search).get('replayGap')) || undefined
+
 export default function App() {
   const { state, start, end, configure, setSpeaker, dismissError, requestHuman, switchMode } = useSession()
   const [languages, setLanguages] = useState<LanguagesResponse | null>(null)
@@ -66,7 +69,7 @@ export default function App() {
         setAnnouncing(false)
       }
     }
-    await start({ replay })
+    await start({ replay, replayGapMs })
   }
 
   const inSession = state.status === 'connecting' || state.status === 'live'
