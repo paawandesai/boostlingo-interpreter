@@ -140,7 +140,14 @@ describe('CascadeTransport', () => {
 
   it("keeps the server's refusal reason instead of a generic close error", async () => {
     const { ws, events } = await started()
-    ws.server({ type: 'error', stage: 'session', provider: 'workbench', kind: 'Auth', message: 'Missing or wrong access token.', t: 1 })
+    ws.server({
+      type: 'error',
+      stage: 'session',
+      provider: 'workbench',
+      kind: 'Auth',
+      message: 'Missing or wrong access token.',
+      t: 1,
+    })
     ws.onclose!({ code: 1008, reason: 'Missing or wrong access token.' })
     const errors = events.filter((e) => e.type === 'error')
     expect(errors).toHaveLength(1)

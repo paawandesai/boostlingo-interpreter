@@ -113,7 +113,11 @@ export class CascadeTransport implements Transport {
       this.ready = false
       if (e.code !== 1000 && !this.serverError) {
         const reason = e.reason ? `: ${e.reason}` : ''
-        this.emitter.emit({ type: 'error', kind: 'unavailable', message: `Cascade connection closed (${e.code})${reason}` })
+        this.emitter.emit({
+          type: 'error',
+          kind: 'unavailable',
+          message: `Cascade connection closed (${e.code})${reason}`,
+        })
       }
     }
   }
