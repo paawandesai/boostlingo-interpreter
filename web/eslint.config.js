@@ -15,6 +15,8 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // docs/GUARDRAILS.md (Data): never log user text or transcripts. No console logging in app code.
+      'no-console': 'error',
     },
   },
   {

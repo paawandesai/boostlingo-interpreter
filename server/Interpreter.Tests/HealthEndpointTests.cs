@@ -11,10 +11,10 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
     {
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/health");
+        var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<HealthResponse>();
+        var body = await response.Content.ReadFromJsonAsync<HealthResponse>(TestContext.Current.CancellationToken);
         Assert.Equal("ok", body?.Status);
     }
 }

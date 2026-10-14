@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Read [AGENTS.md](AGENTS.md) first: roles, workflow, commands, guardrails and the "do not" list all live there. This file adds only what Claude Code needs at the start of a session.
+Read [docs/GUARDRAILS.md](docs/GUARDRAILS.md) before any change; it outranks every other document. Then read [AGENTS.md](AGENTS.md): roles, workflow, commands, guardrails and the "do not" list all live there. This file adds only what Claude Code needs at the start of a session.
 
 - Start each task by reading its entry in [docs/TASKS.md](docs/TASKS.md) and the decisions it touches in [docs/DECISIONS.md](docs/DECISIONS.md).
 - Work on a feature branch named `t<id>-<slug>` (for example `t1.4-audio-io`) and open an MR with `glab mr create`. Never push to `main` after the bootstrap commit.

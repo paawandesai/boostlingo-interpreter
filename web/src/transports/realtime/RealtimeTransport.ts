@@ -81,7 +81,6 @@ export class RealtimeTransport implements Transport {
   }
 
   async stop(): Promise<void> {
-    console.log('stop called')
     this.stopped = true
     await this.release()
     this.emitter.emit({ type: 'state', state: 'closed' })
@@ -166,7 +165,6 @@ export class RealtimeTransport implements Transport {
 
   private async release(): Promise<void> {
     this.clearConnectTimer()
-    console.log('rel:start')
     this.probe?.stop()
     this.probe = null
     this.gate?.dispose()
@@ -183,14 +181,12 @@ export class RealtimeTransport implements Transport {
       this.pc.close()
     }
     this.pc = null
-    console.log('rel:pc closed')
     if (this.audioEl) {
       this.audioEl.srcObject = null
       this.audioEl.remove()
     }
     this.audioEl = null
     await this.capture?.stop()
-    console.log('rel:capture stopped')
     this.capture = null
   }
 }

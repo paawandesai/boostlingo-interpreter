@@ -2,4 +2,4 @@
 set -e
 (cd web && npx tsc -b --noEmit && npx vitest run --changed origin/main --passWithNoTests)
 dotnet build server -m:2 --nologo -v q
-dotnet test server --no-build --nologo -v q --filter "Category!=Live"
+dotnet test --solution server/Interpreter.slnx --no-build --filter-not-trait "Category=Live"

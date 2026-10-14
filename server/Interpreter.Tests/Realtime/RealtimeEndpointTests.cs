@@ -29,10 +29,10 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     {
         var minter = new FakeMinter(_ => new RealtimeClientSecret("ek_test", DateTimeOffset.UnixEpoch, "gpt-realtime", "gpt-4o-mini-transcribe"));
 
-        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "es" });
+        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "es" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
+        var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
         Assert.Equal("ek_test", json.GetProperty("clientSecret").GetString());
         Assert.Equal("gpt-4o-mini-transcribe", json.GetProperty("transcriptionModel").GetString());
         Assert.Equal("https://api.openai.com/v1/realtime/calls", json.GetProperty("callsUrl").GetString());
@@ -49,7 +49,7 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     {
         var minter = new FakeMinter(_ => throw new InvalidOperationException("should not be called"));
 
-        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "fr" });
+        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "en", target = "fr" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         Assert.Empty(minter.Calls);
@@ -61,10 +61,10 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
         var minter = new FakeMinter(_ => throw new ProviderException(
             ProviderErrorKind.RateLimited, "openai-realtime", "rate limited", TimeSpan.FromSeconds(3)));
 
-        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "es", target = "en" });
+        var res = await Client(minter).PostAsJsonAsync("/api/realtime/session", new { source = "es", target = "en" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, res.StatusCode);
-        var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
+        var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
         Assert.Equal("RateLimited", json.GetProperty("kind").GetString());
         Assert.Equal(3000, json.GetProperty("retryAfterMs").GetInt64());
     }

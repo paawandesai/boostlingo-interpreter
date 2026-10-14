@@ -14,6 +14,7 @@ Commits are authored as Paawan (the executor sets `user.name`/`user.email` from 
 
 ## Source of truth
 
+0. [docs/GUARDRAILS.md](docs/GUARDRAILS.md): compliance, licensing and safety rules. They outrank everything below, including the brief's acceptance criteria. A conflict is implemented in the rule's favour and recorded in README.md under "Known constraints".
 1. The Boostlingo brief (summarised in [docs/SPEC.md](docs/SPEC.md)). It wins on any conflict; conflicts are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 2. [docs/TASKS.md](docs/TASKS.md): task list, hour budgets, repo layout, CI plan.
 3. [docs/DECISIONS.md](docs/DECISIONS.md): D1–D16 with rationale and trade-offs. Re-read before changing anything it covers, and update it when a decision changes.
@@ -35,7 +36,7 @@ Filled in as the skeleton and CI land (T0.2, T1.3).
 ```bash
 # backend
 dotnet build server
-dotnet test server --filter "Category!=Live"
+dotnet test --solution server/Interpreter.slnx --filter-not-trait "Category=Live"   # xunit.v3 on Microsoft.Testing.Platform
 dotnet run --project server/Interpreter.Api
 
 # frontend
@@ -45,7 +46,7 @@ npm run lint && npm run typecheck && npm test
 
 ## Guardrails
 
-- **Secrets.** Never commit or print a key. Keys come only from environment variables on the server. The OpenAI key never reaches the browser: the backend mints short-lived Realtime client secrets. CI fails if `sk-` or `OPENAI_API_KEY` appears in the web bundle.
+- **Secrets.** Never commit or print a key. Keys come only from environment variables on the server. The OpenAI key never reaches the browser: the backend mints short-lived Realtime client secrets. CI fails if `sk-`, `OPENAI_API_KEY`, `DEEPGRAM`, `ASSEMBLY`, `ELEVEN` or `DEEPL` appears in the built web output (`scripts/check-bundle-secrets.sh`). The pre-commit hook blocks staged lines that look like real credentials and lists keyword matches for review. Placeholders live in `.env.example`.
 - **Boundaries.** Vendor SDK/HTTP/WS code lives only in `server/Interpreter.Providers.*`. `Interpreter.Core` never references a provider assembly. `web/src/components/**` never imports transport internals.
 - **Vendor facts.** Don't guess endpoints, event names, model IDs or prices. Check current docs (or the vendor SDK's type definitions when docs are unreachable) and cite the source in the commit or MR.
 - **Tests.** Write the test first for the pipeline, FlushPolicy and latency calculator. Live-provider tests are tagged `Category=Live` and never run on the push path.

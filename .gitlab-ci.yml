@@ -110,8 +110,8 @@ web:build:
   needs: [web:install]
   script:
     - npx vite build
-    # M2 guardrail: no OpenAI key or key-like string may ship in the browser bundle.
-    - if grep -rEn 'sk-[A-Za-z0-9_-]{16,}|OPENAI_API_KEY' dist; then echo "Secret-like string found in web bundle" >&2; exit 1; fi
+    # Guardrail (docs/GUARDRAILS.md, Keys and transport): no provider key or key name may ship in the bundle.
+    - sh ../scripts/check-bundle-secrets.sh dist
   artifacts:
     paths: [web/dist/]
     expire_in: 1 day
@@ -151,11 +151,12 @@ server:test:
   stage: test
   needs: [server:build]
   script:
-    - dotnet test server -c Release --no-build --filter "Category!=Live" --logger "junit;LogFilePath=$CI_PROJECT_DIR/server-junit.xml"
+    # xunit.v3 on Microsoft.Testing.Platform (opted in by global.json); the JUnit report is built into xunit.v3.
+    - dotnet test --solution server/Interpreter.slnx -c Release --no-build --filter-not-trait "Category=Live" --report-xunit-junit --report-xunit-junit-filename server-junit.xml --results-directory "$CI_PROJECT_DIR/test-results"
   artifacts:
     when: always
     reports:
-      junit: server-junit.xml
+      junit: test-results/server-junit.xml
     expire_in: 1 week
 
 # ---------- eval (Python, offline scripts) ----------
@@ -165,7 +166,7 @@ eval:lint:
   stage: check
   needs: []
   script:
-    - pip install --quiet ruff
+    - pip install --quiet ruff==0.17.0
     - ruff check eval
 
 # live:smoke and e2e:soak (manual/scheduled, real provider calls) are added in Day 3 (T3.6)

@@ -53,6 +53,47 @@ Hour budgets are caps: if a task overruns by 50%, stop and report before continu
 ---
 
 
+## Guardrail tasks (guardrails v2, added 2026-10-14)
+
+[docs/GUARDRAILS.md](GUARDRAILS.md) outranks this list. Each rule that needs work maps to a task below, slotted into the day where the code it touches is written. Rules already met are listed so nothing is re-done.
+
+**Checked by the executor on 2026-10-14**
+- `gpt-realtime`, `gpt-realtime-2.1` and `gpt-realtime-translate` all appear in `GET /v1/models` for this project's key.
+- The `openai` npm package 7.33.0 types include `gpt-realtime-2.1` and the `/v1/realtime/translations` path.
+- **Not verified** (OpenAI's docs are blocked from the container): the deprecation and removal dates for `gpt-realtime`, and the $0.034/min price of `gpt-realtime-translate`. Paawan confirms them on OpenAI's deprecations and pricing pages before the write-up cites them.
+
+**Already met (MR !7 or earlier)**
+- `.env` ignored and `.env.example` committed.
+- Bundle scan for provider key names and `sk-`.
+- Staged-secret grep in the pre-commit hook.
+- `LICENSES.md`, `AI_USAGE.md` and README "Known constraints".
+- Pinned dependencies.
+- No console logging in app code.
+- Server logs carry status codes only.
+- `/health` makes no provider calls.
+- No analytics SDK.
+- Ephemeral client secrets for Realtime.
+- Latency is timed from client VAD, not `speech_stopped` (D9).
+
+| Id | Slot | Task | Rule |
+|---|---|---|---|
+| G1 | Day 2 start (0.5 h) | Realtime model id from configuration, default `gpt-realtime-2.1`. Brief's `gpt-realtime` stays selectable. Known constraint and DECISIONS entry. Test that no request carries an `OpenAI-Beta` header or a `*-preview` model. | Deprecated model |
+| G2 | Day 2 (0.5 h) | Authenticate and rate-limit `POST /api/realtime/session` and the cascade WebSocket. A demo access token from env, checked server-side, plus the ASP.NET Core rate limiter per client. Endpoint tests for 401 and 429. | Unauthenticated mint endpoint |
+| G3 | Day 2 (0.5 h) | gitleaks (MIT, pinned release) as a pre-commit hook and a CI job. Add `sk-` to the staged grep. | Secret scanner |
+| G4 | T2.3 | Deepgram: set the training opt-out (`mip_opt_out=true`) on every request. A contract test asserts it. Record retention in LICENSES.md. | Vendor training opt-out |
+| G5 | T2.5 | ElevenLabs on the paid plan (done 2026-10-14). Stock voices only, no cloning of the live speaker. | Free plan, BIPA |
+| G6 | T2.4 | DeepL is not in scope. If it is ever added: API Pro only, with a UI disclosure. | DeepL Free forbidden |
+| G7 | Day 3, new T3.8 (1.0 h) | Consent and disclosure before the mic opens. <ul><li>On-screen notice in both languages that third-party AI processes and may transcribe the audio.</li><li>Spoken AI-voice notice at session start in both modes.</li><li>Persistent "AI interpretation — not for clinical or legal decisions" banner.</li><li>One-click human-interpreter handoff.</li><li>Low-confidence flags: cascade uses STT confidence; Realtime shows "unknown" because it exposes none.</li><li>No audio persisted.</li></ul> | Consent, disclosure, regulated settings |
+| G8 | T3.1, T3.2 | Show the VAD silence threshold in the UI. Label the Realtime source column "approximate transcript (separate ASR)". The eval scripts refuse to compute WER on it. | Honest latency and transcripts |
+| G9 | T3.3 | On a mid-session switch, carry the transcript history into the new mode explicitly, and state the limitation in the UI and the write-up. | Mode switching |
+| G10 | T3.6, T4.2 | At least 50 utterances in each 5-minute run. p50/p95 per stage. Replay data only from Common Voice, FLEURS or self-recorded scripts, never CoVoST 2 or MuST-C. | Measurement, eval data |
+| G11 | T4.2, T4.4 (+1.0 h) | <ul><li>Measure `gpt-realtime-translate` on the same replay set as a third option, or explain why not.</li><li>Per-minute cost table.</li><li>Vendor data-flow table (retention, zero retention, BAA).</li><li>Deprecation note.</li><li>Paawan sets an OpenAI spend cap.</li></ul> | Third option, cost, data flows |
+| G12 | T3.4 | `/health` adds configuration and last-success timestamps, with still no live calls. | Health checks |
+| G13 | T4.5 | <ul><li>Paawan rewrites AGENTS.md and CLAUDE.md in Paawan's own voice.</li><li>Remove internal URLs from them (the GitLab host is currently named in AGENTS.md).</li><li>Paraphrase the few near-verbatim brief sentences in docs/SPEC.md.</li><li>Paawan writes the free-text summaries.</li><li>Run `git log -p --all -S 'sk-'` before submission.</li></ul> | PRD handling, graded docs, history |
+| G14 | T5 only | If deployed: invite code, "Demo — synthetic data only" banner, `noindex`, scheduled purge, App Runner or ECS (not Lambda). Rotate demo access after grading. | Public demo |
+
+**Budget.** G1–G3 and G7 add about 2.5 h, and G11 adds about 1 h, on top of the 21.5 h plan. Cut order is unchanged. Guardrail tasks are never cut.
+
 ## Definition of done (every task)
 
 1. Builds, hooks and CI are green; no `--no-verify`.
