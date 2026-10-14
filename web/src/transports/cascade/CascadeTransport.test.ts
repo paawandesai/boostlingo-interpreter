@@ -34,7 +34,7 @@ class FakeSocket {
   sent: unknown[] = []
   onopen: (() => void) | null = null
   onmessage: ((m: { data: string | ArrayBuffer }) => void) | null = null
-  onclose: ((e: { code: number }) => void) | null = null
+  onclose: ((e: { code: number; reason?: string }) => void) | null = null
   close = vi.fn(() => {
     this.readyState = 3
   })
@@ -136,5 +136,20 @@ describe('CascadeTransport', () => {
     const { ws, events } = await started()
     ws.onclose!({ code: 1011 })
     expect(events.at(-1)).toMatchObject({ type: 'error', kind: 'unavailable' })
+  })
+
+  it("keeps the server's refusal reason instead of a generic close error", async () => {
+    const { ws, events } = await started()
+    ws.server({ type: 'error', stage: 'session', provider: 'workbench', kind: 'Auth', message: 'Missing or wrong access token.', t: 1 })
+    ws.onclose!({ code: 1008, reason: 'Missing or wrong access token.' })
+    const errors = events.filter((e) => e.type === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({ message: 'Missing or wrong access token.' })
+  })
+
+  it('shows the close reason when no error message arrived', async () => {
+    const { ws, events } = await started()
+    ws.onclose!({ code: 1008, reason: 'Unsupported language direction' })
+    expect(events.at(-1)).toMatchObject({ message: 'Cascade connection closed (1008): Unsupported language direction' })
   })
 })

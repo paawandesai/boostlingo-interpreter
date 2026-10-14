@@ -28,6 +28,8 @@ export class CascadeTransport implements Transport {
   private parser: CascadeEventParser | null = null
   private clock = new ClockSync()
   private ready = false
+  /** The server explained its refusal on this socket, so the close that follows adds nothing. */
+  private serverError = false
   private stopped = false
   private sockets = 0
   private firstOut = new Set<string>()
@@ -98,6 +100,7 @@ export class CascadeTransport implements Transport {
     ws.binaryType = 'arraybuffer'
     this.ws = ws
     this.ready = false
+    this.serverError = false
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
     ws.onopen = () => ws.send(JSON.stringify({ type: 'start', token: currentAccessToken(), source, target }))
@@ -108,8 +111,9 @@ export class CascadeTransport implements Transport {
     ws.onclose = (e) => {
       if (this.stopped || ws !== this.ws) return
       this.ready = false
-      if (e.code !== 1000) {
-        this.emitter.emit({ type: 'error', kind: 'unavailable', message: `Cascade connection closed (${e.code})` })
+      if (e.code !== 1000 && !this.serverError) {
+        const reason = e.reason ? `: ${e.reason}` : ''
+        this.emitter.emit({ type: 'error', kind: 'unavailable', message: `Cascade connection closed (${e.code})${reason}` })
       }
     }
   }
@@ -120,6 +124,7 @@ export class CascadeTransport implements Transport {
       this.clock.onPong(json.c, json.t, performance.now())
       return
     }
+    if (json.type === 'error') this.serverError = true
     if (json.type === 'ready') {
       this.ready = true
       this.syncClock()
