@@ -11,7 +11,7 @@ import { fetchCascadeProviders, type CascadeProviders } from './session/provider
 import { useSession } from './session/useSession'
 
 export default function App() {
-  const { state, start, end, configure, setSpeaker, dismissError, requestHuman } = useSession()
+  const { state, start, end, configure, setSpeaker, dismissError, requestHuman, switchMode } = useSession()
   const [languages, setLanguages] = useState<LanguagesResponse | null>(null)
   const [models, setModels] = useState<RealtimeModels | null>(null)
   const [cascadeProviders, setCascadeProviders] = useState<CascadeProviders | null>(null)
@@ -67,6 +67,7 @@ export default function App() {
           onRetry={() => void start()}
           onDismissError={dismissError}
           onRequestHuman={() => void requestHuman()}
+          onSwitchMode={(m) => void switchMode(m)}
         />
       ) : (
         <>

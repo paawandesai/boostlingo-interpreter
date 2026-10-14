@@ -1,6 +1,6 @@
 import type { LanguagesResponse } from '../session/languages'
 import type { SessionState, Utterance } from '../session/store'
-import type { SpeakerSide } from '../transports/types'
+import type { Mode, SpeakerSide } from '../transports/types'
 import { ErrorBanner } from './ErrorBanner'
 import { LatencyPanel } from './LatencyPanel'
 import { ModeToggle } from './ModeToggle'
@@ -15,9 +15,19 @@ interface Props {
   onRetry(): void
   onDismissError(): void
   onRequestHuman(): void
+  onSwitchMode(m: Mode): void
 }
 
-export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDismissError, onRequestHuman }: Props) {
+export function LiveSession({
+  state,
+  languages,
+  onSpeaker,
+  onEnd,
+  onRetry,
+  onDismissError,
+  onRequestHuman,
+  onSwitchMode,
+}: Props) {
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
   const statusText =
@@ -25,8 +35,8 @@ export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDis
   return (
     <>
       <header className="panel topbar">
-        {/* Mid-session switching is T3.3; until then the toggle shows the mode in use. */}
-        <ModeToggle value={state.mode} onChange={() => {}} disabled />
+        {/* Switching stops the old transport, then starts the other mode; the transcript stays (T3.3). */}
+        <ModeToggle value={state.mode} onChange={onSwitchMode} />
         <div role="status" className="status">
           <span
             className={`lamp ${state.error ? 'err' : state.status === 'live' ? 'ok' : 'warn'}`}
