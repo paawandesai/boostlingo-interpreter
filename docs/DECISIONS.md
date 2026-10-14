@@ -130,6 +130,8 @@ The calculator is a pure function `computeLatency(marks: Mark[]): Breakdown`, un
 **Trade-offs:** finals-only adds STT finalization delay. Stable-partial translation (experiment) is faster but risks retranslation when partials change, causing audio we can't take back. Keep that behind a flag, measure it, and report it.
 `FlushPolicy` is a pure function with table-driven tests (English and Spanish punctuation, abbreviations like "Dr.", numbers like "3.5").
 
+**As built (T2.2, 2026-10-14):** `FlushPolicy` and `CascadePipeline` are in `server/Interpreter.Core/Cascade/`. Starting values: clause flush at 30 chars, timeout 400 ms with at least 12 chars; the timeout releases up to the last word break and keeps the trailing word. `¿` and `¡` open sentences, so they never end a chunk. A boundary needs whitespace after it, so a sentence end at the very end of the buffer waits for the next delta or for the translation to finish. Utterances are interpreted one at a time, in order, while STT keeps listening; every queue is bounded and waits rather than drops. The translator sees the last 3 source/target pairs. A translation or TTS error is reported and the next utterance proceeds; an STT error lets queued utterances finish, then ends the session. Server marks: `stt.final`, `endpoint`, `translation.first_token`, `tts.first_flush`, `tts.first_byte`.
+
 ### D12. Mid-session toggle — Locked
 
 The session store (client) owns transcript history, language pair, speaker side and latency history. A transport is `{ start(config), stop(): Promise<void>, events }`. On toggle: `await current.stop()` (closes peer/WS, disconnects nodes, stops worklet), then `next.start()`. Insert a "switched to X" marker in the transcript.
