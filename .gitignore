@@ -27,3 +27,7 @@ __pycache__/
 
 # Test reports
 test-results/
+
+# Replay audio (eval/replay/README.md): self-recorded and synthetic clips are never committed
+eval/replay/audio/
+eval/replay/synthetic/
