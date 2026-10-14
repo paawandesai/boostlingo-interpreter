@@ -469,7 +469,8 @@
       "interpreter.providers.deepgram": {
         "type": "Project",
         "dependencies": {
-          "Interpreter.Core": "[1.0.0, )"
+          "Interpreter.Core": "[1.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.13, )"
         }
       },
       "interpreter.providers.elevenlabs": {
