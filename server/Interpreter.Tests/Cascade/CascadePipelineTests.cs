@@ -216,6 +216,32 @@ public class CascadePipelineTests
         Assert.Single(events.OfType<LatencyMark>(), m => m.Name == "endpoint");
     }
 
+    [Fact]
+    public async Task Endpoint_before_the_final_marks_the_utterance_without_closing_it()
+    {
+        var events = await RunAll(new CascadePipeline(
+            new FakeStt([new SttEndpoint(), new SttPartial("Hi"), Final("Hi there.")]), new FakeTranslator(), new FakeTts()));
+
+        var marks = events.OfType<LatencyMark>().Where(m => m.Utterance == 1).Select(m => m.Name).ToList();
+        Assert.True(marks.IndexOf("endpoint") < marks.IndexOf("stt.final"));
+        Assert.Single(marks, m => m == "endpoint");
+        Assert.Equal("ES(Hi there.)", Spoken(events, 1));
+    }
+
+    [Fact]
+    public async Task An_endpoint_that_arrives_before_the_previous_final_belongs_to_the_next_utterance()
+    {
+        var events = await RunAll(new CascadePipeline(
+            new FakeStt([new SttEndpoint(), new SttEndpoint(), Final("One."), Final("Two.")]),
+            new FakeTranslator(), new FakeTts()));
+
+        var endpoints = events.OfType<LatencyMark>().Where(m => m.Name == "endpoint").ToList();
+        Assert.Equal([1, 2], endpoints.Select(m => m.Utterance));
+        var firstFinal = events.OfType<LatencyMark>().First(m => m is { Utterance: 1, Name: "stt.final" });
+        Assert.True(endpoints[1].AtMs <= firstFinal.AtMs, "the second endpoint keeps the time it was seen");
+        Assert.Equal("ES(Two.)", Spoken(events, 2));
+    }
+
     private sealed class FakeStt(IEnumerable<SttEvent> first, Func<CancellationToken, Task<SttEvent[]>>? then = null)
         : IStreamingStt
     {

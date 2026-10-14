@@ -92,6 +92,8 @@ public interface IStreamingTts {
 
 **As built (T2.1, 2026-10-14):** the interfaces are in `server/Interpreter.Core/Cascade/`. Each adapter also exposes a short `Name` for latency labels and LICENSES.md. `SttFinal` carries `Confidence` (null when the provider gives none, never invented) for the low-confidence flags in guardrail task G7. `TranslationRequest` carries recent context pairs and an optional glossary. `DependencyRulesTests` enforces the boundaries by reflection, with no extra package.
 
+**As built (T2.3, 2026-10-14):** `SttEndpoint` was added for providers that report end of speech before the transcript (OpenAI server VAD). It marks "endpoint" without closing the utterance; an endpoint that arrives while the previous turn still waits for its transcript is kept, with its time, for the next utterance. Deepgram keeps using `SttFinal.EndsUtterance` (speech_final) and `SttUtteranceEnd`. Shared helpers in Core: `Pcm16.Resample` (OpenAI transcription only takes 24 kHz) and `WebSocketText`.
+
 **Why:** the pipeline never sees vendor types; the UI maps `Kind` to a specific failure state. Provider choice is config (`appsettings.json` → DI), so a swap is "one new adapter class + one config line". **Trade-off:** a lowest-common-denominator interface hides vendor-specific strengths (e.g. Deepgram keyterms). Handle that with an optional `options` bag per adapter rather than widening the interface.
 
 ---
