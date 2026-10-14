@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { getAccessToken, setAccessToken } from '../session/access'
 import type { LanguagesResponse } from '../session/languages'
+import type { CascadeProviders } from '../session/providers'
+import { vendorsFor } from '../session/providers'
 import type { RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
+import { ConsentNotice } from './ConsentNotice'
 import { ModeToggle } from './ModeToggle'
 import { SpeakerSideToggle } from './SpeakerSideToggle'
 
@@ -11,13 +14,20 @@ interface Props {
   state: SessionState
   languages: LanguagesResponse | null
   models: RealtimeModels | null
+  cascadeProviders: CascadeProviders | null
   onConfigure(c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string }): void
   onSpeaker(s: SpeakerSide): void
-  onStart(): void
+  onStart(opts: { spokenNotice: boolean }): void
 }
 
-export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, onStart }: Props) {
+export function SetupPanel({ state, languages, models, cascadeProviders, onConfigure, onSpeaker, onStart }: Props) {
   const [token, setToken] = useState(getAccessToken)
+  // Consent is per session: this panel remounts after every session, so it starts unticked.
+  const [consented, setConsented] = useState(false)
+  const [spoken, setSpoken] = useState(true)
+  const pairLanguages = [state.langA, state.langB].map(
+    (code) => languages?.languages.find((l) => l.code === code) ?? { code, name: code },
+  )
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
   return (
@@ -89,9 +99,23 @@ export function SetupPanel({ state, languages, models, onConfigure, onSpeaker, o
           nameB={name(state.langB)}
         />
       </div>
+      <ConsentNotice
+        languages={pairLanguages}
+        vendors={vendorsFor(state.mode, cascadeProviders)}
+        consented={consented}
+        onConsent={setConsented}
+        spoken={spoken}
+        onSpoken={setSpoken}
+      />
       <div className="actions">
         <p className="hint">Use headphones. The mic is muted while the interpreter speaks.</p>
-        <button type="button" className="primary" onClick={onStart}>
+        <button
+          type="button"
+          className="primary"
+          disabled={!consented}
+          title={consented ? undefined : 'Confirm both parties agreed first'}
+          onClick={() => onStart({ spokenNotice: spoken })}
+        >
           Start session
         </button>
       </div>

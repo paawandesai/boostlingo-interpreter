@@ -28,7 +28,14 @@ describe('CascadeEventParser', () => {
       { type: 'state', state: 'live' },
       { type: 'transcript', role: 'source', utteranceId: 'c1-1', text: 'I have', final: false },
       { type: 'mark', name: 'stt.final', t: 1020, utteranceId: 'c1-1' },
-      { type: 'transcript', role: 'source', utteranceId: 'c1-1', text: 'I have a headache.', final: true },
+      {
+        type: 'transcript',
+        role: 'source',
+        utteranceId: 'c1-1',
+        text: 'I have a headache.',
+        final: true,
+        confidence: 0.9,
+      },
       { type: 'mark', name: 'endpoint', t: 1021, utteranceId: 'c1-1' },
       { type: 'transcript', role: 'target', utteranceId: 'c1-1', text: 'Tengo ', final: false },
       { type: 'transcript', role: 'target', utteranceId: 'c1-1', text: 'Tengo dolor.', final: false },
@@ -62,6 +69,16 @@ describe('CascadeEventParser', () => {
       final: true,
       text: 'Tome 2,5 mg dos veces al día. ¿Puedes resumir lo que acabo de decir?',
     })
+  })
+
+  it('reports the lowest STT confidence across segments, and none when the provider gives none', () => {
+    const p = parser()
+    const a = p.parse({ type: 'transcript.final', u: 1, text: 'One.', confidence: 0.95, t: 1 })[0]
+    const b = p.parse({ type: 'transcript.final', u: 1, text: 'Two.', confidence: 0.6, t: 2 })[0]
+    const c = p.parse({ type: 'transcript.final', u: 2, text: 'Three.', t: 3 })[0]
+    expect(a).toMatchObject({ confidence: 0.95 })
+    expect(b).toMatchObject({ confidence: 0.6 })
+    expect(c).not.toHaveProperty('confidence')
   })
 
   it('maps provider errors to error kinds, with TTS outages as tts_failed', () => {

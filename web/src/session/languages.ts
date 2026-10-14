@@ -1,6 +1,8 @@
 export interface LanguageInfo {
   code: string
   name: string
+  /** AI-use notice in this language, shown and read aloud before capture (G7). */
+  disclosure?: { notice: string; spoken: string }
 }
 
 export interface LanguagesResponse {
