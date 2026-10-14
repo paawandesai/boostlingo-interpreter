@@ -1,0 +1,72 @@
+using Interpreter.Core.Errors;
+using Interpreter.Core.Interpretation;
+using Interpreter.Core.Languages;
+using Interpreter.Core.Realtime;
+
+namespace Interpreter.Api.Realtime;
+
+public sealed record CreateRealtimeSessionRequest(string Source, string Target);
+
+/// <param name="ClientSecret">Ephemeral ek_ secret; the only credential the browser ever sees.</param>
+/// <param name="Instructions">Interpreter instructions per direction ("en>es"), so a speaker flip can
+/// send session.update without the browser owning the prompt template.</param>
+public sealed record CreateRealtimeSessionResponse(
+    string ClientSecret,
+    DateTimeOffset ExpiresAt,
+    string Model,
+    string CallsUrl,
+    IReadOnlyDictionary<string, string> Instructions);
+
+public static class RealtimeEndpoints
+{
+    /// <summary>WebRTC SDP exchange URL (GA). Verified live 2026-10-14: POST with the ek_ secret returns 201 + SDP answer.</summary>
+    public const string CallsUrl = "https://api.openai.com/v1/realtime/calls";
+
+    public static IEndpointRouteBuilder MapRealtimeEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/api/realtime/session", CreateSession);
+        return app;
+    }
+
+    private static async Task<IResult> CreateSession(
+        CreateRealtimeSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ILoggerFactory logs, CancellationToken ct)
+    {
+        var source = catalog.Find(req.Source);
+        var target = catalog.Find(req.Target);
+        if (source is null || target is null || !catalog.IsSupportedDirection(source.Code, target.Code))
+            return Results.Problem($"Unsupported language direction {req.Source} -> {req.Target}", statusCode: StatusCodes.Status400BadRequest);
+
+        var instructions = new Dictionary<string, string>
+        {
+            [$"{source.Code}>{target.Code}"] = InterpreterInstructions.Build(source.Name, target.Name),
+            [$"{target.Code}>{source.Code}"] = InterpreterInstructions.Build(target.Name, source.Name),
+        };
+
+        try
+        {
+            var secret = await minter.CreateAsync(
+                new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"]), ct);
+            return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, CallsUrl, instructions));
+        }
+        catch (ProviderException e)
+        {
+            logs.CreateLogger("Realtime").LogWarning("Realtime session mint failed: {Kind} {Message}", e.Kind, e.Message);
+            return ProviderProblem(e);
+        }
+    }
+
+    /// <summary>Maps the provider error contract to HTTP, keeping Kind and Retry-After for the UI's failure states.</summary>
+    internal static IResult ProviderProblem(ProviderException e)
+    {
+        var status = e.Kind switch
+        {
+            ProviderErrorKind.RateLimited => StatusCodes.Status429TooManyRequests,
+            ProviderErrorKind.Timeout => StatusCodes.Status504GatewayTimeout,
+            ProviderErrorKind.Auth => StatusCodes.Status503ServiceUnavailable,
+            _ => StatusCodes.Status502BadGateway,
+        };
+        var extensions = new Dictionary<string, object?> { ["kind"] = e.Kind.ToString(), ["provider"] = e.Provider };
+        if (e.RetryAfter is { } ra) extensions["retryAfterMs"] = (long)ra.TotalMilliseconds;
+        return Results.Problem(e.Message, statusCode: status, extensions: extensions);
+    }
+}
