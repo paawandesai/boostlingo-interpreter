@@ -19,6 +19,8 @@ import type { TransportEvent } from '../types'
 
 /** Both streams quiet this long: close every open line. */
 export const RESYNC_MS = 1500
+/** Both streams quiet this long mid-sentence: close anyway (the model may never finish it). */
+export const STALL_MS = 5000
 /** Output quiet this long at a speech start: the next audible frame belongs to the new speech. */
 export const OUTPUT_IDLE_MS = 800
 
@@ -113,11 +115,18 @@ export class TranslateSegmenter {
     return out
   }
 
-  /** Call on a timer: once both sides have paused, every open line is closed. */
+  /**
+   * Call on a timer: once both sides have paused at a sentence end, every open line is closed. The
+   * model's transcripts arrive in bursts, so a pause mid-sentence waits up to STALL_MS (a paced soak
+   * cut "…tell me a | joke." when this only looked at the pause).
+   */
   tick(t: number): TransportEvent[] {
-    const inputQuiet = !this.speaking && t - Math.max(this.lastInput, this.lastSpeech) >= RESYNC_MS
-    if (!inputQuiet || t - this.lastOutput < RESYNC_MS || this.lines.length === 0) return []
-    return this.flush()
+    if (this.lines.length === 0 || this.speaking) return []
+    const quiet = t - Math.max(this.lastInput, this.lastSpeech, this.lastOutput)
+    const last = this.lines.at(-1)!.sentences.at(-1)
+    const atSentenceEnd = this.outLine === null && (last === undefined || SENTENCE_END.test(last.text))
+    if (quiet >= STALL_MS || (atSentenceEnd && quiet >= RESYNC_MS)) return this.flush()
+    return []
   }
 
   /** The connection closed or both sides paused: every open line gets its final text now. */
