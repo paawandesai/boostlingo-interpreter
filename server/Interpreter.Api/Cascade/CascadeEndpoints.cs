@@ -22,6 +22,9 @@ public static class CascadeEndpoints
     public static IEndpointRouteBuilder MapCascadeEndpoints(this IEndpointRouteBuilder app)
     {
         app.Map(Path, Handle).RequireRateLimiting(AccessControl.RateLimitPolicy);
+        // Which vendors a cascade session will send audio and text to, for the consent notice (G7). No live calls.
+        app.MapGet("/api/cascade/providers", (IOptions<CascadeOptions> o) =>
+            Results.Ok(new { stt = o.Value.Stt, translator = o.Value.Translator, tts = o.Value.Tts }));
         return app;
     }
 

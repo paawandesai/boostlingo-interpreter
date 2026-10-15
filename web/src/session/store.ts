@@ -12,7 +12,7 @@ export interface Utterance {
   id: string
   mode: Mode
   side: SpeakerSide
-  source: { text: string; final: boolean }
+  source: { text: string; final: boolean; confidence?: number }
   target: { text: string; final: boolean }
   marks: Partial<Record<MarkName, number>>
   usage?: Usage
@@ -38,12 +38,15 @@ export interface SessionState {
   gated: boolean
   /** Client VAD speech end not yet matched to an utterance (vendor endpointing comes later). */
   pendingSpeechEnd: number | null
+  /** The user asked for a human interpreter; the AI session was ended (G7). */
+  handoffRequested: boolean
 }
 
 export type SessionAction =
   | { type: 'configure'; mode?: Mode; langA?: string; langB?: string; speaker?: SpeakerSide; realtimeModel?: string }
   | { type: 'started' }
   | { type: 'ended' }
+  | { type: 'handoff' }
   | { type: 'dismissError' }
   | { type: 'marker'; text: string }
   | { type: 'transport'; event: TransportEvent }
@@ -60,7 +63,11 @@ export const initialState: SessionState = {
   level: 0,
   gated: false,
   pendingSpeechEnd: null,
+  handoffRequested: false,
 }
+
+/** Below this STT confidence a source line is flagged for the listener (G7). */
+export const LOW_CONFIDENCE = 0.8
 
 /** A speech end older than this can't belong to the next endpoint event. */
 const SPEECH_END_MATCH_WINDOW_MS = 5000
@@ -80,9 +87,21 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       }
     }
     case 'started':
-      return { ...state, status: 'connecting', error: null, pendingSpeechEnd: null }
+      return { ...state, status: 'connecting', error: null, pendingSpeechEnd: null, handoffRequested: false }
     case 'ended':
       return { ...state, status: 'ended', level: 0, gated: false }
+    case 'handoff':
+      return {
+        ...state,
+        status: 'ended',
+        level: 0,
+        gated: false,
+        handoffRequested: true,
+        timeline: [
+          ...state.timeline,
+          { kind: 'marker', id: `m${state.timeline.length}`, text: 'AI session ended: human interpreter requested' },
+        ],
+      }
     case 'dismissError':
       return { ...state, error: null }
     case 'marker':
@@ -110,7 +129,10 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
     case 'transcript':
       return updateUtterance(state, e.utteranceId, (u) => ({
         ...u,
-        [e.role]: { text: e.text, final: e.final },
+        [e.role]:
+          e.role === 'source' && e.confidence !== undefined
+            ? { text: e.text, final: e.final, confidence: e.confidence }
+            : { text: e.text, final: e.final },
       }))
     case 'usage':
       return e.utteranceId ? updateUtterance(state, e.utteranceId, (u) => ({ ...u, usage: e.usage })) : state

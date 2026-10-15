@@ -48,9 +48,15 @@ export function useSession() {
     transport.current?.setSpeaker(side)
   }, [])
 
+  /** Ends the AI session at once and records that a human interpreter was asked for (G7). */
+  const requestHuman = useCallback(async () => {
+    await teardown()
+    dispatch({ type: 'handoff' })
+  }, [teardown])
+
   const dismissError = useCallback(() => dispatch({ type: 'dismissError' }), [])
 
   useEffect(() => () => void teardown(), [teardown])
 
-  return { state, start, end, configure, setSpeaker, dismissError }
+  return { state, start, end, configure, setSpeaker, dismissError, requestHuman }
 }

@@ -233,3 +233,32 @@ summary {
   cursor: pointer;
   min-height: 32px;
 }
+.ai-banner {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: var(--fs-sm);
+}
+.banner.info {
+  border-color: var(--accent);
+}
+.consent {
+  grid-column: 1 / -1;
+}
+.notice {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+.check input {
+  width: 18px;
+  height: 18px;
+}

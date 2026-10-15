@@ -13,9 +13,10 @@ interface Props {
   onEnd(): void
   onRetry(): void
   onDismissError(): void
+  onRequestHuman(): void
 }
 
-export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDismissError }: Props) {
+export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDismissError, onRequestHuman }: Props) {
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
   const statusText =
@@ -36,6 +37,9 @@ export function LiveSession({ state, languages, onSpeaker, onEnd, onRetry, onDis
           </span>
         </div>
         <meter min={0} max={0.3} value={state.level} aria-label="Input level" />
+        <button type="button" onClick={onRequestHuman}>
+          Request human interpreter
+        </button>
         <button type="button" className="danger" onClick={onEnd}>
           End
         </button>

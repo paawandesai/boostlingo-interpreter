@@ -30,6 +30,8 @@ export class CascadeEventParser {
   private source = new Map<string, string>()
   /** Utterances whose last translation segment ended, so the next delta starts a new sentence. */
   private segmentEnded = new Set<string>()
+  /** Lowest STT confidence seen per utterance. */
+  private confidence = new Map<string, number>()
   /** Utterance whose audio the binary frames currently carry (set by its tts.first_byte mark). */
   speaking: string | null = null
   private readonly clock: ClockSync
@@ -67,7 +69,20 @@ export class CascadeEventParser {
         // Each final is one segment; keep earlier segments rather than replacing them.
         const text = join(this.source.get(u!), e.text as string)
         this.source.set(u!, text)
-        return [{ type: 'transcript', role: 'source', utteranceId: u!, text, final: true }]
+        if (typeof e.confidence === 'number') {
+          this.confidence.set(u!, Math.min(e.confidence, this.confidence.get(u!) ?? 1))
+        }
+        const confidence = this.confidence.get(u!)
+        return [
+          {
+            type: 'transcript',
+            role: 'source',
+            utteranceId: u!,
+            text,
+            final: true,
+            ...(confidence === undefined ? {} : { confidence }),
+          },
+        ]
       }
       case 'translation.delta': {
         // Segments of one utterance arrive one after another; keep them in one target line.
@@ -85,6 +100,7 @@ export class CascadeEventParser {
         this.target.delete(u!)
         this.source.delete(u!)
         this.segmentEnded.delete(u!)
+        this.confidence.delete(u!)
         return [{ type: 'transcript', role: 'target', utteranceId: u!, text, final: true }]
       }
       case 'latency.mark': {

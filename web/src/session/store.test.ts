@@ -61,4 +61,18 @@ describe('sessionReducer', () => {
     s = sessionReducer(s, { type: 'dismissError' })
     expect(s.error).toBeNull()
   })
+
+  it('keeps STT confidence on the source line', () => {
+    const s = run([{ type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hi', final: true, confidence: 0.5 }])
+    expect(utterances(s)[0].source).toEqual({ text: 'Hi', final: true, confidence: 0.5 })
+  })
+
+  it('ends the session with a marker when a human interpreter is requested', () => {
+    let s = sessionReducer(initialState, { type: 'started' })
+    s = sessionReducer(s, { type: 'handoff' })
+    expect(s.status).toBe('ended')
+    expect(s.handoffRequested).toBe(true)
+    expect(s.timeline.at(-1)).toMatchObject({ kind: 'marker', text: 'AI session ended: human interpreter requested' })
+    expect(sessionReducer(s, { type: 'started' }).handoffRequested).toBe(false)
+  })
 })

@@ -50,7 +50,15 @@ export interface Usage {
 
 export type TransportEvent =
   | { type: 'state'; state: 'connecting' | 'live' | 'closed' }
-  | { type: 'transcript'; role: 'source' | 'target'; utteranceId: string; text: string; final: boolean }
+  | {
+      type: 'transcript'
+      role: 'source' | 'target'
+      utteranceId: string
+      text: string
+      final: boolean
+      /** STT confidence 0..1 when the provider reports one (lowest across segments). Absent means unknown. */
+      confidence?: number
+    }
   | { type: 'mark'; name: MarkName; t: number; utteranceId?: string }
   | { type: 'usage'; utteranceId?: string; usage: Usage }
   | { type: 'error'; kind: ErrorKind; message: string; retryAfterMs?: number }
