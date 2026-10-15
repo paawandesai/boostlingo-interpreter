@@ -27,6 +27,7 @@ if touches '^eval/'; then
   if python3 -c 'import jiwer, sacrebleu' 2>/dev/null; then
     echo "pre-push: eval unit tests"
     python3 -m unittest discover -s eval -p 'test_*.py' -q
+    if command -v ruff >/dev/null 2>&1; then ruff check eval; fi
   else
     echo "pre-push: eval deps not installed (pip install -r eval/requirements.txt), so eval tests run in CI only" >&2
   fi
