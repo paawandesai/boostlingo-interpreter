@@ -1,5 +1,6 @@
 using Interpreter.Api.Cascade;
 using Interpreter.Api.Health;
+using Interpreter.Api.Hosting;
 using Interpreter.Api.Realtime;
 using Interpreter.Api.Security;
 using Interpreter.Core.Interpretation;
@@ -29,6 +30,8 @@ builder.Services.AddElevenLabsTts(builder.Configuration);
 
 var app = builder.Build();
 
+// Public demo only (T5, G14): proxy headers, noindex and the built SPA. All off unless configured.
+app.UseDemoHosting(builder.Configuration);
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseRateLimiter();
 
@@ -48,6 +51,7 @@ app.MapGet("/api/prices", () => File.Exists(pricesPath)
 app.MapGet("/api/glossary", (Glossary g) => Results.Ok(new { name = g.Name, count = g.Count }));
 app.MapRealtimeEndpoints();
 app.MapCascadeEndpoints();
+app.MapDemoSpa(builder.Configuration);
 
 app.Run();
 

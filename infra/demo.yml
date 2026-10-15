@@ -1,0 +1,222 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Interpreter workbench public demo (T5, docs/GUARDRAILS.md G14). ECS Fargate behind an ALB, behind
+  CloudFront for HTTPS (the mic needs a secure page) and WebSockets. Not Lambda. Keys come from one
+  Secrets Manager secret by ARN; no secret value appears in this template, its parameters or outputs.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image (repo:tag or repo@digest) built from the repo's Dockerfile.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two public subnets in different AZs (tasks get public IPs; no NAT).
+  SecretArn:
+    Type: String
+    Description: >-
+      Secrets Manager secret holding JSON keys OPENAI_API_KEY, ELEVENLABS_API_KEY,
+      CLAUDE_TRANSLATOR_API_KEY and DEMO_ACCESS_TOKEN.
+  CloudFrontPrefixListId:
+    Type: String
+    Description: The region's com.amazonaws.global.cloudfront.origin-facing managed prefix list id.
+  ShutdownAt:
+    Type: String
+    Description: When the service scales to zero by itself, as yyyy-mm-ddThh:mm:ss UTC (after grading).
+  DesiredCount:
+    Type: Number
+    Default: 1
+    AllowedValues: [0, 1]
+
+Resources:
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AWS::StackName}
+      # The app logs ids and status codes only; a day is enough and doubles as the purge.
+      RetentionInDays: 1
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-demo-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref SecretArn
+
+  # The app calls no AWS API, so its task role grants nothing.
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      RuntimePlatform: { CpuArchitecture: X86_64, OperatingSystemFamily: LINUX }
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref ImageUri
+          Essential: true
+          ReadonlyRootFilesystem: false
+          PortMappings: [{ ContainerPort: 8080, Protocol: tcp }]
+          Environment:
+            # Deepgram is not used in the demo: its terms need consent for comparative use.
+            - { Name: Cascade__Stt, Value: openai }
+          Secrets:
+            - { Name: OPENAI_API_KEY, ValueFrom: !Sub '${SecretArn}:OPENAI_API_KEY::' }
+            - { Name: ELEVENLABS_API_KEY, ValueFrom: !Sub '${SecretArn}:ELEVENLABS_API_KEY::' }
+            - { Name: CLAUDE_TRANSLATOR_API_KEY, ValueFrom: !Sub '${SecretArn}:CLAUDE_TRANSLATOR_API_KEY::' }
+            - { Name: DEMO_ACCESS_TOKEN, ValueFrom: !Sub '${SecretArn}:DEMO_ACCESS_TOKEN::' }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load balancer, reachable from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App tasks, reachable from the load balancer only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8080, ToPort: 8080, SourceSecurityGroupId: !Ref AlbSecurityGroup }
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      LoadBalancerAttributes:
+        - { Key: idle_timeout.timeout_seconds, Value: '120' }
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckPath: /health
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: '30' }
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }]
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: [!Ref TaskSecurityGroup]
+      LoadBalancers:
+        - { ContainerName: app, ContainerPort: 8080, TargetGroupArn: !Ref TargetGroup }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${AWS::StackName} demo (synthetic data only)
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: alb
+            DomainName: !GetAtt LoadBalancer.DNSName
+            CustomOriginConfig: { OriginProtocolPolicy: http-only, HTTPPort: 80 }
+        DefaultCacheBehavior:
+          TargetOriginId: alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          # Managed CachingDisabled and AllViewer: nothing is cached and the access-token header and
+          # WebSocket upgrade reach the app.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: scale-demo-to-zero
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecs:UpdateService
+                Resource: !Ref Service
+
+  # Turns the demo off after grading even if nobody remembers to (G14).
+  Shutdown:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: !Sub at(${ShutdownAt})
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow: { Mode: 'OFF' }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ecs:updateService
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"Cluster":"${Cluster}","Service":"${Service.Name}","DesiredCount":0}'
+
+Outputs:
+  Url:
+    Value: !Sub https://${Distribution.DomainName}
+  Cluster:
+    Value: !Ref Cluster
+  Service:
+    Value: !GetAtt Service.Name

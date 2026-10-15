@@ -30,7 +30,7 @@ default:
   timeout: 15m
   interruptible: true
 
-stages: [install, check, build, test]
+stages: [install, check, build, test, deploy]
 
 # ---------- rule templates ----------
 # main always runs everything; branches and MRs run a stack's jobs only when that stack changed.
@@ -241,3 +241,24 @@ e2e:soak:
     # Without REPLAY_DIR the job makes the labelled synthetic clips itself (stdlib Python, OpenAI speech).
     - if [ -z "$REPLAY_DIR" ]; then (command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3 >/dev/null)) && python3 ../eval/replay/synth.py && export REPLAY_DIR=../eval/replay/synthetic; fi
     - SOAK=1 SOAK_MODE=${SOAK_MODE:-cascade} npx playwright test e2e/soak.spec.ts
+
+# ---------- deploy (T5): manual, main only ----------
+# Public demo on ECS Fargate behind CloudFront (infra/demo.yml, docs/GUARDRAILS.md G14). Needs masked
+# CI variables AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and CLAUDE_TRANSLATOR_API_KEY,
+# plus the existing OPENAI_API_KEY, ELEVENLABS_API_KEY and DEMO_ACCESS_TOKEN. Rotate DEMO_ACCESS_TOKEN
+# after grading and re-run, or delete the stack.
+deploy:aws:
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  stage: deploy
+  needs: [web:build]
+  interruptible: false
+  resource_group: aws-demo
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+  script:
+    - apt-get update -qq && apt-get install -y -qq unzip python3 >/dev/null
+    - curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscli.zip
+    - unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install >/dev/null
+    - IMAGE_TAG=$CI_COMMIT_SHORT_SHA bash infra/deploy.sh
