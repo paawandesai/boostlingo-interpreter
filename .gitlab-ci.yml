@@ -1,7 +1,9 @@
-# Lean CI for a polyglot repo (.NET 10 server + Vite web).
-# Runner facts (checked 2026-10-14): self-hosted, privileged=false (no Docker-in-Docker),
+# Lean CI for a polyglot repo (.NET 10 server + Vite web + Python eval scripts).
+# Runner facts: self-hosted docker executor, privileged=false (no Docker-in-Docker, checked 2026-10-14),
 # default image python:3.12-slim, so every job sets image: explicitly.
-# Sized for the smallest runner slot (1.5 CPU / 1.5 GB) until the project's runner is confirmed.
+# Measured 2026-10-15 from each job's cgroup (scripts/ci/job-resources.sh): 3 CPU and 3072 MB per job.
+# Runner #235 carries the `heavy` tag and also runs untagged jobs; about 3 jobs run at once.
+# Workers stay at 2 (under the 3-CPU quota, on a 4-vCPU host shared with other projects).
 
 workflow:
   rules:
@@ -10,6 +12,7 @@ workflow:
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   auto_cancel:
     on_new_commit: interruptible
 
@@ -19,16 +22,27 @@ variables:
   FF_USE_FASTZIP: "true"
   CACHE_COMPRESSION_LEVEL: fast
   ARTIFACT_COMPRESSION_LEVEL: fast
-  NODE_OPTIONS: --max-old-space-size=1024
+  # Heap caps at about 75% of the 3 GB job budget; web:test divides it among its Node processes.
+  NODE_OPTIONS: --max-old-space-size=2304
+  # Per .NET process; dotnet build/format run up to three (CLI, MSBuild node, compiler server).
   DOTNET_GCHeapHardLimit: "0x40000000" # 1 GB
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
   NUGET_PACKAGES: $CI_PROJECT_DIR/.nuget/packages
   npm_config_cache: $CI_PROJECT_DIR/.npm
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.pip
 
 default:
   timeout: 15m
   interruptible: true
+  before_script:
+    - !reference [.measure, before_script]
+
+# Every job log ends with its cgroup CPU and memory budget and peak memory (the CI report's numbers).
+# A trap, not after_script: after_script runs in a fresh container, which would report its own peak.
+.measure:
+  before_script:
+    - trap 'sh "$CI_PROJECT_DIR/scripts/ci/job-resources.sh" || true' EXIT
 
 stages: [install, check, build, test, deploy]
 
@@ -38,14 +52,14 @@ stages: [install, check, build, test, deploy]
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes:
-        paths: [web/**/*, config/**/*, .gitlab-ci.yml]
+        paths: [web/**/*, config/**/*, scripts/check-bundle-secrets.sh, scripts/ci/**/*, .gitlab-ci.yml]
         compare_to: refs/heads/main
 
 .server-rules:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes:
-        paths: [server/**/*, config/**/*, .gitlab-ci.yml]
+        paths: [server/**/*, config/**/*, global.json, scripts/ci/**/*, .gitlab-ci.yml]
         compare_to: refs/heads/main
 
 .eval-rules:
@@ -53,7 +67,7 @@ stages: [install, check, build, test, deploy]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       exists: [eval/**/*.py]
     - changes:
-        paths: [eval/**/*]
+        paths: [eval/**/*, scripts/ci/**/*, .gitlab-ci.yml]
         compare_to: refs/heads/main
 
 # ---------- secrets ----------
@@ -74,6 +88,7 @@ secrets:gitleaks:
   extends: .web-rules
   image: node:22.22-slim
   before_script:
+    - !reference [.measure, before_script]
     - cd web
 
 web:install:
@@ -90,6 +105,8 @@ web:install:
     paths: [web/node_modules/]
     expire_in: 1 hour
 
+# Lint, format and typecheck share one job: each is 3-9 s of work, and a separate job costs about
+# 6 s of start-up plus a 2-3 s node_modules download and another wait for a runner slot.
 web:lint:
   extends: .web
   stage: check
@@ -97,20 +114,18 @@ web:lint:
   script:
     - npm run lint
     - npm run format:check
-
-web:typecheck:
-  extends: .web
-  stage: check
-  needs: [web:install]
-  script:
     - npm run typecheck
 
 web:test:
   extends: .web
   stage: test
   needs: [web:install]
+  variables:
+    # Main process plus two workers share the 75% heap budget.
+    NODE_OPTIONS: --max-old-space-size=768
   script:
-    - npx vitest run --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit=vitest-junit.xml
+    # Two workers: 18 s instead of 33 s locally (jsdom start-up is 95% of the run).
+    - npx vitest run --maxWorkers=2 --reporter=default --reporter=junit --outputFile.junit=vitest-junit.xml
   artifacts:
     when: always
     reports:
@@ -137,7 +152,10 @@ web:build:
     key:
       files: [server/Interpreter.Api/packages.lock.json, server/Interpreter.Tests/packages.lock.json]
     paths: [.nuget/packages/]
+    policy: pull
 
+# Each server job restores from the lockfile-keyed cache (about 2 s warm) instead of passing an 82 MB
+# package folder as an artifact; only server:build writes the cache back.
 server:format:
   extends: .server
   stage: check
@@ -150,6 +168,11 @@ server:build:
   extends: .server
   stage: build
   needs: []
+  cache:
+    key:
+      files: [server/Interpreter.Api/packages.lock.json, server/Interpreter.Tests/packages.lock.json]
+    paths: [.nuget/packages/]
+    policy: pull-push
   script:
     - dotnet restore server --locked-mode
     - dotnet build server -c Release -m:1 --no-restore
@@ -173,23 +196,41 @@ server:test:
     expire_in: 1 week
 
 # ---------- eval (Python, offline scripts) ----------
-eval:lint:
+# One job for ruff and the unit tests: the work is about 1 s; the pip install dominates, so it is
+# paid once, from a cache keyed on the pinned requirements.
+eval:check:
   extends: .eval-rules
   image: python:3.12-slim
   stage: check
   needs: []
+  cache:
+    key:
+      files: [eval/requirements.txt]
+    paths: [.pip/]
   script:
-    - pip install --quiet ruff==0.17.0
+    - pip install --quiet ruff==0.17.0 -r eval/requirements.txt
     - ruff check eval
-
-eval:test:
-  extends: .eval-rules
-  image: python:3.12-slim
-  stage: check
-  needs: []
-  script:
-    - pip install --quiet -r eval/requirements.txt
     - python3 -m unittest discover -s eval -p 'test_*.py'
+
+# ---------- live provider tests: heavy lane, manual or scheduled, real provider calls ----------
+# Billed calls with the masked CI keys; a test whose key is not set skips (no DEEPGRAM_API_KEY in CI
+# today, so the Deepgram STT test skips). Runs on schedules only when the schedule sets RUN_LIVE=1.
+server:live:
+  extends: .server
+  stage: test
+  needs: []
+  tags: [heavy]
+  interruptible: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_LIVE == "1"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH
+      when: manual
+      allow_failure: true
+  script:
+    - dotnet restore server --locked-mode
+    - dotnet test --solution server/Interpreter.slnx -c Release --filter-trait "Category=Live"
 
 # ---------- e2e (T3.6): manual, real provider calls ----------
 # Never automatic: each run makes billed calls with keys from masked CI variables (OPENAI_API_KEY,
@@ -197,21 +238,26 @@ eval:test:
 # Deepgram timing numbers are not recorded (docs/GUARDRAILS.md). The soak also needs replay clips:
 # REPLAY_DIR points at a folder the job can read (clips are never committed, eval/replay/README.md);
 # without it the job synthesizes the labelled synthetic set. Run with SOAK_MODE=translate, realtime or cascade.
-# The runner has no tags yet, so these run untagged; they want more than the smallest slot.
+# Heavy lane (runner tag `heavy`). On a schedule they run only when it sets RUN_E2E=1 (they spend credit).
 .e2e:
   image: mcr.microsoft.com/playwright:v1.56.1-noble
   stage: test
   needs: []
+  tags: [heavy]
   timeout: 20m
   interruptible: false
   variables:
     Cascade__Stt: openai
     DOTNET_ROOT: /opt/dotnet
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_E2E == "1"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH
       when: manual
       allow_failure: true
   before_script:
+    - !reference [.measure, before_script]
     - curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
     - bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /opt/dotnet
     - export PATH=/opt/dotnet:$PATH
@@ -256,6 +302,8 @@ deploy:aws:
   interruptible: false
   resource_group: aws-demo
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true

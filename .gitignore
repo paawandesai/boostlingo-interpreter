@@ -33,3 +33,8 @@ eval/replay/audio/
 eval/replay/synthetic/
 eval/adversarial/audio/
 eval/adversarial/synthetic/
+
+# CI caches (job-local paths under the project dir)
+.npm/
+.nuget/
+.pip/
