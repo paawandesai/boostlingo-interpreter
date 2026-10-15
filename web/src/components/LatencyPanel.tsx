@@ -42,27 +42,29 @@ function Waterfall({ b, domain }: { b: Breakdown; domain: [number, number] }) {
 function SummaryTable({ mode, rows }: { mode: Mode; rows: ReturnType<typeof summarize> }) {
   if (rows.length === 0) return null
   return (
-    <table className="summary">
-      <caption>
-        {MODE_LABEL[mode]} · n = {rows[0].n} · ms
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">Stage</th>
-          <th scope="col">p50</th>
-          <th scope="col">p95</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.key}>
-            <th scope="row">{r.label}</th>
-            <td>{fmt(r.p50)}</td>
-            <td>{fmt(r.p95)}</td>
+    <div className="summary-card">
+      <table className="summary">
+        <caption>
+          {MODE_LABEL[mode]} · n = {rows[0].n} · ms
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Stage</th>
+            <th scope="col">p50</th>
+            <th scope="col">p95</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <th scope="row">{r.label}</th>
+              <td>{fmt(r.p50)}</td>
+              <td>{fmt(r.p95)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -82,7 +84,7 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
   ]
   const legend = rows.at(-1)?.b.stages ?? []
   return (
-    <section aria-labelledby="lat-h" className="panel">
+    <section aria-labelledby="lat-h" className="panel latency-panel">
       <h2 id="lat-h">Latency: speech end → first audio out</h2>
       <div className="summaries">
         {modes.map((m) => (
@@ -98,17 +100,24 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
               {s.parallel ? ' (in parallel)' : ''}
             </li>
           ))}
+          <li>
+            <span className="swatch budget-swatch" aria-hidden="true" />
+            budget
+          </li>
         </ul>
       )}
       <ol className="latency">
         {shown.map(({ u, n, b }) => (
           <li key={u.id}>
             <span className="row-label">
-              #{n} · {u.mode} · {totalLabel(u, b)}
-              {b.totalMs !== null && b.totalMs > budgetMs[b.mode] ? ' · over budget' : ''}
+              #{n} · {MODE_LABEL[u.mode]}
             </span>
             <Waterfall b={b} domain={domain} />
-            <span className="meta">{b.stages.map((s) => `${s.label} ${fmt(s.ms)}`).join(' · ')}</span>
+            <span className={b.totalMs !== null && b.totalMs > budgetMs[b.mode] ? 'row-total over' : 'row-total'}>
+              {totalLabel(u, b)}
+              {b.totalMs !== null && b.totalMs > budgetMs[b.mode] ? ' · over budget' : ''}
+            </span>
+            <span className="meta row-stages">{b.stages.map((s) => `${s.label} ${fmt(s.ms)}`).join(' · ')}</span>
           </li>
         ))}
       </ol>

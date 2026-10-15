@@ -14,10 +14,10 @@ export function SpeakerSideToggle({
   return (
     <div role="group" aria-label="Who is speaking" className="speaker-toggle">
       <button type="button" aria-pressed={value === 'A'} onClick={() => onChange('A')}>
-        A · {nameA} speaker
+        A · {nameA}
       </button>
       <button type="button" aria-pressed={value === 'B'} onClick={() => onChange('B')}>
-        B · {nameB} speaker
+        B · {nameB}
       </button>
     </div>
   )

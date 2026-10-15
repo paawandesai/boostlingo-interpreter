@@ -40,93 +40,105 @@ export function LiveSession({
   const [confirmEnd, setConfirmEnd] = useState(false)
   const statusText =
     state.status === 'connecting' ? 'Connecting' : state.gated ? 'Interpreter speaking (mic muted)' : 'Listening'
+  const lampKind = state.error ? 'err' : state.status === 'live' && !state.gated ? 'ok' : 'warn'
   return (
     <>
-      <header className="panel topbar">
+      <header className="topbar">
+        <span className="title">AI Interpreter Workbench</span>
         {/* Switching stops the old transport, then starts the other mode; the transcript stays (T3.3). */}
         <ModeToggle
           value={state.mode}
           onChange={onSwitchMode}
           translateAvailable={translateSupported(languages, state.langA, state.langB)}
         />
-        <div role="status" className="status">
-          <span
-            className={`lamp ${state.error ? 'err' : state.status === 'live' ? 'ok' : 'warn'}`}
-            aria-hidden="true"
-          />
-          <strong>{state.error ? 'Error' : statusText}</strong>
-          <span className="meta">
-            · {name(state.langA)} ↔ {name(state.langB)}
-          </span>
+        <div role="status" className={`status ${lampKind}`}>
+          <span className={`lamp ${lampKind}`} aria-hidden="true" />
+          {state.error ? 'Error' : statusText}
         </div>
-        <meter min={0} max={0.3} value={state.level} aria-label="Input level" />
-        <button
-          type="button"
-          onClick={() => {
-            onExport()
-            setExportedCount(utterances.length)
-          }}
-        >
-          Export log
-        </button>
-        <button type="button" onClick={onRequestHuman}>
-          Request human interpreter
-        </button>
-        <button
-          type="button"
-          className="danger"
-          onClick={() => (utterances.length > exportedCount ? setConfirmEnd(true) : onEnd())}
-        >
-          End
-        </button>
-      </header>
-      {confirmEnd && (
-        <div role="alertdialog" aria-label="End session" className="banner info">
-          <div>
-            <strong>Ending discards the transcript.</strong>
-            <span className="meta">Nothing said in this session is kept unless you export the log first.</span>
-          </div>
+        <span className="meta">
+          {name(state.langA)} ↔ {name(state.langB)}
+        </span>
+        <div className="topbar-actions">
           <button
             type="button"
             onClick={() => {
               onExport()
               setExportedCount(utterances.length)
-              setConfirmEnd(false)
             }}
           >
-            Export log first
+            Export log
           </button>
-          <button type="button" className="danger" onClick={onEnd}>
-            End and discard
+          <button type="button" className="outline-accent" onClick={onRequestHuman}>
+            Request human interpreter
           </button>
-          <button type="button" onClick={() => setConfirmEnd(false)}>
-            Cancel
+          <button
+            type="button"
+            className="end"
+            aria-describedby="end-note"
+            onClick={() => (utterances.length > exportedCount ? setConfirmEnd(true) : onEnd())}
+          >
+            End
           </button>
         </div>
-      )}
-      {state.error && <ErrorBanner error={state.error} onRetry={onRetry} onDismiss={onDismissError} />}
-      {state.notice && (
-        <p role="status" className="banner info">
-          {state.notice}
-        </p>
-      )}
-      <section aria-label="Transcripts" className="columns">
-        <TranscriptColumn title="Source" role="source" timeline={state.timeline} />
-        <TranscriptColumn
-          title="Target"
-          role="target"
-          timeline={state.timeline}
-          flagsFor={(u) => checkUtterance(u, state.langA, state.langB, checks)}
-          onRequestHuman={onRequestHuman}
-        />
-      </section>
-      <SpeakerSideToggle
-        value={state.speaker}
-        onChange={onSpeaker}
-        nameA={name(state.langA)}
-        nameB={name(state.langB)}
-      />
-      <LatencyPanel utterances={utterances} />
+      </header>
+      <p id="end-note" className="meta end-note">
+        Ending discards the transcript. Export the log first to keep it.
+      </p>
+      <div className="live-body">
+        {confirmEnd && (
+          <div role="alertdialog" aria-label="End session" className="banner info">
+            <div>
+              <strong>Ending discards the transcript.</strong>
+              <span className="meta">Nothing said in this session is kept unless you export the log first.</span>
+            </div>
+            <div className="banner-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  onExport()
+                  setExportedCount(utterances.length)
+                  setConfirmEnd(false)
+                }}
+              >
+                Export log first
+              </button>
+              <button type="button" className="danger" onClick={onEnd}>
+                End and discard
+              </button>
+              <button type="button" onClick={() => setConfirmEnd(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {state.error && <ErrorBanner error={state.error} onRetry={onRetry} onDismiss={onDismissError} />}
+        {state.notice && (
+          <p role="status" className="banner info">
+            {state.notice}
+          </p>
+        )}
+        <section aria-label="Transcripts" className="columns">
+          <TranscriptColumn title="Source" role="source" timeline={state.timeline} />
+          <div className="speaker-col">
+            <span className="meta">Who is speaking</span>
+            <SpeakerSideToggle
+              value={state.speaker}
+              onChange={onSpeaker}
+              nameA={name(state.langA)}
+              nameB={name(state.langB)}
+            />
+            <meter min={0} max={0.3} value={state.level} aria-label="Input level" />
+          </div>
+          <TranscriptColumn
+            title="Target"
+            role="target"
+            timeline={state.timeline}
+            flagsFor={(u) => checkUtterance(u, state.langA, state.langB, checks)}
+            onRequestHuman={onRequestHuman}
+          />
+        </section>
+        <LatencyPanel utterances={utterances} />
+      </div>
     </>
   )
 }

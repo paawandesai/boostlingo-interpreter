@@ -1,6 +1,6 @@
 # UI spec (T0.3)
 
-**Design:** [Interpreter Workbench UI](https://claude.ai/artifact/DNKbvX67vqPjUKU6XWfZ5P) (Claude Design canvas, three artboards: A setup, B live session, C failure states). Private until Paawan shares it.
+**Design:** [Interpreter Workbench UI v2](https://claude.ai/artifact/QXMtSYuAfM3QhBQfatd7W4) (Claude Design canvas, 2026-10-15: A setup, B live session, C failure states, B at phone width), built from the prompt in the project notes. It adds Realtime translate, the consent step and the human handoff. The Day 1 canvas is [Interpreter Workbench UI](https://claude.ai/artifact/DNKbvX67vqPjUKU6XWfZ5P). Both are private until Paawan shares them.
 
 T1.4, T1.6, T2.6, T3.2 and T3.4 build to this page. Scope is three screens only: no animations, theming or design system. The brief scores function, not polish. Typeface in the design is IBM Plex Sans / Plex Mono; the app may fall back to `system-ui` and `ui-monospace`.
 
