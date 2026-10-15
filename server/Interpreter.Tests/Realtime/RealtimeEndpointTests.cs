@@ -92,6 +92,23 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     }
 
     [Fact]
+    public async Task Glossary_goes_into_both_directions_only_when_asked()
+    {
+        var minter = OkMinter();
+        var ct = TestContext.Current.CancellationToken;
+
+        var with = JsonDocument.Parse(await (await Client(minter).PostAsJsonAsync("/api/realtime/session",
+            new { source = "en", target = "es", glossary = true }, ct)).Content.ReadAsStringAsync(ct)).RootElement;
+        var without = JsonDocument.Parse(await (await Client(minter).PostAsJsonAsync("/api/realtime/session",
+            EnEs, ct)).Content.ReadAsStringAsync(ct)).RootElement;
+
+        Assert.Contains("warfarin → warfarina", with.GetProperty("instructions").GetProperty("en>es").GetString());
+        Assert.Contains("warfarina → warfarin", with.GetProperty("instructions").GetProperty("es>en").GetString());
+        Assert.Contains("warfarin → warfarina", minter.Calls[0].Instructions);
+        Assert.DoesNotContain("warfarin", without.GetProperty("instructions").GetProperty("en>es").GetString());
+    }
+
+    [Fact]
     public async Task Returns_ephemeral_secret_and_instructions_for_both_directions()
     {
         var minter = new FakeMinter(_ => new RealtimeClientSecret("ek_test", DateTimeOffset.UnixEpoch, "gpt-realtime", "gpt-4o-mini-transcribe"));

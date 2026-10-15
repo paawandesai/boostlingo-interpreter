@@ -35,6 +35,7 @@ public static class CascadeEndpoints
         IOptions<CascadeOptions> cascade,
         IOptions<AccessOptions> access,
         LanguageCatalog languages,
+        Glossary glossary,
         ProviderActivity activity,
         ILoggerFactory loggers)
     {
@@ -115,9 +116,12 @@ public static class CascadeEndpoints
             return;
         }
 
+        var terms = start.Glossary ? glossary.For(source, target) : null;
         var settings = new CascadeSettings(
             source, languages.Find(source)!.Name, target, languages.Find(target)!.Name,
-            Voice: opts.Voices.GetValueOrDefault(target));
+            Voice: opts.Voices.GetValueOrDefault(target),
+            Keyterms: terms?.Keys.ToList(),
+            Glossary: terms);
         await SendJson(new { type = "ready", stt = stt.Name, translator = translator.Name, tts = tts.Name, t = Now() });
         log.LogInformation("Cascade session started: {Source}>{Target} stt={Stt} translator={Translator} tts={Tts}",
             source, target, stt.Name, translator.Name, tts.Name);

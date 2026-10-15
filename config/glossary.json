@@ -1,0 +1,18 @@
+{
+  "$comment": "Medical glossary for T3.7 and the glossary-accuracy metric. One entry per concept, keyed by language code, so any configured pair can use it. Terms were written by the model and are unverified: a native speaker or medical interpreter should check them before results are quoted.",
+  "name": "medical",
+  "entries": [
+    { "en": "warfarin", "es": "warfarina" },
+    { "en": "metformin", "es": "metformina" },
+    { "en": "ibuprofen", "es": "ibuprofeno" },
+    { "en": "milligrams", "es": "miligramos" },
+    { "en": "blood pressure", "es": "presión arterial" },
+    { "en": "hypertension", "es": "hipertensión" },
+    { "en": "shortness of breath", "es": "falta de aire" },
+    { "en": "chest pain", "es": "dolor de pecho" },
+    { "en": "dizziness", "es": "mareo" },
+    { "en": "allergic reaction", "es": "reacción alérgica" },
+    { "en": "prescription", "es": "receta médica" },
+    { "en": "blood thinner", "es": "anticoagulante" }
+  ]
+}

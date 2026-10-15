@@ -86,7 +86,7 @@ describe('CascadeTransport', () => {
   it('authenticates in the first message and only streams audio once ready', async () => {
     const { ws, events } = await started()
 
-    expect(ws.json()[0]).toEqual({ type: 'start', token: 'demo-token', source: 'en', target: 'es' })
+    expect(ws.json()[0]).toEqual({ type: 'start', token: 'demo-token', source: 'en', target: 'es', glossary: false })
     onFrame!(new Int16Array(320))
     expect(ws.sent).toHaveLength(1)
 

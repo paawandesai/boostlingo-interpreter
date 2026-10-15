@@ -14,18 +14,13 @@ public static class TranslationPrompt
 
     public static string System(TranslationRequest r)
     {
-        var sb = new StringBuilder(InterpreterInstructions.Build(r.SourceLanguage, r.TargetLanguage));
+        var sb = new StringBuilder(InterpreterInstructions.Build(r.SourceLanguage, r.TargetLanguage, r.Glossary));
         sb.AppendLine();
         sb.AppendLine($"""
             The speech arrives as transcript text inside <speech> tags. It comes from speech recognition, so it may lack punctuation or contain recognition errors: translate what was most likely said, and never add anything that was not said.
             Earlier turns are context for pronouns, names and register. Translate only the latest <speech> block.
             If the latest block is empty or is not speech, output nothing.
             """);
-        if (r.Glossary is { Count: > 0 } glossary)
-        {
-            sb.AppendLine($"Always use these {r.TargetLanguage} terms:");
-            foreach (var (source, target) in glossary) sb.AppendLine($"- {source} → {target}");
-        }
         return sb.ToString();
     }
 

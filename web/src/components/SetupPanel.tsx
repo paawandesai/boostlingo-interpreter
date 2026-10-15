@@ -15,12 +15,23 @@ interface Props {
   languages: LanguagesResponse | null
   models: RealtimeModels | null
   cascadeProviders: CascadeProviders | null
-  onConfigure(c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string }): void
+  onConfigure(c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string; glossary?: boolean }): void
+  /** Configured glossary size; null when the server has none. */
+  glossaryTerms: number | null
   onSpeaker(s: SpeakerSide): void
   onStart(opts: { spokenNotice: boolean }): void
 }
 
-export function SetupPanel({ state, languages, models, cascadeProviders, onConfigure, onSpeaker, onStart }: Props) {
+export function SetupPanel({
+  state,
+  languages,
+  models,
+  cascadeProviders,
+  glossaryTerms,
+  onConfigure,
+  onSpeaker,
+  onStart,
+}: Props) {
   const [token, setToken] = useState(getAccessToken)
   // Consent is per session: this panel remounts after every session, so it starts unticked.
   const [consented, setConsented] = useState(false)
@@ -72,6 +83,19 @@ export function SetupPanel({ state, languages, models, cascadeProviders, onConfi
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {glossaryTerms !== null && glossaryTerms > 0 && (
+        <div className="field">
+          <span className="label">Glossary</span>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={state.glossary}
+              onChange={(e) => onConfigure({ glossary: e.target.checked })}
+            />
+            Use the medical glossary ({glossaryTerms} terms, same terms in both modes)
+          </label>
         </div>
       )}
       <div className="field">

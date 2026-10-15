@@ -28,12 +28,12 @@ export function useSession() {
 
   const start = useCallback(async () => {
     await teardown()
-    const { mode, langA, langB, speaker, realtimeModel } = stateRef.current
+    const { mode, langA, langB, speaker, realtimeModel, glossary } = stateRef.current
     const t = createTransport(mode)
     transport.current = t
     unsubscribe.current = t.subscribe((event) => dispatch({ type: 'transport', event }))
     dispatch({ type: 'started', at: Date.now() })
-    await t.start({ langA, langB, speaker, realtimeModel: realtimeModel ?? undefined })
+    await t.start({ langA, langB, speaker, realtimeModel: realtimeModel ?? undefined, glossary })
   }, [teardown])
 
   const switching = useRef(false)
@@ -73,9 +73,12 @@ export function useSession() {
     dispatch({ type: 'ended' })
   }, [teardown])
 
-  const configure = useCallback((c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string }) => {
-    dispatch({ type: 'configure', ...c })
-  }, [])
+  const configure = useCallback(
+    (c: { mode?: Mode; langA?: string; langB?: string; realtimeModel?: string; glossary?: boolean }) => {
+      dispatch({ type: 'configure', ...c })
+    },
+    [],
+  )
 
   const setSpeaker = useCallback((side: SpeakerSide) => {
     dispatch({ type: 'configure', speaker: side })

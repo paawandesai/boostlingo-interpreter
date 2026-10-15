@@ -40,7 +40,7 @@ export class RealtimeTransport implements Transport {
     this.emitter.emit({ type: 'state', state: 'connecting' })
     try {
       const [source, target] = direction(config, config.speaker)
-      this.info = await createRealtimeSession(source, target, config.realtimeModel)
+      this.info = await createRealtimeSession(source, target, config.realtimeModel, undefined, config.glossary)
       if (this.stopped) return
 
       this.capture = await startCapture({

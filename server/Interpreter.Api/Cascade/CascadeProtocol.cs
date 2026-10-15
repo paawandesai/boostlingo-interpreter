@@ -18,7 +18,7 @@ public static class CascadeProtocol
     };
 
     /// <summary>First client message. The token goes here because browsers can't set WebSocket headers.</summary>
-    public sealed record Start(string Type, string? Token, string? Source, string? Target, string? Translator);
+    public sealed record Start(string Type, string? Token, string? Source, string? Target, string? Translator, bool Glossary = false);
 
     public sealed record ClientMessage(string Type, double? C);
 
