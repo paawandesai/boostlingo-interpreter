@@ -72,4 +72,19 @@ public class LiveTranslatorTests
         Assert.Contains("8", output);
         Assert.Matches("(?i)milligram|mg", output);
     }
+
+    [Theory]
+    [MemberData(nameof(Translators))]
+    public async Task Reports_billed_token_usage(string name)
+    {
+        var t = Create(name);
+        Assert.SkipWhen(t is null, $"no API key for {name}");
+
+        TokenUsage? usage = null;
+        var request = new TranslationRequest("English", "Spanish", "Good morning.", OnUsage: u => usage = u);
+        await foreach (var _ in t!.TranslateAsync(request, TestContext.Current.CancellationToken)) { }
+
+        Assert.NotNull(usage);
+        Assert.True(usage.InputTokens > 0 && usage.OutputTokens > 0, $"{usage}");
+    }
 }

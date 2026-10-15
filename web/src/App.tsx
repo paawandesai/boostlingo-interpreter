@@ -7,7 +7,9 @@ import { LiveSession } from './components/LiveSession'
 import { SetupPanel } from './components/SetupPanel'
 import { fetchLanguages, type LanguagesResponse } from './session/languages'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
-import { fetchCascadeProviders, type CascadeProviders } from './session/providers'
+import { buildSessionLog, download } from './session/export'
+import { fetchHealth } from './session/health'
+import { fetchCascadeProviders, fetchPrices, type CascadeProviders } from './session/providers'
 import { useSession } from './session/useSession'
 
 export default function App() {
@@ -28,6 +30,21 @@ export default function App() {
       .then(setCascadeProviders)
       .catch(() => setCascadeProviders(null))
   }, [])
+
+  const exportLog = async () => {
+    const [prices, health] = await Promise.all([fetchPrices().catch(() => null), fetchHealth().catch(() => null)])
+    download(
+      buildSessionLog(state, {
+        exportedAt: new Date().toISOString(),
+        appVersion: health?.version ?? null,
+        cascadeProviders,
+        defaultRealtimeModel: models?.default ?? null,
+        prices,
+        userAgent: navigator.userAgent,
+      }),
+    )
+  }
+  const hasLog = state.timeline.some((x) => x.kind === 'utterance')
 
   // The spoken notice plays before the transport starts, so the mic is not open yet (G7).
   const startWithNotice = async ({ spokenNotice }: { spokenNotice: boolean }) => {
@@ -68,6 +85,7 @@ export default function App() {
           onDismissError={dismissError}
           onRequestHuman={() => void requestHuman()}
           onSwitchMode={(m) => void switchMode(m)}
+          onExport={() => void exportLog()}
         />
       ) : (
         <>
@@ -90,6 +108,13 @@ export default function App() {
           {state.error && (
             <p role="alert" className="banner">
               {state.error.message}
+            </p>
+          )}
+          {hasLog && (
+            <p className="actions-row">
+              <button type="button" onClick={() => void exportLog()}>
+                Export last session log (JSON)
+              </button>
             </p>
           )}
           <SetupPanel

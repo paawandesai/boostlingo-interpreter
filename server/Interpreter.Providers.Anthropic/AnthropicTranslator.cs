@@ -47,18 +47,28 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
         using var res = await HttpErrors.SendAsync(http, msg, Provider, "Anthropic translation", ct);
         await using var stream = await res.Content.ReadAsStreamAsync(ct);
 
+        int? inputTokens = null, outputTokens = null;
         await foreach (var e in ServerSentEvents.ReadAsync(stream, ct))
         {
             using var doc = JsonDocument.Parse(e.Data);
             var root = doc.RootElement;
             switch (root.GetProperty("type").GetString())
             {
+                case "message_start" when root.GetProperty("message").TryGetProperty("usage", out var startUsage):
+                    if (startUsage.TryGetProperty("input_tokens", out var it)) inputTokens = it.GetInt32();
+                    if (startUsage.TryGetProperty("output_tokens", out var ot0)) outputTokens = ot0.GetInt32();
+                    break;
+                case "message_delta" when root.TryGetProperty("usage", out var deltaUsage):
+                    // Output tokens here are cumulative for the message.
+                    if (deltaUsage.TryGetProperty("output_tokens", out var ot)) outputTokens = ot.GetInt32();
+                    break;
                 case "content_block_delta":
                     var delta = root.GetProperty("delta");
                     if (delta.GetProperty("type").GetString() == "text_delta" && delta.GetProperty("text").GetString() is { Length: > 0 } text)
                         yield return text;
                     break;
                 case "message_stop":
+                    if (inputTokens is { } i && outputTokens is { } o) request.OnUsage?.Invoke(new TokenUsage(i, o));
                     yield break;
                 case "error":
                     var type = root.GetProperty("error").GetProperty("type").GetString();

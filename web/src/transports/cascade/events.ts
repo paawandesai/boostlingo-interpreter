@@ -123,6 +123,20 @@ export class CascadeEventParser {
           },
         ]
       }
+      case 'usage': {
+        const n = (v: unknown) => (typeof v === 'number' ? v : undefined)
+        return [
+          {
+            type: 'usage',
+            utteranceId: u!,
+            usage: {
+              inputTokens: n(e.inputTokens),
+              outputTokens: n(e.outputTokens),
+              ttsCharacters: n(e.ttsCharacters),
+            },
+          },
+        ]
+      }
       case 'retry': {
         const why = e.kind === 'Timeout' ? 'timed out' : 'rate limited the request'
         return [

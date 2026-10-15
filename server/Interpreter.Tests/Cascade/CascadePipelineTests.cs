@@ -162,6 +162,18 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task Reports_usage_per_utterance_before_it_is_done()
+    {
+        var events = await RunAll(new CascadePipeline(
+            new FakeStt([new SttFinal("One.", false), Final("Two.")]), new FakeTranslator(), new FakeTts()));
+
+        var usage = Assert.Single(events.OfType<UtteranceUsage>());
+        // Two segments, each billed 10 in / 3 out by the fake; TTS got "ES(One.)" + "ES(Two.)".
+        Assert.Equal((1, 20, 6, 16), (usage.Utterance, usage.InputTokens, usage.OutputTokens, usage.TtsCharacters));
+        Assert.True(events.IndexOf(usage) < events.FindIndex(e => e is UtteranceDone));
+    }
+
+    [Fact]
     public async Task Rate_limited_translation_is_retried_with_backoff_before_any_text()
     {
         var translator = new FakeTranslator { FailTimes = 2 };
@@ -315,6 +327,7 @@ public class CascadePipelineTests
                 FailTimes--;
                 throw new ProviderException(ProviderErrorKind.RateLimited, Name, "429", FailRetryAfter);
             }
+            request.OnUsage?.Invoke(new TokenUsage(10, 3));
             var pieces = Script ?? ["ES(", request.Text, ")"];
             try
             {

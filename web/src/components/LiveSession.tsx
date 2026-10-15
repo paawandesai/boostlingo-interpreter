@@ -16,6 +16,7 @@ interface Props {
   onDismissError(): void
   onRequestHuman(): void
   onSwitchMode(m: Mode): void
+  onExport(): void
 }
 
 export function LiveSession({
@@ -27,6 +28,7 @@ export function LiveSession({
   onDismissError,
   onRequestHuman,
   onSwitchMode,
+  onExport,
 }: Props) {
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
@@ -48,6 +50,9 @@ export function LiveSession({
           </span>
         </div>
         <meter min={0} max={0.3} value={state.level} aria-label="Input level" />
+        <button type="button" onClick={onExport}>
+          Export log
+        </button>
         <button type="button" onClick={onRequestHuman}>
           Request human interpreter
         </button>

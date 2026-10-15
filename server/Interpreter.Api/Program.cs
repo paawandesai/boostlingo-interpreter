@@ -36,6 +36,11 @@ app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
     languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure }),
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
 }));
+// List prices for the session export's cost table (T3.5). Served as-is; null means unchecked.
+var pricesPath = Path.Combine(Path.GetDirectoryName(languagesPath)!, "prices.json");
+app.MapGet("/api/prices", () => File.Exists(pricesPath)
+    ? Results.Text(File.ReadAllText(pricesPath), "application/json")
+    : Results.NotFound());
 app.MapRealtimeEndpoints();
 app.MapCascadeEndpoints();
 

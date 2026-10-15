@@ -15,6 +15,8 @@ import { TransportEmitter, type Mode, type SessionConfig, type SpeakerSide, type
 import { ClockSync } from './clock'
 import { CascadeEventParser } from './events'
 
+/** Capture worklet output rate (D6). */
+const STT_RATE = 16000
 const TTS_RATE = 24000
 
 export class CascadeTransport implements Transport {
@@ -34,6 +36,8 @@ export class CascadeTransport implements Transport {
   private sockets = 0
   private firstOut = new Set<string>()
   private firstReceived = new Set<string>()
+  /** Samples sent to STT on this transport, reported as session usage on stop (T3.5). */
+  private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
 
@@ -51,7 +55,10 @@ export class CascadeTransport implements Transport {
         stream: config.inputStream,
         targetRate: 16000,
         onFrame: (pcm) => {
-          if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(pcm as Int16Array<ArrayBuffer>)
+          if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(pcm as Int16Array<ArrayBuffer>)
+            this.samplesSent += pcm.length
+          }
         },
         onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
         onLevel: (rms) => this.emitter.emit({ type: 'level', rms }),
@@ -89,6 +96,10 @@ export class CascadeTransport implements Transport {
 
   async stop(): Promise<void> {
     this.stopped = true
+    if (this.samplesSent > 0) {
+      this.emitter.emit({ type: 'usage', usage: { sttAudioSeconds: this.samplesSent / STT_RATE } })
+      this.samplesSent = 0
+    }
     await this.release()
     this.emitter.emit({ type: 'state', state: 'closed' })
   }

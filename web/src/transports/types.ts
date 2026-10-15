@@ -47,6 +47,10 @@ export interface Usage {
   inputTextTokens?: number
   outputTextTokens?: number
   cachedTokens?: number
+  /** Characters sent to cascade TTS. */
+  ttsCharacters?: number
+  /** Seconds of audio streamed to cascade STT (session-level usage events only). */
+  sttAudioSeconds?: number
 }
 
 export type TransportEvent =
