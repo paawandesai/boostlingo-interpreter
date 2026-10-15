@@ -33,6 +33,7 @@ export class CascadeTransport implements Transport {
   private stopped = false
   private sockets = 0
   private firstOut = new Set<string>()
+  private firstReceived = new Set<string>()
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
 
@@ -138,6 +139,13 @@ export class CascadeTransport implements Transport {
 
   private onAudio(data: ArrayBuffer): void {
     if (!this.playback || !this.capture) return
+    const receivedAt = performance.now()
+    const speaking = this.parser?.speaking
+    // Network stage (D9): first audio frame of the utterance received on the client.
+    if (speaking && !this.firstReceived.has(speaking)) {
+      this.firstReceived.add(speaking)
+      this.emitter.emit({ type: 'mark', name: 'audio.first_received', t: receivedAt, utteranceId: speaking })
+    }
     const pcm = new Int16Array(data)
     const samples = new Float32Array(pcm.length)
     for (let i = 0; i < pcm.length; i++) samples[i] = pcm[i] / 32768

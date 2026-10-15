@@ -25,6 +25,7 @@ export type MarkName =
   | 'translation.first_token'
   | 'tts.first_flush'
   | 'tts.first_byte'
+  | 'audio.first_received'
   | 'response.created'
   | 'audio.first_out'
 
