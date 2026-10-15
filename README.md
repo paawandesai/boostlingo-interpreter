@@ -103,13 +103,13 @@ Every step stays under the smallest runner slot's 1.5 GB. `dotnet format` is now
 
 ## Public demo (AWS)
 
-A manual CI job, `deploy:aws` on `main`, runs [infra/deploy.sh](infra/deploy.sh). It builds the image with the .NET SDK (`dotnet publish -p:DemoImage=true /t:PublishContainer`, no Docker daemon), with the built SPA and `config/` inside and no keys. It pushes the image to ECR, writes the keys to one Secrets Manager secret, and deploys [infra/demo.yml](infra/demo.yml): ECS Fargate behind a load balancer that only CloudFront can reach, with CloudFront providing HTTPS (the mic needs a secure page) and WebSockets.
+A manual CI job, `deploy:aws` on `main`, runs [infra/deploy.sh](infra/deploy.sh). It builds the image with the .NET SDK (`dotnet publish -p:DemoImage=true /t:PublishContainer`, no Docker daemon), with the built SPA and `config/` inside and no keys. It pushes the image to ECR, writes the keys to SSM Parameter Store as SecureString parameters, and deploys [infra/demo.yml](infra/demo.yml): ECS on one free-tier-sized t3.micro instance that only CloudFront can reach, with CloudFront providing HTTPS (the mic needs a secure page) and WebSockets. There is no load balancer; one small instance with no automatic replacement is enough for a graded demo.
 
-- **Gate:** every session needs the access token; minting and the cascade socket are rate-limited per client address, read past the two proxies so a client can't pick its own.
+- **Gate:** every session needs the access token; minting and the cascade socket are rate-limited per client address, read past CloudFront so a client can't pick its own.
 - **Not indexed:** `X-Robots-Tag: noindex` on every response and a `robots.txt` that disallows everything.
 - **Banner:** the page always says it is AI interpretation with synthetic data only.
 - **Nothing to purge:** no audio or transcript is stored, and logs (ids and status codes only) expire after a day.
-- **Turns itself off:** a one-time schedule scales the service to zero at `SHUTDOWN_AT` (default 14 days after deploy). After grading, rotate `DEMO_ACCESS_TOKEN` or run `aws cloudformation delete-stack --stack-name interpreter-demo`.
+- **Turns itself off:** a one-time schedule stops the instance at `SHUTDOWN_AT` (default 14 days after deploy). After grading, rotate `DEMO_ACCESS_TOKEN` or run `aws cloudformation delete-stack --stack-name interpreter-demo`.
 - Cascade runs on OpenAI transcription in the demo; Deepgram is not used.
 
 ## Layout

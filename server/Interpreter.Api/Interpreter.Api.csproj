@@ -30,7 +30,7 @@
     <ContainerEnvironmentVariable Include="Languages__Path" Value="/app/config/languages.json" />
     <ContainerEnvironmentVariable Include="Demo__SpaPath" Value="/app/spa" />
     <ContainerEnvironmentVariable Include="Demo__NoIndex" Value="true" />
-    <ContainerEnvironmentVariable Include="Demo__ForwardLimit" Value="2" />
+    <ContainerEnvironmentVariable Include="Demo__ForwardLimit" Value="1" />
   </ItemGroup>
 
 </Project>

@@ -243,7 +243,7 @@ e2e:soak:
     - SOAK=1 SOAK_MODE=${SOAK_MODE:-cascade} npx playwright test e2e/soak.spec.ts
 
 # ---------- deploy (T5): manual, main only ----------
-# Public demo on ECS Fargate behind CloudFront (infra/demo.yml, docs/GUARDRAILS.md G14). Needs masked
+# Public demo, ECS on one free-tier EC2 instance behind CloudFront (infra/demo.yml, G14). Needs masked
 # CI variables AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and CLAUDE_TRANSLATOR_API_KEY,
 # plus the existing OPENAI_API_KEY, ELEVENLABS_API_KEY and DEMO_ACCESS_TOKEN. Rotate DEMO_ACCESS_TOKEN
 # after grading and re-run, or delete the stack.

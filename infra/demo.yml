@@ -1,33 +1,35 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  Interpreter workbench public demo (T5, docs/GUARDRAILS.md G14). ECS Fargate behind an ALB, behind
-  CloudFront for HTTPS (the mic needs a secure page) and WebSockets. Not Lambda. Keys come from one
-  Secrets Manager secret by ARN; no secret value appears in this template, its parameters or outputs.
+  Interpreter workbench public demo (T5, docs/GUARDRAILS.md G14), free-tier shaped. ECS on one
+  t3.micro EC2 instance behind CloudFront (HTTPS for the mic, and WebSockets); no load balancer,
+  not Lambda. Keys come from SSM SecureString parameters by name; no key value appears in this
+  template, its parameters or its outputs.
 
 Parameters:
   ImageUri:
     Type: String
-    Description: ECR image (repo:tag or repo@digest) built from the repo's Dockerfile.
+    Description: ECR image (repo:tag) built by infra/deploy.sh.
   VpcId:
     Type: AWS::EC2::VPC::Id
-  SubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: At least two public subnets in different AZs (tasks get public IPs; no NAT).
-  SecretArn:
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet (the default VPC's subnets are public).
+  ParameterPath:
     Type: String
-    Description: >-
-      Secrets Manager secret holding JSON keys OPENAI_API_KEY, ELEVENLABS_API_KEY,
-      CLAUDE_TRANSLATOR_API_KEY and DEMO_ACCESS_TOKEN.
+    Default: /interpreter-demo
+    Description: SSM path holding the SecureString keys the app reads.
   CloudFrontPrefixListId:
     Type: String
     Description: The region's com.amazonaws.global.cloudfront.origin-facing managed prefix list id.
   ShutdownAt:
     Type: String
-    Description: When the service scales to zero by itself, as yyyy-mm-ddThh:mm:ss UTC (after grading).
-  DesiredCount:
-    Type: Number
-    Default: 1
-    AllowedValues: [0, 1]
+    Description: When the instance stops by itself, as yyyy-mm-ddThh:mm:ss UTC (after grading).
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id
 
 Resources:
   Logs:
@@ -39,6 +41,47 @@ Resources:
 
   Cluster:
     Type: AWS::ECS::Cluster
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Demo instance, reachable from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds: [!Ref InstanceSecurityGroup]
+      MetadataOptions: { HttpTokens: required, HttpPutResponseHopLimit: 2 }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${Cluster} >> /etc/ecs/ecs.config
+      Tags:
+        - { Key: Name, Value: !Ref AWS::StackName }
 
   ExecutionRole:
     Type: AWS::IAM::Role
@@ -52,13 +95,13 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        - PolicyName: read-demo-secret
+        - PolicyName: read-demo-keys
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !Ref SecretArn
+                Action: ssm:GetParameters
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}/*
 
   # The app calls no AWS API, so its task role grants nothing.
   TaskRole:
@@ -75,27 +118,28 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref AWS::StackName
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: '512'
-      Memory: '1024'
-      RuntimePlatform: { CpuArchitecture: X86_64, OperatingSystemFamily: LINUX }
+      RequiresCompatibilities: [EC2]
+      NetworkMode: bridge
       ExecutionRoleArn: !GetAtt ExecutionRole.Arn
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: app
           Image: !Ref ImageUri
           Essential: true
-          ReadonlyRootFilesystem: false
-          PortMappings: [{ ContainerPort: 8080, Protocol: tcp }]
+          # t3.micro has 1 GiB; leave room for the OS and the ECS agent.
+          Memory: 700
+          MemoryReservation: 400
+          PortMappings: [{ ContainerPort: 8080, HostPort: 80, Protocol: tcp }]
           Environment:
             # Deepgram is not used in the demo: its terms need consent for comparative use.
             - { Name: Cascade__Stt, Value: openai }
+            # CloudFront appends the viewer address and reaches the instance directly: one hop.
+            - { Name: Demo__ForwardLimit, Value: '1' }
           Secrets:
-            - { Name: OPENAI_API_KEY, ValueFrom: !Sub '${SecretArn}:OPENAI_API_KEY::' }
-            - { Name: ELEVENLABS_API_KEY, ValueFrom: !Sub '${SecretArn}:ELEVENLABS_API_KEY::' }
-            - { Name: CLAUDE_TRANSLATOR_API_KEY, ValueFrom: !Sub '${SecretArn}:CLAUDE_TRANSLATOR_API_KEY::' }
-            - { Name: DEMO_ACCESS_TOKEN, ValueFrom: !Sub '${SecretArn}:DEMO_ACCESS_TOKEN::' }
+            - { Name: OPENAI_API_KEY, ValueFrom: !Sub '${ParameterPath}/OPENAI_API_KEY' }
+            - { Name: ELEVENLABS_API_KEY, ValueFrom: !Sub '${ParameterPath}/ELEVENLABS_API_KEY' }
+            - { Name: CLAUDE_TRANSLATOR_API_KEY, ValueFrom: !Sub '${ParameterPath}/CLAUDE_TRANSLATOR_API_KEY' }
+            - { Name: DEMO_ACCESS_TOKEN, ValueFrom: !Sub '${ParameterPath}/DEMO_ACCESS_TOKEN' }
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -103,65 +147,16 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: app
 
-  AlbSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Load balancer, reachable from CloudFront only
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
-
-  TaskSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: App tasks, reachable from the load balancer only
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - { IpProtocol: tcp, FromPort: 8080, ToPort: 8080, SourceSecurityGroupId: !Ref AlbSecurityGroup }
-
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Scheme: internet-facing
-      Subnets: !Ref SubnetIds
-      SecurityGroups: [!Ref AlbSecurityGroup]
-      LoadBalancerAttributes:
-        - { Key: idle_timeout.timeout_seconds, Value: '120' }
-
-  TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref VpcId
-      TargetType: ip
-      Protocol: HTTP
-      Port: 8080
-      HealthCheckPath: /health
-      TargetGroupAttributes:
-        - { Key: deregistration_delay.timeout_seconds, Value: '30' }
-
-  Listener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancer
-      Port: 80
-      Protocol: HTTP
-      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }]
-
   Service:
     Type: AWS::ECS::Service
-    DependsOn: Listener
+    DependsOn: Instance
     Properties:
       Cluster: !Ref Cluster
-      LaunchType: FARGATE
-      DesiredCount: !Ref DesiredCount
+      LaunchType: EC2
+      DesiredCount: 1
       TaskDefinition: !Ref TaskDefinition
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
-          Subnets: !Ref SubnetIds
-          SecurityGroups: [!Ref TaskSecurityGroup]
-      LoadBalancers:
-        - { ContainerName: app, ContainerPort: 8080, TargetGroupArn: !Ref TargetGroup }
+      # One instance and a fixed host port: stop the old task before starting the new one.
+      DeploymentConfiguration: { MinimumHealthyPercent: 0, MaximumPercent: 100 }
 
   Distribution:
     Type: AWS::CloudFront::Distribution
@@ -171,11 +166,11 @@ Resources:
         Comment: !Sub ${AWS::StackName} demo (synthetic data only)
         PriceClass: PriceClass_100
         Origins:
-          - Id: alb
-            DomainName: !GetAtt LoadBalancer.DNSName
+          - Id: instance
+            DomainName: !GetAtt Instance.PublicDnsName
             CustomOriginConfig: { OriginProtocolPolicy: http-only, HTTPPort: 80 }
         DefaultCacheBehavior:
-          TargetOriginId: alb
+          TargetOriginId: instance
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
           # Managed CachingDisabled and AllViewer: nothing is cached and the access-token header and
@@ -193,15 +188,16 @@ Resources:
             Principal: { Service: scheduler.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: scale-demo-to-zero
+        - PolicyName: stop-demo-instance
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ecs:UpdateService
-                Resource: !Ref Service
+                Action: ec2:StopInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
 
-  # Turns the demo off after grading even if nobody remembers to (G14).
+  # Turns the demo off after grading even if nobody remembers to (G14). A stopped instance is not
+  # billed for compute.
   Shutdown:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -209,14 +205,12 @@ Resources:
       ScheduleExpressionTimezone: UTC
       FlexibleTimeWindow: { Mode: 'OFF' }
       Target:
-        Arn: arn:aws:scheduler:::aws-sdk:ecs:updateService
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:stopInstances
         RoleArn: !GetAtt SchedulerRole.Arn
-        Input: !Sub '{"Cluster":"${Cluster}","Service":"${Service.Name}","DesiredCount":0}'
+        Input: !Sub '{"InstanceIds":["${Instance}"]}'
 
 Outputs:
   Url:
     Value: !Sub https://${Distribution.DomainName}
-  Cluster:
-    Value: !Ref Cluster
-  Service:
-    Value: !GetAtt Service.Name
+  Instance:
+    Value: !Ref Instance

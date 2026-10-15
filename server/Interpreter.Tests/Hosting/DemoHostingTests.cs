@@ -54,7 +54,7 @@ public sealed class DemoHostingTests(WebApplicationFactory<Program> factory) : I
     [Fact]
     public async Task Rate_limit_keys_on_the_address_the_proxies_saw_not_a_client_supplied_one()
     {
-        // CloudFront appends the viewer address, the load balancer appends CloudFront's: 2 hops.
+        // Two proxies here (say CloudFront then a load balancer); the demo itself runs with one.
         var client = Client(("Demo:ForwardLimit", "2"));
         var ct = TestContext.Current.CancellationToken;
         var codes = new List<HttpStatusCode>();

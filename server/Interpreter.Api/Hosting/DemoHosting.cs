@@ -11,7 +11,7 @@ public sealed class DemoHostingOptions
     public const string Section = "Demo";
 
     /// <summary>
-    /// Proxies in front of the app that append to X-Forwarded-For (CloudFront and the load balancer: 2).
+    /// Proxies in front of the app that append to X-Forwarded-For (the demo has only CloudFront: 1).
     /// The client address is read that many entries from the right, so a client-supplied
     /// X-Forwarded-For can't pick its own rate-limit partition. 0 trusts no header.
     /// </summary>
@@ -36,8 +36,8 @@ public static class DemoHosting
                 ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
                 ForwardLimit = opts.ForwardLimit,
             };
-            // The container only takes traffic from the load balancer (security group), whose address
-            // is not fixed, so the hop count, not an address list, is what limits trust.
+            // The instance only takes traffic from CloudFront (security group), whose addresses are
+            // many and change, so the hop count, not an address list, is what limits trust.
             fwd.KnownIPNetworks.Clear();
             fwd.KnownProxies.Clear();
             app.UseForwardedHeaders(fwd);
