@@ -42,6 +42,12 @@ public class OpenAIRealtimeSessionMinterTests
         Assert.Equal("server_vad", input.GetProperty("turn_detection").GetProperty("type").GetString());
         Assert.False(input.GetProperty("turn_detection").GetProperty("interrupt_response").GetBoolean());
         Assert.Equal("marin", session.GetProperty("audio").GetProperty("output").GetProperty("voice").GetString());
+        // G16: the interpreting session has no tools, so an injection can change words but never trigger an action.
+        Assert.False(session.TryGetProperty("tools", out _));
+        Assert.False(session.TryGetProperty("tool_choice", out _));
+        // G19: the shortest practical secret lifetime.
+        var expires = JsonDocument.Parse(body).RootElement.GetProperty("expires_after");
+        Assert.Equal(60, expires.GetProperty("seconds").GetInt32());
     }
 
     [Fact]

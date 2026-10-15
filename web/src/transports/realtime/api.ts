@@ -9,6 +9,8 @@ export interface RealtimeSessionInfo {
   callsUrl: string
   /** Keyed "en>es". */
   instructions: Record<string, string>
+  /** The client ends the session after this long (G19). */
+  maxSessionSeconds?: number
 }
 
 export class RealtimeApiError extends Error {

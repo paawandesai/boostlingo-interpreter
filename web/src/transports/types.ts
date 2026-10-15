@@ -16,7 +16,21 @@ export interface SessionConfig {
   glossary?: boolean
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
+  /**
+   * Finished turns from before this connection (G9): a mode switch or a cascade speaker switch starts a
+   * new connection, and these are sent along as context data so the new one keeps names and register.
+   * Read at connect time; the newest last.
+   */
+  history?: () => HistoryPair[]
 }
+
+export interface HistoryPair {
+  source: string
+  target: string
+}
+
+/** How many earlier turns a new connection gets (the server caps this too). */
+export const HISTORY_PAIRS = 6
 
 /** Latency mark names shared by both modes (docs/ARCHITECTURE.md, D9). Times are performance.now() ms. */
 export type MarkName =

@@ -7,6 +7,7 @@ namespace Interpreter.Core.Cascade;
 
 /// <summary>One cascade session's settings. Language names go to the translator, codes to STT and TTS.</summary>
 /// <param name="ContextPairs">How many recent source/target pairs the translator sees.</param>
+/// <param name="History">Finished pairs from before this session's socket (G9); context only, never re-translated.</param>
 public sealed record CascadeSettings(
     string SourceCode,
     string SourceName,
@@ -17,7 +18,8 @@ public sealed record CascadeSettings(
     int ContextPairs = 3,
     IReadOnlyList<string>? Keyterms = null,
     IReadOnlyDictionary<string, string>? Glossary = null,
-    RetryOptions? Retry = null);
+    RetryOptions? Retry = null,
+    IReadOnlyList<(string Source, string Target)>? History = null);
 
 /// <summary>
 /// Retries for a translation that fails with a rate limit or timeout before its first token (T3.4).
@@ -141,7 +143,10 @@ public sealed class CascadePipeline(
         private readonly CascadeSettings _s = s;
         private readonly CancellationToken _ct = ct;
         private readonly Channel<Utterance> _utterances = Channel.CreateBounded<Utterance>(QueueCapacity);
-        private readonly Queue<(string Source, string Target)> _context = new();
+        // Seeded with turns from before this socket (a speaker switch or a mode switch, G9), so the
+        // translator keeps pronouns and register across the reconnect.
+        private readonly Queue<(string Source, string Target)> _context =
+            new((s.History ?? []).TakeLast(Math.Max(0, s.ContextPairs)));
         private readonly FlushOptions _flush = s.Flush ?? new FlushOptions();
 
         public Channel<CascadeEvent> Events { get; } = Channel.CreateBounded<CascadeEvent>(QueueCapacity);

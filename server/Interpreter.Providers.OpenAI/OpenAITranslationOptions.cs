@@ -16,5 +16,9 @@ public sealed class OpenAITranslationOptions
     /// <summary>"none" keeps time to first token low for a reasoning model; set null to omit for models without it.</summary>
     public string? ReasoningEffort { get; set; } = "none";
 
+    /// <summary>Ceiling; each request is capped lower from the segment length (G16, <see cref="Interpreter.Core.Cascade.TranslationPrompt.OutputTokenCap"/>).</summary>
     public int MaxOutputTokens { get; set; } = 400;
+
+    /// <summary>0 for translation (G16); set null for a model that rejects the parameter.</summary>
+    public double? Temperature { get; set; } = 0;
 }

@@ -30,10 +30,11 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
             ["stream"] = true,
             // The last chunk then carries the billed token counts (choices is empty on that chunk).
             ["stream_options"] = new JsonObject { ["include_usage"] = true },
-            ["max_completion_tokens"] = _opts.MaxOutputTokens,
+            ["max_completion_tokens"] = TranslationPrompt.OutputTokenCap(r.Text, _opts.MaxOutputTokens),
             ["messages"] = messages,
         };
         if (_opts.ReasoningEffort is { } effort) body["reasoning_effort"] = effort;
+        if (_opts.Temperature is { } temperature) body["temperature"] = temperature;
         return body;
     }
 

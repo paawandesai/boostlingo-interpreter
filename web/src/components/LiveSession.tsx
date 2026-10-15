@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { LanguagesResponse } from '../session/languages'
 import type { SessionState, Utterance } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
@@ -6,6 +7,7 @@ import { LatencyPanel } from './LatencyPanel'
 import { ModeToggle } from './ModeToggle'
 import { SpeakerSideToggle } from './SpeakerSideToggle'
 import { TranscriptColumn } from './TranscriptColumn'
+import { checkContext, checkUtterance } from '../session/outputChecks'
 
 interface Props {
   state: SessionState
@@ -32,6 +34,10 @@ export function LiveSession({
 }: Props) {
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
+  const checks = checkContext(languages, state.langA, state.langB)
+  // G20: End discards the transcript, so it asks first when there is something not yet exported.
+  const [exportedCount, setExportedCount] = useState(0)
+  const [confirmEnd, setConfirmEnd] = useState(false)
   const statusText =
     state.status === 'connecting' ? 'Connecting' : state.gated ? 'Interpreter speaking (mic muted)' : 'Listening'
   return (
@@ -50,16 +56,50 @@ export function LiveSession({
           </span>
         </div>
         <meter min={0} max={0.3} value={state.level} aria-label="Input level" />
-        <button type="button" onClick={onExport}>
+        <button
+          type="button"
+          onClick={() => {
+            onExport()
+            setExportedCount(utterances.length)
+          }}
+        >
           Export log
         </button>
         <button type="button" onClick={onRequestHuman}>
           Request human interpreter
         </button>
-        <button type="button" className="danger" onClick={onEnd}>
+        <button
+          type="button"
+          className="danger"
+          onClick={() => (utterances.length > exportedCount ? setConfirmEnd(true) : onEnd())}
+        >
           End
         </button>
       </header>
+      {confirmEnd && (
+        <div role="alertdialog" aria-label="End session" className="banner info">
+          <div>
+            <strong>Ending discards the transcript.</strong>
+            <span className="meta">Nothing said in this session is kept unless you export the log first.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onExport()
+              setExportedCount(utterances.length)
+              setConfirmEnd(false)
+            }}
+          >
+            Export log first
+          </button>
+          <button type="button" className="danger" onClick={onEnd}>
+            End and discard
+          </button>
+          <button type="button" onClick={() => setConfirmEnd(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
       {state.error && <ErrorBanner error={state.error} onRetry={onRetry} onDismiss={onDismissError} />}
       {state.notice && (
         <p role="status" className="banner info">
@@ -68,7 +108,13 @@ export function LiveSession({
       )}
       <section aria-label="Transcripts" className="columns">
         <TranscriptColumn title="Source" role="source" timeline={state.timeline} />
-        <TranscriptColumn title="Target" role="target" timeline={state.timeline} />
+        <TranscriptColumn
+          title="Target"
+          role="target"
+          timeline={state.timeline}
+          flagsFor={(u) => checkUtterance(u, state.langA, state.langB, checks)}
+          onRequestHuman={onRequestHuman}
+        />
       </section>
       <SpeakerSideToggle
         value={state.speaker}

@@ -20,4 +20,9 @@ Required by [docs/GUARDRAILS.md](docs/GUARDRAILS.md): every model-generated arti
 | `config/prices.json` | Price entries | Only the Claude Haiku price was read from the vendor page (2026-10-14); every other price is null until Paawan checks it. |
 | AI disclosure notices in `config/languages.json` (`disclosure.notice`, `disclosure.spoken`) | English and Spanish consent text | **Unverified.** The Spanish was written by the model; a native speaker should check it, and the wording has had no legal review. |
 | `LICENSES.md` provider table | Summary of each provider's terms | The Deepgram clause was confirmed on the live page by Paawan (2026-10-14). The other providers' summaries come from search results and are unverified. |
+| `eval/replay/scripts.jsonl` | 65 replay lines with reference translations (T3.6) | **Unverified.** References need a fluent Spanish speaker's check before chrF/COMET or glossary accuracy is quoted. |
+| `eval/adversarial/suite.jsonl` | 30 red-team lines with their faithful renderings (G18) | **Unverified.** Same check needed; the sensitive lines were written to be rendered completely, not softened. |
+| `outputChecks` in `config/languages.json` | Function-word lists and assistant/refusal phrases for the output checks (G15) | **Unverified** heuristics; tuned on the unit-test examples only. |
+| `eval/replay/synthetic/` (not committed) | Synthetic TTS clips of the replay lines, made with OpenAI's speech endpoint by `eval/replay/synth.py` | Labelled synthetic; used only for the soak, never as the measured set. |
+| `eval/results/soak-2026-10-14-cascade-synthetic.json` | Soak report from the Playwright run | Measured, not generated; the input audio was synthetic. |
 | Design canvas (Claude Design, linked from `docs/UI.md`) | Screens and states | Reviewed by Paawan as a direction, not a verified spec. |

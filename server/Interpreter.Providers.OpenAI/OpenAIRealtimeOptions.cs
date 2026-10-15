@@ -32,5 +32,12 @@ public sealed class OpenAIRealtimeOptions
     /// <summary>Server VAD silence before end of turn. Kept explicit so both modes' endpointing is documented.</summary>
     public int SilenceDurationMs { get; set; } = 500;
 
-    public int SecretTtlSeconds { get; set; } = 600;
+    /// <summary>
+    /// Shortest practical lifetime (G19): the browser uses the secret once, right after minting, for the SDP
+    /// exchange. A leaked secret is worthless a minute later.
+    /// </summary>
+    public int SecretTtlSeconds { get; set; } = 60;
+
+    /// <summary>The client ends a Realtime session after this long (G19); cascade has the same cap server-side.</summary>
+    public int MaxSessionSeconds { get; set; } = 1800;
 }

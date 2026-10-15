@@ -18,7 +18,25 @@ public static class CascadeProtocol
     };
 
     /// <summary>First client message. The token goes here because browsers can't set WebSocket headers.</summary>
-    public sealed record Start(string Type, string? Token, string? Source, string? Target, string? Translator, bool Glossary = false);
+    public sealed record Start(
+        string Type, string? Token, string? Source, string? Target, string? Translator, bool Glossary = false,
+        IReadOnlyList<HistoryPair>? History = null);
+
+    /// <summary>An earlier finished turn the client carries across a reconnect (G9). Untrusted text, used as context data.</summary>
+    public sealed record HistoryPair(string? Source, string? Target);
+
+    /// <summary>At most this many pairs, each side cut to this many characters: the start message stays small.</summary>
+    public const int MaxHistoryPairs = 6;
+    public const int MaxHistoryChars = 600;
+
+    public static IReadOnlyList<(string Source, string Target)> History(Start start) =>
+        (start.History ?? [])
+            .Where(p => !string.IsNullOrWhiteSpace(p.Source) && !string.IsNullOrWhiteSpace(p.Target))
+            .TakeLast(MaxHistoryPairs)
+            .Select(p => (Cut(p.Source!), Cut(p.Target!)))
+            .ToList();
+
+    private static string Cut(string s) => s.Length <= MaxHistoryChars ? s : s[..MaxHistoryChars];
 
     public sealed record ClientMessage(string Type, double? C);
 

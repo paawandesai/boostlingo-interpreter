@@ -4,6 +4,8 @@ using Interpreter.Core.Errors;
 using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
 using Interpreter.Core.Realtime;
+using Interpreter.Providers.OpenAI;
+using Microsoft.Extensions.Options;
 
 namespace Interpreter.Api.Realtime;
 
@@ -21,7 +23,8 @@ public sealed record CreateRealtimeSessionResponse(
     string Model,
     string TranscriptionModel,
     string CallsUrl,
-    IReadOnlyDictionary<string, string> Instructions);
+    IReadOnlyDictionary<string, string> Instructions,
+    int MaxSessionSeconds);
 
 public static class RealtimeEndpoints
 {
@@ -38,7 +41,7 @@ public static class RealtimeEndpoints
 
     private static async Task<IResult> CreateSession(
         CreateRealtimeSessionRequest req, LanguageCatalog catalog, Glossary glossary, IRealtimeSessionMinter minter, ProviderActivity activity,
-        ILoggerFactory logs, CancellationToken ct)
+        IOptions<OpenAIRealtimeOptions> realtime, ILoggerFactory logs, CancellationToken ct)
     {
         var source = catalog.Find(req.Source);
         var target = catalog.Find(req.Target);
@@ -62,7 +65,8 @@ public static class RealtimeEndpoints
             var secret = await minter.CreateAsync(
                 new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"], req.Model), ct);
             activity.Success("realtime:openai");
-            return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions));
+            return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions,
+                realtime.Value.MaxSessionSeconds));
         }
         catch (ProviderException e)
         {

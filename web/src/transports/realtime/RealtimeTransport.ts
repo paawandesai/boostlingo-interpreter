@@ -8,7 +8,14 @@
  */
 import { MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
-import { TransportEmitter, type Mode, type SessionConfig, type SpeakerSide, type Transport } from '../types'
+import {
+  HISTORY_PAIRS,
+  TransportEmitter,
+  type Mode,
+  type SessionConfig,
+  type SpeakerSide,
+  type Transport,
+} from '../types'
 import { createRealtimeSession, exchangeSdp, RealtimeApiError, type RealtimeSessionInfo } from './api'
 import { RealtimeEventParser } from './events'
 import { createFirstAudioProbe, type FirstAudioProbe } from './firstAudioProbe'
@@ -27,6 +34,7 @@ export class RealtimeTransport implements Transport {
   private probe: FirstAudioProbe | null = null
   private stopped = false
   private connectTimer: ReturnType<typeof setTimeout> | null = null
+  private limitTimer: ReturnType<typeof setTimeout> | null = null
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -106,7 +114,20 @@ export class RealtimeTransport implements Transport {
     dc.onmessage = (m) => this.onServerEvent(m.data as string)
     dc.onopen = () => {
       this.clearConnectTimer()
+      this.sendHistory(dc)
       this.emitter.emit({ type: 'state', state: 'live' })
+      // G19: OpenAI bills while the connection is open, so a forgotten session is closed here.
+      const max = info.maxSessionSeconds
+      if (max)
+        this.limitTimer = setTimeout(() => {
+          void this.release().then(() =>
+            this.emitter.emit({
+              type: 'error',
+              kind: 'unavailable',
+              message: `This session reached the ${Math.round(max / 6) / 10}-minute limit. Start a new session to continue.`,
+            }),
+          )
+        }, max * 1000)
     }
     // ICE can fail silently behind strict firewalls; surface it instead of "connecting" forever.
     this.connectTimer = setTimeout(() => {
@@ -158,6 +179,27 @@ export class RealtimeTransport implements Transport {
     }
   }
 
+  /**
+   * Earlier turns (G9) as conversation items: the speech as delimited user data, the interpretation as
+   * the assistant's. No response.create, so nothing is said; the next turn just has the context.
+   * Item formats checked live against gpt-realtime-2.1 on 2026-10-14.
+   */
+  private sendHistory(dc: RTCDataChannel): void {
+    for (const pair of this.config?.history?.().slice(-HISTORY_PAIRS) ?? []) {
+      const user = { type: 'input_text', text: `<speech>${escapeSpeech(pair.source)}</speech>` }
+      const assistant = { type: 'output_text', text: pair.target }
+      dc.send(
+        JSON.stringify({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [user] } }),
+      )
+      dc.send(
+        JSON.stringify({
+          type: 'conversation.item.create',
+          item: { type: 'message', role: 'assistant', content: [assistant] },
+        }),
+      )
+    }
+  }
+
   private clearConnectTimer(): void {
     if (this.connectTimer !== null) clearTimeout(this.connectTimer)
     this.connectTimer = null
@@ -165,6 +207,8 @@ export class RealtimeTransport implements Transport {
 
   private async release(): Promise<void> {
     this.clearConnectTimer()
+    if (this.limitTimer !== null) clearTimeout(this.limitTimer)
+    this.limitTimer = null
     this.probe?.stop()
     this.probe = null
     this.gate?.dispose()
@@ -194,4 +238,9 @@ export class RealtimeTransport implements Transport {
 /** Source and target language for the side that is speaking. */
 export function direction(config: SessionConfig, side: SpeakerSide): [string, string] {
   return side === 'A' ? [config.langA, config.langB] : [config.langB, config.langA]
+}
+
+/** Speech can't close the tag and pose as something else (same rule as the cascade prompt). */
+function escapeSpeech(text: string): string {
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

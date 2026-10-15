@@ -24,6 +24,13 @@ public static class TranslationPrompt
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Output cap for one segment (G16): a translation is about as long as its source, so a short segment
+    /// gets a small budget. An injection that does take hold ("write me a poem") is cut short instead of
+    /// running on. Generous for real translations: about one token per source character plus slack.
+    /// </summary>
+    public static int OutputTokenCap(string text, int ceiling) => Math.Min(ceiling, 48 + text.Length);
+
     /// <summary>Earlier pairs as speaker/interpreter turns, then the segment to translate.</summary>
     public static IReadOnlyList<Turn> Turns(TranslationRequest r)
     {

@@ -123,6 +123,41 @@ describe('CascadeTransport', () => {
     expect(next.json()[0]).toMatchObject({ type: 'start', source: 'es', target: 'en' })
   })
 
+  it('re-measures the clock offset on each new socket', async () => {
+    const { t, ws, events } = await started()
+    ws.server({ type: 'ready', t: 0 })
+    const c1 = performance.now()
+    ws.server({ type: 'pong', c: c1 - 10, t: 100_000 })
+
+    t.setSpeaker('B')
+    const next = FakeSocket.all[1]
+    next.open()
+    next.server({ type: 'ready', t: 0 })
+    const c2 = performance.now()
+    // Slower round trip than the first socket's best: it must still be used, the server clock restarted.
+    next.server({ type: 'pong', c: c2 - 40, t: 5 })
+    next.server({ type: 'latency.mark', u: 1, name: 'tts.first_byte', t: 50 })
+
+    const mark = events.find((e) => e.type === 'mark' && e.utteranceId === 'c2-1')
+    expect(mark).toMatchObject({ name: 'tts.first_byte' })
+    expect((mark as { t: number }).t).toBeCloseTo(c2 - 40 + 20 - 5 + 50, 5)
+  })
+
+  it('sends the latest finished turns as context on every new socket (G9)', async () => {
+    const { CascadeTransport } = await import('./CascadeTransport')
+    CascadeTransport.url = () => 'ws://test/ws/cascade'
+    const t = new CascadeTransport()
+    const pairs = Array.from({ length: 8 }, (_, i) => ({ source: `s${i}`, target: `t${i}` }))
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A', history: () => pairs })
+    FakeSocket.all[0].open()
+    expect(FakeSocket.all[0].json()[0].history).toEqual(pairs.slice(-6))
+
+    pairs.push({ source: 'new', target: 'nuevo' })
+    t.setSpeaker('B')
+    FakeSocket.all[1].open()
+    expect((FakeSocket.all[1].json()[0].history as unknown[]).at(-1)).toEqual({ source: 'new', target: 'nuevo' })
+  })
+
   it('stop closes the socket and the mic', async () => {
     const { t, ws, events } = await started()
     await t.stop()

@@ -54,6 +54,21 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task Carried_history_seeds_the_first_translation_context()
+    {
+        // G9: turns from before a reconnect (speaker or mode switch) are context, never re-translated.
+        var translator = new FakeTranslator();
+        var pipeline = new CascadePipeline(new FakeStt([Final("And the dose?")]), translator, new FakeTts());
+        var settings = EnEs with { History = [("Hola.", "Hello."), ("Tomo warfarina.", "I take warfarin."), ("Sí.", "Yes."), ("Old", "Viejo")] };
+
+        var events = await RunAll(pipeline, settings);
+
+        Assert.Single(translator.Requests);
+        Assert.Equal([("Tomo warfarina.", "I take warfarin."), ("Sí.", "Yes."), ("Old", "Viejo")], translator.Requests[0].Context!);
+        Assert.Equal("ES(And the dose?)", Spoken(events, 1));
+    }
+
+    [Fact]
     public async Task Segment_finals_are_translated_before_the_utterance_ends()
     {
         var tts = new FakeTts();

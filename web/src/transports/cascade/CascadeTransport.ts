@@ -11,7 +11,14 @@ import { createMicGate, type MicGate } from '../../audio/micGate'
 import { PlaybackScheduler } from '../../audio/playback'
 import { currentAccessToken } from '../../session/access'
 import { direction } from '../realtime/RealtimeTransport'
-import { TransportEmitter, type Mode, type SessionConfig, type SpeakerSide, type Transport } from '../types'
+import {
+  HISTORY_PAIRS,
+  TransportEmitter,
+  type Mode,
+  type SessionConfig,
+  type SpeakerSide,
+  type Transport,
+} from '../types'
 import { ClockSync } from './clock'
 import { CascadeEventParser } from './events'
 
@@ -112,10 +119,25 @@ export class CascadeTransport implements Transport {
     this.ws = ws
     this.ready = false
     this.serverError = false
+    // Each socket has its own server clock (it starts at the connection), so the offset is re-measured.
+    // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
+    this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
     const glossary = this.config!.glossary ?? false
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'start', token: currentAccessToken(), source, target, glossary }))
+    ws.onopen = () => {
+      const history = this.config?.history?.().slice(-HISTORY_PAIRS) ?? []
+      ws.send(
+        JSON.stringify({
+          type: 'start',
+          token: currentAccessToken(),
+          source,
+          target,
+          glossary,
+          ...(history.length ? { history } : {}),
+        }),
+      )
+    }
     ws.onmessage = (m: MessageEvent<string | ArrayBuffer>) => {
       if (typeof m.data === 'string') this.onMessage(m.data)
       else this.onAudio(m.data)

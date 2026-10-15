@@ -6,7 +6,13 @@ namespace Interpreter.Core.Languages;
 /// <summary>The AI-use notice shown on screen and read aloud before capture starts (G7).</summary>
 public sealed record Disclosure(string Notice, string Spoken);
 
-public sealed record Language(string Code, string Name, Disclosure? Disclosure = null);
+/// <summary>
+/// Deterministic output checks for text in this language (G15): common function words for the language
+/// check, and lower-case substrings that mark an output as an assistant reply or a refusal.
+/// </summary>
+public sealed record OutputChecks(string[] Markers, string[] AssistantPatterns, string[] RefusalPatterns);
+
+public sealed record Language(string Code, string Name, Disclosure? Disclosure = null, OutputChecks? OutputChecks = null);
 
 /// <summary>
 /// Languages and pairs from config/languages.json (D16). Adding a pair is a config change;
@@ -50,7 +56,7 @@ public sealed class LanguageCatalog
         var file = JsonSerializer.Deserialize<LanguagesFile>(stream, JsonOptions)
             ?? throw new InvalidOperationException($"Empty language config: {path}");
         return new LanguageCatalog(
-            file.Languages.Select(l => new Language(l.Code, l.Name, l.Disclosure)),
+            file.Languages.Select(l => new Language(l.Code, l.Name, l.Disclosure, l.OutputChecks)),
             file.Pairs.Select(p => p.Length == 2
                 ? (p[0], p[1])
                 : throw new InvalidOperationException("Each pair must have exactly two codes")));
@@ -73,5 +79,5 @@ public sealed class LanguageCatalog
         [property: JsonPropertyName("languages")] List<LanguageEntry> Languages,
         [property: JsonPropertyName("pairs")] List<string[]> Pairs);
 
-    private sealed record LanguageEntry(string Code, string Name, Disclosure? Disclosure);
+    private sealed record LanguageEntry(string Code, string Name, Disclosure? Disclosure, OutputChecks? OutputChecks);
 }

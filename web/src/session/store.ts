@@ -3,7 +3,16 @@
  * side and latency marks, so a transport can be torn down and replaced without losing them.
  * Pure reducer; the controller feeds it transport events.
  */
-import type { ErrorKind, MarkName, Mode, SpeakerSide, TransportEvent, Usage } from '../transports/types'
+import {
+  HISTORY_PAIRS,
+  type ErrorKind,
+  type HistoryPair,
+  type MarkName,
+  type Mode,
+  type SpeakerSide,
+  type TransportEvent,
+  type Usage,
+} from '../transports/types'
 
 export type Status = 'idle' | 'connecting' | 'live' | 'ended'
 
@@ -92,6 +101,28 @@ export const initialState: SessionState = {
   incidents: [],
 }
 
+/** Finished turns, oldest first, for the next connection's context (G9). */
+export function recentPairs(state: SessionState): HistoryPair[] {
+  return state.timeline
+    .filter((x): x is Utterance => x.kind === 'utterance')
+    .filter((u) => u.source.final && u.target.final && u.source.text.trim() && u.target.text.trim())
+    .slice(-HISTORY_PAIRS)
+    .map((u) => ({ source: u.source.text, target: u.target.text }))
+}
+
+/** Drops everything said in the session (G20); settings stay. */
+function discardTranscript(state: SessionState): SessionState {
+  return {
+    ...state,
+    timeline: [],
+    incidents: [],
+    segments: [],
+    sessionUsage: { sttAudioSeconds: 0 },
+    pendingSpeechEnd: null,
+    notice: null,
+  }
+}
+
 /** Below this STT confidence a source line is flagged for the listener (G7). */
 export const LOW_CONFIDENCE = 0.8
 
@@ -132,10 +163,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         segments: state.segments.map((s) => (s.endedAt === null ? { ...s, endedAt: action.at } : s)),
       }
     case 'ended':
-      return { ...state, status: 'ended', level: 0, gated: false }
+      // G20: transcripts live only for the session view; export before End to keep them.
+      return { ...discardTranscript(state), status: 'ended', level: 0, gated: false }
     case 'handoff':
       return {
-        ...state,
+        ...discardTranscript(state),
         status: 'ended',
         level: 0,
         gated: false,

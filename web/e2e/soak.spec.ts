@@ -63,10 +63,11 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   samples.push({ t: Date.now() - t0, mb: await heap() })
   const drops = await page.evaluate(() => window.__live.drops)
 
-  await page.getByRole('button', { name: 'End' }).click()
+  // End discards the transcript (G20), so the log is exported first.
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Export last session log/ }).click()
+  await page.getByRole('button', { name: 'Export log', exact: true }).click()
   const logPath = await (await download).path()
+  await page.getByRole('button', { name: 'End', exact: true }).click()
   const log = JSON.parse(readFileSync(logPath, 'utf8')) as {
     modes: Array<{ mode: string; utterances: number; latency: unknown[] }>
     utterances: Array<{ target: { text: string; final: boolean } | null; audioFailed: boolean }>
@@ -97,6 +98,8 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
       lastMb: +last.mb.toFixed(2),
       growthFromMinuteOnePct: +(((last.mb - minuteOne.mb) / minuteOne.mb) * 100).toFixed(1),
       slopeMbPerMin: +slope(samples.filter((s) => s.t >= 60_000)).toFixed(3),
+      // The visible transcript fills its 40-line window in the first minutes; the tail shows the steady state.
+      lastTwoMinutesSlopeMbPerMin: +slope(samples.filter((s) => s.t >= (minutes - 2) * 60_000)).toFixed(3),
       samples: samples.map((s) => ({ t: s.t, mb: +s.mb.toFixed(2) })),
     },
     latency: log.modes.find((m) => m.mode === mode.toLowerCase())?.latency ?? [],

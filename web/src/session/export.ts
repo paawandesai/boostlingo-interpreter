@@ -7,6 +7,8 @@ import type { Mode } from '../transports/types'
 import { computeCost, type CostReport, type PriceList } from './cost'
 import { computeLatency, summarize, type Breakdown, type StageSummary } from './latency'
 import type { CascadeProviders } from './providers'
+import type { LanguagesResponse } from './languages'
+import { checkContext, checkUtterance, type CheckFlag } from './outputChecks'
 import type { SessionState, Utterance } from './store'
 
 export const EXPORT_SCHEMA = 'workbench.session-log/1'
@@ -18,6 +20,8 @@ export interface ExportContext {
   defaultRealtimeModel: string | null
   prices: PriceList | null
   userAgent: string
+  /** Output-check lists and canary (G15); flags are omitted when absent. */
+  languages?: LanguagesResponse | null
 }
 
 export interface SessionLog {
@@ -45,6 +49,8 @@ export interface SessionLog {
     marks: Utterance['marks']
     breakdown: Breakdown
     usage: Utterance['usage'] | null
+    /** Output-check flags (G15); the red-team rates are counted from these plus a human review. */
+    checks: CheckFlag[]
   }>
   markers: string[]
   /** Errors and notices (retries, dropped late audio, disconnects), app text only. */
@@ -60,6 +66,7 @@ function minutesIn(state: SessionState, mode: Mode, now: number): number {
 
 export function buildSessionLog(state: SessionState, ctx: ExportContext, now = Date.parse(ctx.exportedAt)): SessionLog {
   const utterances = state.timeline.filter((x): x is Utterance => x.kind === 'utterance')
+  const checkCtx = checkContext(ctx.languages ?? null, state.langA, state.langB)
   const realtimeModel = state.realtimeModel ?? ctx.defaultRealtimeModel
   const modes = (['realtime', 'cascade'] as const).filter(
     (m) => utterances.some((u) => u.mode === m) || state.segments.some((s) => s.mode === m),
@@ -104,6 +111,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
       marks: u.marks,
       breakdown: computeLatency(u.mode, u.marks),
       usage: u.usage ?? null,
+      checks: checkUtterance(u, state.langA, state.langB, checkCtx),
     })),
     markers: state.timeline.flatMap((x) => (x.kind === 'marker' ? [x.text] : [])),
     incidents: state.incidents,
