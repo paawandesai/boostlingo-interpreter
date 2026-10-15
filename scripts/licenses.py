@@ -104,6 +104,34 @@ def nuspec_license(pid: str, ver: str) -> str:
     return f"url: {url.text}" if url is not None else "UNKNOWN"
 
 
+# Hand-maintained: eval/requirements.txt (offline scripts, never shipped). Licences
+# from each package's PyPI metadata on the pinned version; update with the pins.
+PYTHON = [
+    ("jiwer", "4.0.0", "direct", "Apache-2.0"),
+    ("sacrebleu", "2.5.1", "direct", "Apache-2.0"),
+    ("click", "8.5.0", "transitive", "BSD-3-Clause"),
+    ("colorama", "0.4.6", "transitive", "BSD-3-Clause"),
+    ("lxml", "6.1.3", "transitive", "BSD-3-Clause"),
+    ("numpy", "2.5.3", "transitive", "BSD-3-Clause AND 0BSD AND MIT AND Zlib"),
+    ("portalocker", "4.4.0", "transitive", "BSD-3-Clause"),
+    ("rapidfuzz", "3.14.6", "transitive", "MIT"),
+    ("regex", "2026.9.29", "transitive", "Apache-2.0 AND CNRI-Python"),
+    ("tabulate", "0.10.0", "transitive", "MIT"),
+]
+
+
+def python_section() -> tuple[str, list[str]]:
+    flagged = []
+    for name, ver, _, lic in PYTHON:
+        parts = [p for p in re.split(r"\s+(?:OR|AND)\s+|[()]", lic) if p]
+        if not all(p in PERMISSIVE for p in parts):
+            flagged.append(f"{name} {ver} ({lic})")
+    out = ["### Evaluation scripts (Python, eval/requirements.txt, not shipped)", "",
+           "| Package | Version | Reference | Licence |", "|---|---|---|---|",
+           *[f"| {n} | {v} | {k} | {lic} |" for n, v, k, lic in PYTHON], ""]
+    return "\n".join(out), flagged
+
+
 def nuget_section() -> tuple[str, list[str]]:
     rows, flagged = [], []
     by_lic: defaultdict[str, int] = defaultdict(int)
@@ -145,6 +173,9 @@ def main() -> int:
     text, f = nuget_section()
     sections.append(text)
     flagged += [f"Server: {x}" for x in f]
+    text, f = python_section()
+    sections.append(text)
+    flagged += [f"Evaluation scripts (Python): {x}" for x in f]
 
     review = "\n".join(f"- {x}" for x in flagged) or "- None."
     doc = f"""# LICENSES
@@ -162,6 +193,8 @@ Anything not on the permissive list ({", ".join(sorted(PERMISSIVE))}). Each need
 {review}
 
 Reviewed 2026-10-14: `lightningcss` (MPL-2.0, CSS tooling inside Vite) and `caniuse-lite` (CC-BY-4.0, browser-support data) are build-time tools only. Neither is linked into the server or included in the browser bundle, and neither is modified, so MPL's file-level copyleft and CC-BY's attribution duty are not triggered by shipping the app. If this list grows, review each new entry before merging. No GPL, AGPL, non-commercial or research-only licence appears.
+
+Reviewed 2026-10-15: `numpy` bundles code under Zlib, and `regex` includes code under the CNRI Python licence (the permissive licence of Python 1.6.1). Both are permissive, used only by the offline evaluation scripts, and never shipped with the app.
 
 ## Packages
 
