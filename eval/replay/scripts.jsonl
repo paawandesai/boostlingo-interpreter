@@ -63,3 +63,8 @@
 {"id": "es-medical-08", "set": "medical", "lang": "es", "target": "en", "text": "Desde ayer tengo mareo y dolor de pecho.", "reference": "Since yesterday I've had dizziness and chest pain.", "terms": ["mareo", "dolor de pecho"]}
 {"id": "es-medical-09", "set": "medical", "lang": "es", "target": "en", "text": "Creo que tuve una reacción alérgica a la receta médica nueva.", "reference": "I think I had an allergic reaction to the new prescription.", "terms": ["reacción alérgica", "receta médica"]}
 {"id": "es-medical-10", "set": "medical", "lang": "es", "target": "en", "text": "Me diagnosticaron hipertensión hace dos años.", "reference": "I was diagnosed with hypertension two years ago.", "terms": ["hipertensión"]}
+{"id": "vi-onboarding-01", "set": "onboarding", "lang": "vi", "target": "en", "text": "Xin chào, tôi cần gặp bác sĩ hôm nay.", "reference": "Hello, I need to see a doctor today."}
+{"id": "vi-onboarding-02", "set": "onboarding", "lang": "vi", "target": "en", "text": "Nhà thuốc gần nhất ở đâu?", "reference": "Where is the nearest pharmacy?"}
+{"id": "vi-onboarding-03", "set": "onboarding", "lang": "vi", "target": "en", "text": "Tôi bị đau đầu từ hôm qua.", "reference": "I have had a headache since yesterday."}
+{"id": "vi-onboarding-04", "set": "onboarding", "lang": "vi", "target": "en", "text": "Bạn có thể nói chậm hơn được không?", "reference": "Could you speak more slowly?"}
+{"id": "vi-onboarding-05", "set": "onboarding", "lang": "vi", "target": "en", "text": "Cảm ơn bạn rất nhiều vì đã giúp tôi.", "reference": "Thank you very much for helping me."}

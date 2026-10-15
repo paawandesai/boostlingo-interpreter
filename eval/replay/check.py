@@ -8,8 +8,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = Path(__file__).with_name("scripts.jsonl")
-SETS = {"conversation", "adversarial", "medical"}
-LANGS = {"en", "es"}
+SETS = {"conversation", "adversarial", "medical", "onboarding"}
+# Languages come from the app's config, so onboarding a pair needs no change here.
+LANGS = {
+    lang["code"]
+    for lang in json.loads(
+        (ROOT / "config" / "languages.json").read_text(encoding="utf-8")
+    )["languages"]
+}
 
 
 def glossary_pairs() -> dict[str, str]:
