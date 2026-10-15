@@ -6,21 +6,25 @@
  * they share one clock. A translated sentence belongs to the latest source sentence that had started
  * by the time the translation started. Source sentences with no translation of their own stay in the
  * line that gets the next one, so "Interpreter. Can you summarize…?" stays one line when the model
- * renders it as one. A recorded 10-clip stream paired every sentence this way; pairing by sentence
- * count or by client VAD pauses did not (first soak run, 2026-10-14). When both sides have been quiet
- * for RESYNC_MS every open line closes; a line still without a translation closes empty, which the
- * output checks flag as an omission.
+ * renders it as one. A line closes when a later line gets its translation, or after STALL_MS of
+ * silence; a line still without a translation then closes empty, which the output checks flag.
+ * Pairing by sentence count, by client VAD pauses, or closing lines at every pause all misattributed
+ * translations in runner soaks (2026-10-14); a recorded live stream pairs all ten sentences this way.
  *
  * Latency marks: every line gets the client time its first source and first translated text arrived
- * (text lag). A line that starts after a pause also gets the client VAD speech start, and the first
- * audible output after it, which is only measured when nothing was playing (start lag).
+ * (text lag). Speech after a pause opens its own line with the client VAD speech start, and the first
+ * audible output after it, measured only when nothing was playing (start lag).
  */
 import type { TransportEvent } from '../types'
 
-/** Both streams quiet this long: close every open line. */
-export const RESYNC_MS = 1500
-/** Both streams quiet this long mid-sentence: close anyway (the model may never finish it). */
-export const STALL_MS = 5000
+/** Input quiet this long before speech starts: a pause, so the speech starts a new line with its own start mark. */
+export const PAUSE_MS = 1500
+/**
+ * Both streams quiet this long: close every open line. Long, because the model can hold a sentence's
+ * translation until the speaker goes on (a paced soak closed "Thank you, interpreter." after a 4 s
+ * pause, and its translation then arrived with the next sentence).
+ */
+export const STALL_MS = 8000
 /** Output quiet this long at a speech start: the next audible frame belongs to the new speech. */
 export const OUTPUT_IDLE_MS = 800
 
@@ -53,8 +57,8 @@ export class TranslateSegmenter {
   private lastSpeech = -Infinity
   /** The line the current translated sentence is going to; null between sentences. */
   private outLine: Line | null = null
-  /** Client VAD starts not yet given to a line, and speech ends. */
-  private starts: number[] = []
+  /** Speech start after a pause, waiting for the source text that opens its line. */
+  private pausedStart: number | null = null
   private ends: number[] = []
   private firstAudio = new Map<number, number>()
   private readonly prefix: string
@@ -65,9 +69,11 @@ export class TranslateSegmenter {
 
   /** True when the transport should stamp the next audible frame as this start's first audio. */
   speechStart(t: number): boolean {
+    const paused = t - Math.max(this.lastInput, this.lastSpeech) >= PAUSE_MS
     this.speaking = true
     this.lastSpeech = t
-    this.starts.push(t)
+    if (!paused) return false
+    this.pausedStart = t
     return t - this.lastOutput >= OUTPUT_IDLE_MS
   }
 
@@ -88,10 +94,12 @@ export class TranslateSegmenter {
     this.lastInput = t
     const out: TransportEvent[] = []
     let line = this.lines.at(-1)
-    if (!line || line.final) {
-      line = this.newLine()
-      out.push(...this.startMarks(line))
-    }
+    const last0 = line?.sentences.at(-1)
+    // Speech after a pause opens its own line, unless it only finishes the sentence before it.
+    const pauseLine = this.pausedStart !== null && !(last0 && !SENTENCE_END.test(last0.text))
+    if (!line || line.final || (pauseLine && line.sentences.length > 0)) line = this.newLine()
+    if (pauseLine) out.push(...this.startMarks(line))
+    else this.pausedStart = null
     const last = line.sentences.at(-1)
     // A new sentence starts only after a sentence end and a space: "2." + "5 mg" and "cost?" + "?" stay one.
     if (last && (!SENTENCE_END.test(last.text) || !/^\s/.test(delta))) last.text += delta
@@ -104,8 +112,10 @@ export class TranslateSegmenter {
   }
 
   outputDelta(delta: string, t: number, at = t): TransportEvent[] {
-    this.lastOutput = t
     const out: TransportEvent[] = []
+    // A translated sentence the model never punctuated ends at the next burst.
+    if (this.outLine && t - this.lastOutput >= PAUSE_MS) this.outLine = null
+    this.lastOutput = t
     if (!this.outLine) out.push(...this.assign(at))
     const line = this.outLine!
     if (line.target === '') out.push({ type: 'mark', name: 'target.first_text', t, utteranceId: line.id })
@@ -116,17 +126,12 @@ export class TranslateSegmenter {
   }
 
   /**
-   * Call on a timer: once both sides have paused at a sentence end, every open line is closed. The
-   * model's transcripts arrive in bursts, so a pause mid-sentence waits up to STALL_MS (a paced soak
-   * cut "…tell me a | joke." when this only looked at the pause).
+   * Call on a timer. Lines normally close when a later line gets its translation; this closes the rest
+   * once everything has been quiet for STALL_MS.
    */
   tick(t: number): TransportEvent[] {
     if (this.lines.length === 0 || this.speaking) return []
-    const quiet = t - Math.max(this.lastInput, this.lastSpeech, this.lastOutput)
-    const last = this.lines.at(-1)!.sentences.at(-1)
-    const atSentenceEnd = this.outLine === null && (last === undefined || SENTENCE_END.test(last.text))
-    if (quiet >= STALL_MS || (atSentenceEnd && quiet >= RESYNC_MS)) return this.flush()
-    return []
+    return t - Math.max(this.lastInput, this.lastSpeech, this.lastOutput) >= STALL_MS ? this.flush() : []
   }
 
   /** The connection closed or both sides paused: every open line gets its final text now. */
@@ -154,7 +159,7 @@ export class TranslateSegmenter {
       line = this.lines[0] ?? this.newLine()
       // With no source yet, the first sentence still to come is the one being translated.
       idx = Math.max(0, line.sentences.length - 1)
-      if (this.lines.length === 1 && line.sentences.length === 0) out.push(...this.startMarks(line))
+      if (this.pausedStart !== null && line.sentences.length === 0) out.push(...this.startMarks(line))
     } else if (line.target !== '' && idx > line.matched) {
       // The line already has a translation for its earlier sentences: these start a new line.
       idx -= line.matched + 1
@@ -200,11 +205,9 @@ export class TranslateSegmenter {
     return out
   }
 
-  /** Only the first line after a pause has a speech start of its own; later ones run on from it. */
   private startMarks(line: Line): TransportEvent[] {
-    if (this.lines.some((l) => l !== line && !l.final) || this.starts.length === 0) return []
-    const start = this.starts[0]
-    this.starts = []
+    const start = this.pausedStart!
+    this.pausedStart = null
     line.speechStart = start
     const out: TransportEvent[] = [{ type: 'mark', name: 'speech.start', t: start, utteranceId: line.id }]
     const audio = this.firstAudio.get(start)

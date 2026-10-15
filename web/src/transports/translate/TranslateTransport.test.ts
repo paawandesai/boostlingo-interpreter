@@ -105,7 +105,7 @@ describe('TranslateTransport', () => {
     pc.dc.open()
     pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', delta: 'Hello' }) })
     pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.output_transcript.delta', delta: 'Hola' }) })
-    vi.advanceTimersByTime(5000)
+    vi.advanceTimersByTime(9000)
     const lines = events.flatMap((e) => (e.type === 'transcript' && e.final ? [[e.role, e.text]] : []))
     expect(lines).toEqual([
       ['source', 'Hello'],
