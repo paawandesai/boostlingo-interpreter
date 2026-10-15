@@ -2,9 +2,10 @@ import { defaultVadOptions } from '../audio/vad'
 import { computeLatency, summarize, type Breakdown } from '../session/latency'
 import type { Utterance } from '../session/store'
 import type { Mode } from '../transports/types'
+import { MODE_LABEL } from '../session/modes'
 
-/** Brief benchmarks: speech end to first audio out. */
-const budgetMs: Record<Mode, number> = { realtime: 1500, cascade: 3000 }
+/** Brief benchmarks: speech end to first audio out. Translate has no brief budget, so it uses Realtime's. */
+const budgetMs: Record<Mode, number> = { translate: 1500, realtime: 1500, cascade: 3000 }
 
 /** A turn the STT split without a client VAD pause has no speech end of its own to measure from. */
 function totalLabel(u: Utterance, b: Breakdown): string {
@@ -43,7 +44,7 @@ function SummaryTable({ mode, rows }: { mode: Mode; rows: ReturnType<typeof summ
   return (
     <table className="summary">
       <caption>
-        {mode === 'realtime' ? 'Realtime' : 'Cascade'} · n = {rows[0].n} · ms
+        {MODE_LABEL[mode]} · n = {rows[0].n} · ms
       </caption>
       <thead>
         <tr>
@@ -121,8 +122,10 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
         Speech end is this browser's VAD (RMS below {defaultVadOptions.threshold} for {defaultVadOptions.hangoverMs} ms,
         back-dated to the last voiced frame) in both modes, so the vendors' own silence timeouts show up as endpointing.
         Server marks are offset-corrected with ping/pong. Cascade measures audio scheduled; Realtime measures audio
-        heard on the WebRTC track, and its model time is opaque. The dashed line is the brief&apos;s budget (
-        {budgetMs.realtime} ms Realtime, {budgetMs.cascade} ms cascade).
+        heard on the WebRTC track, and its model time is opaque. Realtime translate speaks while the speaker is still
+        talking, so its total is often negative; start lag (speech start to first audio, on lines after a pause) and
+        text lag (source text to translated text, every line) are the comparable numbers. The dashed line is the
+        brief&apos;s budget ({budgetMs.realtime} ms Realtime, {budgetMs.cascade} ms cascade).
       </p>
     </section>
   )

@@ -8,12 +8,19 @@ test('switching modes mid-session leaves no socket, peer connection or audio con
   await startSession(page, 'Cascade')
   await expect.poll(() => page.evaluate(() => window.__live.counts().ws)).toBe(1)
 
-  await page.getByRole('radio', { name: 'Realtime' }).click()
-  await expect(page.getByText(/Switched to realtime/).first()).toBeVisible()
+  await page.getByRole('radio', { name: 'Realtime', exact: true }).click()
+  await expect(page.getByText(/Switched to Realtime\./).first()).toBeVisible()
   await expect.poll(() => page.evaluate(() => window.__live.counts().ws)).toBe(0)
 
-  await page.getByRole('radio', { name: 'Cascade' }).click()
-  await expect(page.getByText(/Switched to cascade/).first()).toBeVisible()
+  // G17: translate mints its own session (target language only) and offers WebRTC to the translations endpoint.
+  const minted = page.waitForResponse((r) => r.url().endsWith('/api/realtime/translation-session'))
+  await page.getByRole('radio', { name: 'Realtime translate', exact: true }).click()
+  const r = await minted
+  expect(r.status(), await r.text()).toBe(200)
+  await expect(page.getByText(/Switched to Realtime translate/).first()).toBeVisible()
+
+  await page.getByRole('radio', { name: 'Cascade', exact: true }).click()
+  await expect(page.getByText(/Switched to Cascade/).first()).toBeVisible()
   await expect.poll(() => page.evaluate(() => window.__live.counts())).toMatchObject({ ws: 1, pc: 0 })
 
   await page.getByRole('button', { name: 'End' }).click()

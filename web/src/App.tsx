@@ -6,7 +6,8 @@ import { AudioCheck } from './components/AudioCheck'
 import { BackendStatus } from './components/BackendStatus'
 import { LiveSession } from './components/LiveSession'
 import { SetupPanel } from './components/SetupPanel'
-import { fetchLanguages, type LanguagesResponse } from './session/languages'
+import { fetchLanguages, translateSupported, type LanguagesResponse } from './session/languages'
+import { initialState } from './session/store'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
 import { buildSessionLog, download } from './session/export'
 import { fetchHealth } from './session/health'
@@ -27,8 +28,15 @@ export default function App() {
 
   useEffect(() => {
     fetchLanguages()
-      .then(setLanguages)
-      .catch(() => setLanguages(null))
+      .then((langs) => {
+        setLanguages(langs)
+        // G17: translate is the default only where the model speaks both languages of the pair.
+        if (!translateSupported(langs, initialState.langA, initialState.langB)) configure({ mode: 'realtime' })
+      })
+      .catch(() => {
+        setLanguages(null)
+        configure({ mode: 'realtime' })
+      })
     fetchRealtimeModels()
       .then(setModels)
       .catch(() => setModels(null))
@@ -38,7 +46,7 @@ export default function App() {
     fetchGlossaryInfo()
       .then((g) => setGlossaryTerms(g.count))
       .catch(() => setGlossaryTerms(null))
-  }, [])
+  }, [configure])
 
   const exportLog = async () => {
     const [prices, health] = await Promise.all([fetchPrices().catch(() => null), fetchHealth().catch(() => null)])

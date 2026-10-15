@@ -83,7 +83,8 @@ export type SessionAction =
 
 export const initialState: SessionState = {
   status: 'idle',
-  mode: 'realtime',
+  // G17: the default where the pair supports it; the app falls back once languages load.
+  mode: 'translate',
   langA: 'en',
   langB: 'es',
   speaker: 'A',

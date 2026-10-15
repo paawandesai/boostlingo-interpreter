@@ -115,7 +115,7 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **5-min back-and-forth, no disconnect**  
   Measured by: T3.6 soak (Playwright, replay audio looped, both modes)  
   Pass condition: 0 disconnects  
-  Evidence: Cascade passed (2026-10-14): 5 min, 64 utterances (65 synthetic clips, OpenAI STT), 0 disconnects, production build, `eval/results/soak-2026-10-14-cascade-synthetic.json`. Synthetic TTS clips, not the measured replay set. Realtime pending: ICE is blocked in the cloud container, so Paawan runs `npm run e2e:soak` with `SOAK_MODE=realtime` locally.
+  Evidence: Cascade passed (2026-10-14): 5 min, 64 utterances (65 synthetic clips, OpenAI STT), 0 disconnects, production build, `eval/results/soak-2026-10-14-cascade-synthetic.json`. Synthetic TTS clips, not the measured replay set. Realtime and Realtime translate ran on the GitLab runner (manual `e2e:soak`, same synthetic clips), both with 0 disconnects: Realtime 29 turns, 28 interpreted, after the active-response fix (`eval/results/soak-2026-10-14-realtime-synthetic.json`, job 226037); Realtime translate 74 lines, 73 interpreted, sentence pairing at commit 9dc687b (`eval/results/soak-2026-10-14-translate-synthetic.json`, job 226070). Both miss the 50-turn and heap criteria as reported there: Realtime merges clips into longer turns (29 < 50), and heap grew 15.3% and 14.2% from minute 1, with the last two minutes flat for translate (0.03 MB/min) but not for Realtime (0.40 MB/min). The translate segmentation changed twice after that run (95256a4) and has not been soaked since: OpenAI credit ran out on 2026-10-15.
 
 - [ ] **No audio drift**  
   Measured by: Soak: playback queue length and `drift.skip` count logged  

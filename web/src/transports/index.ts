@@ -4,10 +4,13 @@
  */
 import { CascadeTransport } from './cascade/CascadeTransport'
 import { RealtimeTransport } from './realtime/RealtimeTransport'
+import { TranslateTransport } from './translate/TranslateTransport'
 import type { Mode, Transport } from './types'
 
 export function createTransport(mode: Mode): Transport {
   switch (mode) {
+    case 'translate':
+      return new TranslateTransport()
     case 'realtime':
       return new RealtimeTransport()
     case 'cascade':

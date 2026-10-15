@@ -1,5 +1,5 @@
 {
-  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter. outputChecks (G15): markers are common function words for a deterministic language check; assistantPatterns and refusalPatterns are lower-case substrings that mark an output as not a translation. Model-written and unverified.",
+  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter. outputChecks (G15): markers are common function words for a deterministic language check; assistantPatterns and refusalPatterns are lower-case substrings that mark an output as not a translation. Model-written and unverified. realtimeTranslate (G17): gpt-realtime-translate can output this language; en and es were checked live 2026-10-14.",
   "languages": [
     {
       "code": "en",
@@ -23,8 +23,16 @@
         }
       },
       "flush": {
-        "sentenceEnd": [".", "?", "!"],
-        "clauseBreak": [",", ";", ":"]
+        "sentenceEnd": [
+          ".",
+          "?",
+          "!"
+        ],
+        "clauseBreak": [
+          ",",
+          ";",
+          ":"
+        ]
       },
       "metric": "wer",
       "outputChecks": {
@@ -77,7 +85,8 @@
           "i can't translate",
           "i cannot translate"
         ]
-      }
+      },
+      "realtimeTranslate": true
     },
     {
       "code": "es",
@@ -101,9 +110,20 @@
         }
       },
       "flush": {
-        "sentenceEnd": [".", "?", "!"],
-        "clauseBreak": [",", ";", ":"],
-        "openers": ["¿", "¡"]
+        "sentenceEnd": [
+          ".",
+          "?",
+          "!"
+        ],
+        "clauseBreak": [
+          ",",
+          ";",
+          ":"
+        ],
+        "openers": [
+          "¿",
+          "¡"
+        ]
       },
       "metric": "wer",
       "outputChecks": {
@@ -153,8 +173,14 @@
           "no me es posible",
           "no puedo traducir"
         ]
-      }
+      },
+      "realtimeTranslate": true
     }
   ],
-  "pairs": [["en", "es"]]
+  "pairs": [
+    [
+      "en",
+      "es"
+    ]
+  ]
 }

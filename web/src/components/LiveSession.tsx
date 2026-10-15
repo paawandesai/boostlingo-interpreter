@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { LanguagesResponse } from '../session/languages'
+import { translateSupported, type LanguagesResponse } from '../session/languages'
 import type { SessionState, Utterance } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
 import { ErrorBanner } from './ErrorBanner'
@@ -44,7 +44,11 @@ export function LiveSession({
     <>
       <header className="panel topbar">
         {/* Switching stops the old transport, then starts the other mode; the transcript stays (T3.3). */}
-        <ModeToggle value={state.mode} onChange={onSwitchMode} />
+        <ModeToggle
+          value={state.mode}
+          onChange={onSwitchMode}
+          translateAvailable={translateSupported(languages, state.langA, state.langB)}
+        />
         <div role="status" className="status">
           <span
             className={`lamp ${state.error ? 'err' : state.status === 'live' ? 'ok' : 'warn'}`}

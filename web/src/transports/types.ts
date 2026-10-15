@@ -2,7 +2,8 @@
  * The one interface the mode-agnostic UI and session store see (D12). Each mode implements it
  * in transports/<mode>/; components never import those folders directly.
  */
-export type Mode = 'realtime' | 'cascade'
+/** 'translate' is gpt-realtime-translate (G17): simultaneous, configured by target language only. */
+export type Mode = 'translate' | 'realtime' | 'cascade'
 export type SpeakerSide = 'A' | 'B'
 
 export interface SessionConfig {
@@ -44,6 +45,9 @@ export type MarkName =
   | 'audio.first_received'
   | 'response.created'
   | 'audio.first_out'
+  /** Realtime translate (G17): client time the first source / translated text of a line arrived. */
+  | 'source.first_text'
+  | 'target.first_text'
 
 export type ErrorKind =
   | 'rate_limited'

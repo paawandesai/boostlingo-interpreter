@@ -23,7 +23,7 @@ export async function fetchCascadeProviders(fetchImpl: typeof fetch = fetch): Pr
 
 /** Vendors that receive the conversation in a mode, for the consent notice. Null when unknown. */
 export function vendorsFor(mode: Mode, cascade: CascadeProviders | null): string[] | null {
-  if (mode === 'realtime') return ['OpenAI']
+  if (mode !== 'cascade') return ['OpenAI']
   if (!cascade) return null
   const names = [cascade.stt, cascade.translator, cascade.tts].map((v) => vendorNames[v] ?? v)
   return [...new Set(names)]

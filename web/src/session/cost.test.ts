@@ -77,4 +77,12 @@ describe('computeCost', () => {
     )
     expect(other.unpriced).toEqual(['Realtime audio input (other)'])
   })
+
+  it('bills Realtime translate per session minute and leaves it unpriced until checked', () => {
+    const r = computeCost({ mode: 'translate', minutes: 2, usage: [], sttAudioSeconds: 0, providers: {} }, prices)
+    expect(r.lines).toEqual([
+      expect.objectContaining({ component: 'Realtime translate (session time)', quantity: 2, cost: null }),
+    ])
+    expect(r.perMinute).toBeNull()
+  })
 })

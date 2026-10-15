@@ -3,6 +3,15 @@
   "currency": "USD",
   "entries": [
     {
+      "key": "realtime-translate:openai",
+      "model": "gpt-realtime-translate",
+      "perMinute": null,
+      "note": "Billed per minute of session (G17). The project guardrails quote $0.034/min; not checked against OpenAI's page yet (blocked from the cloud container).",
+      "source": "https://openai.com/api/pricing/",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
       "key": "translator:anthropic",
       "model": "claude-haiku-5-5",
       "inputPerMTok": 0.10,

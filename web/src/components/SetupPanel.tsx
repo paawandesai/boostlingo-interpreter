@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { decodeClips, type ReplayClip } from '../audio/replay'
 import { getAccessToken, setAccessToken } from '../session/access'
-import type { LanguagesResponse } from '../session/languages'
+import { translateSupported, type LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
 import { vendorsFor } from '../session/providers'
 import type { RealtimeModels } from '../session/models'
@@ -48,12 +48,13 @@ export function SetupPanel({
   )
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
+  const canTranslate = translateSupported(languages, state.langA, state.langB)
   return (
     <section aria-labelledby="setup-h" className="panel setup">
       <h2 id="setup-h">New session</h2>
       <div className="field">
         <span className="label">Mode</span>
-        <ModeToggle value={state.mode} onChange={(mode) => onConfigure({ mode })} />
+        <ModeToggle value={state.mode} onChange={(mode) => onConfigure({ mode })} translateAvailable={canTranslate} />
       </div>
       <div className="field">
         <label htmlFor="pair" className="label">
@@ -64,7 +65,13 @@ export function SetupPanel({
           value={pairKey}
           onChange={(e) => {
             const [langA, langB] = e.target.value.split('|')
-            onConfigure({ langA, langB })
+            // G17: Realtime translate is the default wherever the pair supports it.
+            const mode = translateSupported(languages, langA, langB)
+              ? 'translate'
+              : state.mode === 'translate'
+                ? 'realtime'
+                : state.mode
+            onConfigure({ langA, langB, mode })
           }}
         >
           {(languages?.pairs ?? [[state.langA, state.langB]]).map(([a, b]) => (
@@ -172,7 +179,11 @@ export function SetupPanel({
         onSpoken={setSpoken}
       />
       <div className="actions">
-        <p className="hint">Use headphones. The mic is muted while the interpreter speaks.</p>
+        <p className="hint">
+          {state.mode === 'translate'
+            ? 'Headphones required. Realtime translate speaks while you talk, so the mic stays open and a speaker would be translated again.'
+            : 'Use headphones. The mic is muted while the interpreter speaks.'}
+        </p>
         <button
           type="button"
           className="primary"

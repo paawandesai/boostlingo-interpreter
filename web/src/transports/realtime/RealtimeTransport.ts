@@ -35,6 +35,8 @@ export class RealtimeTransport implements Transport {
   private stopped = false
   private connectTimer: ReturnType<typeof setTimeout> | null = null
   private limitTimer: ReturnType<typeof setTimeout> | null = null
+  /** A turn ended while a response was active; its response starts when that one is done. */
+  private responseQueued = false
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -44,6 +46,7 @@ export class RealtimeTransport implements Transport {
   async start(config: SessionConfig): Promise<void> {
     this.config = config
     this.stopped = false
+    this.responseQueued = false
     this.parser = new RealtimeEventParser()
     this.emitter.emit({ type: 'state', state: 'connecting' })
     try {
@@ -154,7 +157,21 @@ export class RealtimeTransport implements Transport {
   }
 
   private onServerEvent(raw: string): void {
-    const json = JSON.parse(raw) as { type: string }
+    const json = JSON.parse(raw) as { type: string; error?: { code?: string; message?: string } }
+    // A turn that ends while the previous interpretation is still playing can't start its own response
+    // (seen in the 2026-10-14 runner soak: 7 of 26 turns dropped). It is queued, not dropped.
+    if (json.type === 'error' && isActiveResponseError(json.error)) {
+      this.responseQueued = true
+      this.emitter.emit({
+        type: 'notice',
+        message: 'A turn ended while the interpreter was speaking; it is interpreted next.',
+      })
+      return
+    }
+    if (json.type === 'response.done' && this.responseQueued && this.dc?.readyState === 'open') {
+      this.responseQueued = false
+      this.dc.send(JSON.stringify({ type: 'response.create' }))
+    }
     // Playback state drives half-duplex gating; these events only exist on WebRTC sessions.
     if (json.type === 'output_audio_buffer.started') this.gate?.setPlaybackActive(true)
     if (json.type === 'output_audio_buffer.stopped' || json.type === 'output_audio_buffer.cleared') {
@@ -233,6 +250,13 @@ export class RealtimeTransport implements Transport {
     await this.capture?.stop()
     this.capture = null
   }
+}
+
+function isActiveResponseError(err: { code?: string; message?: string } | undefined): boolean {
+  return (
+    err?.code === 'conversation_already_has_active_response' ||
+    /already has an active response/i.test(err?.message ?? '')
+  )
 }
 
 /** Source and target language for the side that is speaking. */

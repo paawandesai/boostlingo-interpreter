@@ -133,6 +133,26 @@ describe('RealtimeTransport', () => {
     expect(update.session.audio.input.transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'es' })
   })
 
+  it('queues a turn that ended during an active response instead of dropping it', async () => {
+    const { pc, events } = await started()
+    pc.dc.open()
+    const busy = {
+      code: 'conversation_already_has_active_response',
+      message: 'Conversation already has an active response in progress: resp_1.',
+    }
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'error', error: busy }) })
+    expect(events.some((e) => e.type === 'error')).toBe(false)
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.onmessage?.({
+      data: JSON.stringify({ type: 'response.done', response: { id: 'resp_1', status: 'completed' } }),
+    })
+    expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([{ type: 'response.create' }])
+    pc.dc.onmessage?.({
+      data: JSON.stringify({ type: 'response.done', response: { id: 'resp_2', status: 'completed' } }),
+    })
+    expect(pc.dc.sent).toHaveLength(1)
+  })
+
   it('stop() closes the data channel, peer and capture', async () => {
     const { t, pc, events } = await started()
     await t.stop()

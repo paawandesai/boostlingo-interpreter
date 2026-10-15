@@ -11,7 +11,9 @@ import { instrument, startSession } from './helpers'
  * recorded, see docs/GUARDRAILS.md). Reports land in test-results/soak/.
  */
 const enabled = process.env.SOAK === '1'
-const mode = process.env.SOAK_MODE === 'realtime' ? 'Realtime' : 'Cascade'
+const modes = { realtime: 'Realtime', translate: 'Realtime translate', cascade: 'Cascade' } as const
+const modeKey = (process.env.SOAK_MODE ?? 'cascade') as keyof typeof modes
+const mode = modes[modeKey] ?? 'Cascade'
 const minutes = Number(process.env.SOAK_MINUTES ?? 5)
 const minUtterances = Number(process.env.SOAK_MIN_UTTERANCES ?? 50)
 const gapMs = Number(process.env.SOAK_GAP_MS ?? 600)
@@ -83,7 +85,7 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   const minuteOne = samples.find((s) => s.t >= 60_000) ?? samples[0]
   const last = samples[samples.length - 1]
   const report = {
-    mode: mode.toLowerCase(),
+    mode: modeKey,
     input: label,
     clips: files.length,
     minutes,
@@ -102,11 +104,13 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
       lastTwoMinutesSlopeMbPerMin: +slope(samples.filter((s) => s.t >= (minutes - 2) * 60_000)).toFixed(3),
       samples: samples.map((s) => ({ t: s.t, mb: +s.mb.toFixed(2) })),
     },
-    latency: log.modes.find((m) => m.mode === mode.toLowerCase())?.latency ?? [],
+    latency: log.modes.find((m) => m.mode === modeKey)?.latency ?? [],
   }
   const out = resolve('test-results/soak')
   mkdirSync(out, { recursive: true })
   writeFileSync(join(out, `soak-${report.mode}-${label}.json`), JSON.stringify(report, null, 2))
+  // The session log holds only the synthetic or scripted clips' text; kept next to the report for line-level checks.
+  writeFileSync(join(out, `soak-${report.mode}-${label}-session-log.json`), readFileSync(logPath))
   // Transcripts stay out of the report; the raw session log is kept only as a local test artifact.
   await test.info().attach('session-log', { path: logPath, contentType: 'application/json' })
 
