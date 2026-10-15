@@ -52,7 +52,40 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    private async Task<(WebSocket Ws, FakeStt Stt)> Connect(string? serverToken = Token)
+    /// <summary>Speaks one chunk, then waits until cancelled; records whether it was.</summary>
+    private sealed class HangingTts : IStreamingTts
+    {
+        public readonly TaskCompletionSource Cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string Name => "hanging-tts";
+
+        public async IAsyncEnumerable<AudioChunk> SynthesizeAsync(
+            IAsyncEnumerable<string> textChunks, TtsOptions options, [EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return new AudioChunk(new byte[480], 24000);
+            try { await Task.Delay(Timeout.Infinite, ct); }
+            finally { if (ct.IsCancellationRequested) Cancelled.TrySetResult(); }
+        }
+    }
+
+    /// <summary>Emits a final as soon as the first audio frame arrives, then keeps listening.</summary>
+    private sealed class FirstFrameStt : IStreamingStt
+    {
+        public string Name => "first-frame-stt";
+
+        public async IAsyncEnumerable<SttEvent> TranscribeAsync(
+            IAsyncEnumerable<AudioFrame> audio, SttOptions options, [EnumeratorCancellation] CancellationToken ct)
+        {
+            var first = true;
+            await foreach (var _ in audio.WithCancellation(ct))
+            {
+                if (!first) continue;
+                first = false;
+                yield return new SttFinal("Hello.", true, 0.9);
+            }
+        }
+    }
+
+    private async Task<(WebSocket Ws, FakeStt Stt)> Connect(string? serverToken = Token, IStreamingTts? tts = null, IStreamingStt? sttOverride = null)
     {
         var stt = new FakeStt();
         var server = factory.WithWebHostBuilder(b =>
@@ -61,9 +94,9 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             b.UseSetting("Access:PermitLimit", "100");
             b.ConfigureServices(s =>
             {
-                s.AddKeyedSingleton<IStreamingStt>("deepgram", stt);
+                s.AddKeyedSingleton<IStreamingStt>("deepgram", sttOverride ?? stt);
                 s.AddKeyedSingleton<IStreamingTranslator>("openai", new FakeTranslator());
-                s.AddKeyedSingleton<IStreamingTts>("elevenlabs", new FakeTts());
+                s.AddKeyedSingleton<IStreamingTts>("elevenlabs", tts ?? new FakeTts());
             });
         }).Server;
         var ws = await server.CreateWebSocketClient().ConnectAsync(new Uri(server.BaseAddress, "ws/cascade"), TestContext.Current.CancellationToken);
@@ -146,5 +179,23 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         // Event times are on the pong's clock: later than the pong, not reset to zero by the pipeline.
         Assert.All(json, j => Assert.True((double)j["t"]! >= (double)pong["t"]!));
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task Cancels_the_pipeline_when_the_client_closes_mid_turn()
+    {
+        // A mode switch or End closes the socket while TTS may still be speaking (T3.3).
+        var tts = new HangingTts();
+        var (ws, _) = await Connect(tts: tts, sttOverride: new FirstFrameStt());
+        var ct = TestContext.Current.CancellationToken;
+        await Send(ws, new { type = "start", token = Token, source = "en", target = "es" });
+        await WebSocketText.ReceiveAsync(ws, ct); // ready
+        await ws.SendAsync(new byte[640], WebSocketMessageType.Binary, true, ct);
+
+        // Wait for the first TTS audio frame, then close from the client side.
+        while ((await WebSocketText.ReceiveAsync(ws, ct)).Type != WebSocketMessageType.Binary) { }
+        await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "switch", ct);
+
+        await tts.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
     }
 }

@@ -145,7 +145,7 @@ public static class CascadeEndpoints
             }
             log.LogInformation("Cascade session ended normally");
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
             log.LogInformation("Cascade session ended: client went away");
         }
@@ -167,7 +167,12 @@ public static class CascadeEndpoints
                 while (true)
                 {
                     var msg = await WebSocketText.ReceiveAsync(ws, stop.Token, maxBytes: 64 * 1024);
-                    if (msg.Close is not null) break;
+                    if (msg.Close is not null)
+                    {
+                        // The client closed the socket: nobody is listening, so stop spending provider credit now.
+                        await stop.CancelAsync();
+                        break;
+                    }
                     if (msg.Type == WebSocketMessageType.Binary)
                     {
                         // Copy: the next receive reuses nothing, but the frame outlives this loop iteration.
