@@ -1,5 +1,33 @@
-# Budget < 60 s. Mirrors the CI required checks that are cheap enough to run locally.
+# Budget < 60 s (measured in the CI report). Runs only the stacks this branch changed against origin/main;
+# CI still runs every required check on every MR. Never bypass with --no-verify: fix the cause.
 set -e
-(cd web && npx tsc -b --noEmit && npx vitest run --changed origin/main --passWithNoTests)
-dotnet build server -m:2 --nologo -v q
-dotnet test --solution server/Interpreter.slnx --no-build --filter-not-trait "Category=Live"
+base=$(git merge-base HEAD origin/main 2>/dev/null || true)
+if [ -n "$base" ]; then changed=$(git diff --name-only "$base" HEAD); else changed=ALL; fi
+touches() { [ "$changed" = ALL ] || printf '%s\n' "$changed" | grep -qE "$1"; }
+
+if touches '^(web/|config/)'; then
+  echo "pre-push: web typecheck + tests related to changed files"
+  (cd web && npx tsc -b --noEmit && npx vitest run --changed "${base:-HEAD}" --passWithNoTests)
+fi
+
+if touches '^(server/|config/|global\.json)'; then
+  echo "pre-push: server build, unit tests, format check on changed C# files"
+  dotnet build server -m:2 --nologo -v q
+  dotnet test --solution server/Interpreter.slnx --no-build --filter-not-trait "Category=Live"
+  cs=$(printf '%s\n' "$changed" | grep -E '^server/.*\.cs$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
+  if [ "$changed" = ALL ]; then
+    dotnet format server --verify-no-changes --no-restore
+  elif [ -n "$cs" ]; then
+    # shellcheck disable=SC2086
+    dotnet format server --verify-no-changes --no-restore --include $cs
+  fi
+fi
+
+if touches '^eval/'; then
+  if python3 -c 'import jiwer, sacrebleu' 2>/dev/null; then
+    echo "pre-push: eval unit tests"
+    python3 -m unittest discover -s eval -p 'test_*.py' -q
+  else
+    echo "pre-push: eval deps not installed (pip install -r eval/requirements.txt), so eval tests run in CI only" >&2
+  fi
+fi
