@@ -29,6 +29,9 @@ variables:
 default:
   timeout: 15m
   interruptible: true
+  # Every job log ends with its cgroup CPU and memory budget and peak memory (the CI report's numbers).
+  after_script:
+    - sh scripts/ci/job-resources.sh || true
 
 stages: [install, check, build, test, deploy]
 
