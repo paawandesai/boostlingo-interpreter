@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReplayClip } from './audio/replay'
 import { speakNotice } from './audio/spokenNotice'
 import { AiBanner } from './components/AiBanner'
 import { AudioCheck } from './components/AudioCheck'
@@ -12,6 +13,9 @@ import { fetchHealth } from './session/health'
 import { fetchCascadeProviders, fetchGlossaryInfo, fetchPrices, type CascadeProviders } from './session/providers'
 import { useSession } from './session/useSession'
 
+/** `?replayGap=800` shortens the pause between replay clips, for the soak (T3.6). */
+const replayGapMs = Number(new URLSearchParams(window.location.search).get('replayGap')) || undefined
+
 export default function App() {
   const { state, start, end, configure, setSpeaker, dismissError, requestHuman, switchMode } = useSession()
   const [languages, setLanguages] = useState<LanguagesResponse | null>(null)
@@ -19,6 +23,7 @@ export default function App() {
   const [cascadeProviders, setCascadeProviders] = useState<CascadeProviders | null>(null)
   const [announcing, setAnnouncing] = useState(false)
   const [glossaryTerms, setGlossaryTerms] = useState<number | null>(null)
+  const [replay, setReplay] = useState<ReplayClip[]>([])
 
   useEffect(() => {
     fetchLanguages()
@@ -64,7 +69,7 @@ export default function App() {
         setAnnouncing(false)
       }
     }
-    await start()
+    await start({ replay, replayGapMs })
   }
 
   const inSession = state.status === 'connecting' || state.status === 'live'
@@ -127,6 +132,8 @@ export default function App() {
             models={models}
             cascadeProviders={cascadeProviders}
             glossaryTerms={glossaryTerms}
+            replay={replay}
+            onReplay={setReplay}
             onConfigure={configure}
             onSpeaker={setSpeaker}
             onStart={(opts) => void startWithNotice(opts)}

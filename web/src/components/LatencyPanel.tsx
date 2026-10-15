@@ -65,10 +65,15 @@ function SummaryTable({ mode, rows }: { mode: Mode; rows: ReturnType<typeof summ
   )
 }
 
+const WATERFALL_ROWS = 20
+
 /** Per-utterance waterfall plus running p50/p95 per mode (T3.2, D9). */
 export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
   const rows = utterances.map((u, i) => ({ u, n: i + 1, b: computeLatency(u.mode, u.marks) }))
-  const offsets = rows.flatMap(({ b }) => b.stages.flatMap((s) => [s.start ?? 0, s.end ?? 0]))
+  // The summaries use every utterance; the waterfall draws only the latest ones so a long session's
+  // page stays the same size (T3.6 soak).
+  const shown = rows.slice(-WATERFALL_ROWS)
+  const offsets = shown.flatMap(({ b }) => b.stages.flatMap((s) => [s.start ?? 0, s.end ?? 0]))
   const modes = [...new Set(rows.map((r) => r.b.mode))]
   const domain: [number, number] = [
     Math.min(0, ...offsets),
@@ -95,7 +100,7 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
         </ul>
       )}
       <ol className="latency">
-        {rows.map(({ u, n, b }) => (
+        {shown.map(({ u, n, b }) => (
           <li key={u.id}>
             <span className="row-label">
               #{n} · {u.mode} · {totalLabel(u, b)}
@@ -106,6 +111,12 @@ export function LatencyPanel({ utterances }: { utterances: Utterance[] }) {
           </li>
         ))}
       </ol>
+      {rows.length > shown.length && (
+        <p className="meta">
+          Showing the latest {shown.length} of {rows.length}; p50/p95 above use all of them, and the export has every
+          row.
+        </p>
+      )}
       <p className="hint">
         Speech end is this browser's VAD (RMS below {defaultVadOptions.threshold} for {defaultVadOptions.hangoverMs} ms,
         back-dated to the last voiced frame) in both modes, so the vendors' own silence timeouts show up as endpointing.

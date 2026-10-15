@@ -14,6 +14,14 @@ export default defineConfig({
       '/ws': { target: backend.replace(/^http/, 'ws'), ws: true },
     },
   },
+  // Same proxy for 'vite preview', so the soak can run against the production build.
+  preview: {
+    proxy: {
+      '/health': backend,
+      '/api': backend,
+      '/ws': { target: backend.replace(/^http/, 'ws'), ws: true },
+    },
+  },
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],

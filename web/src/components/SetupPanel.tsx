@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { decodeClips, type ReplayClip } from '../audio/replay'
 import { getAccessToken, setAccessToken } from '../session/access'
 import type { LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
@@ -20,6 +21,9 @@ interface Props {
   glossaryTerms: number | null
   onSpeaker(s: SpeakerSide): void
   onStart(opts: { spokenNotice: boolean }): void
+  /** Replay clips used as input instead of the mic (T3.6); empty means the mic. */
+  replay: ReplayClip[]
+  onReplay(clips: ReplayClip[]): void
 }
 
 export function SetupPanel({
@@ -31,7 +35,10 @@ export function SetupPanel({
   onConfigure,
   onSpeaker,
   onStart,
+  replay,
+  onReplay,
 }: Props) {
+  const [replayError, setReplayError] = useState<string | null>(null)
   const [token, setToken] = useState(getAccessToken)
   // Consent is per session: this panel remounts after every session, so it starts unticked.
   const [consented, setConsented] = useState(false)
@@ -98,6 +105,39 @@ export function SetupPanel({
           </label>
         </div>
       )}
+      <div className="field">
+        <label htmlFor="replay-files" className="label">
+          Input
+        </label>
+        <input
+          id="replay-files"
+          type="file"
+          accept="audio/*"
+          multiple
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []).sort((a, b) => a.name.localeCompare(b.name))
+            setReplayError(null)
+            Promise.all(files.map(async (f) => ({ name: f.name, data: await f.arrayBuffer() })))
+              .then(decodeClips)
+              .then(onReplay)
+              .catch(() => {
+                setReplayError('Could not decode one of those files.')
+                onReplay([])
+              })
+          }}
+        />
+        <span className="meta">
+          {replay.length > 0
+            ? `Replaying ${replay.length} clip${replay.length === 1 ? '' : 's'} in a loop instead of the mic. Name files en-01.wav, es-01.wav, … to set the speaker side per clip.`
+            : 'Microphone. Pick recorded clips to replay the same audio into either mode.'}
+        </span>
+        {replayError && <span role="alert">{replayError}</span>}
+        {replay.length > 0 && (
+          <button type="button" onClick={() => onReplay([])}>
+            Use the microphone
+          </button>
+        )}
+      </div>
       <div className="field">
         <label htmlFor="access-token" className="label">
           Access token
