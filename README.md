@@ -2,18 +2,19 @@
 
 A browser workbench that interprets live speech two ways and measures both:
 
-- **Realtime mode**: OpenAI Realtime API (`gpt-realtime`), voice in, voice out, over WebRTC.
-- **Cascade mode**: streaming STT → translation → TTS, with swappable providers per stage.
+- **Realtime translate** (default where the pair is supported): OpenAI `gpt-realtime-translate`, a streaming translation model that takes only a target language, over WebRTC.
+- **Realtime**: OpenAI Realtime API (`gpt-realtime-2.1` by default; the brief's `gpt-realtime` is deprecated but selectable), voice in, voice out, over WebRTC.
+- **Cascade**: streaming STT → translation → TTS on the server, with swappable providers per stage.
+
+The comparison is in [docs/WRITEUP.md](docs/WRITEUP.md) (draft); the numbers behind it are in [eval/results/](eval/results/).
 
 Built for the Boostlingo Week 4 brief. Spec: [docs/SPEC.md](docs/SPEC.md) · Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Decisions: [docs/DECISIONS.md](docs/DECISIONS.md) · Agent workflow: [AGENTS.md](AGENTS.md).
-
-> Status: skeleton. Setup, keys, architecture overview and "Why .NET + TypeScript" are completed in T4.5.
 
 ## Prerequisites
 
 - .NET 10 SDK
 - Node 22 and npm
-- Headphones (the interpreter's voice otherwise leaks back into the mic)
+- Headphones. Realtime and Cascade close the mic while the interpreter speaks, but Realtime translate speaks while you are still talking, so the mic stays open and only the browser's echo cancellation stands between its voice and a re-translation. The setup screen says so for that mode.
 - Optional: [gitleaks](https://github.com/gitleaks/gitleaks) for the pre-commit secret scan (`brew install gitleaks`). CI runs it either way.
 
 ## Run locally
@@ -32,7 +33,21 @@ dotnet run --project server/Interpreter.Api
 cd web && npm ci && npm run dev
 ```
 
-Open http://localhost:5173. The page shows "Backend: ok" when the round trip works.
+Open http://localhost:5173. The page shows "Backend: ok" when the round trip works. Enter the access token, pick a mode and a language pair, tick the consent box (both parties must be told an AI interprets them), then Start.
+
+Put keys in a `.env` at the repo root (copy `.env.example`; it is git-ignored) and load it with `set -a; source .env; set +a`, since a plain `source` does not export them.
+
+### Keys
+
+Every key stays on the server. The browser gets only a short-lived, single-session secret for Realtime, minted by `POST /api/realtime/session`, which requires the access token and is rate-limited.
+
+| Variable | Needed for | Notes |
+|---|---|---|
+| `OPENAI_API_KEY` | Realtime, Realtime translate, OpenAI transcription | No free tier for Realtime models; set a spend cap in the OpenAI dashboard |
+| `DEMO_ACCESS_TOKEN` | Every session | Any long random string; typed into the setup screen |
+| `DEEPGRAM_API_KEY` | Cascade with Deepgram STT | Or `Cascade__Stt=openai` |
+| `ELEVENLABS_API_KEY` | Cascade TTS | Paid plan required; stock voices only |
+| `CLAUDE_TRANSLATOR_API_KEY` | Cascade with `Cascade__Translator=anthropic` | |
 
 ## Test
 
@@ -47,12 +62,52 @@ Live provider checks (call the real APIs with synthetic speech; skipped for any 
 dotnet test --solution server/Interpreter.slnx --filter-trait "Category=Live"
 ```
 
+## Evaluation
+
+```bash
+python3 -m pip install -r eval/requirements.txt
+python3 eval/summarize.py eval/results/logs/*.json   # writes eval/results/summary.md
+python3 -m unittest discover -s eval -p 'test_*.py'
+```
+
+The replay clips (`eval/replay/`) and the 5-minute soak (`web/e2e/soak.spec.ts`, manual CI job `e2e:soak`) produce the session logs it reads. Replay audio is never committed. Latency from runs on Deepgram STT is withheld, since its terms bar benchmarking.
+
+## Architecture
+
+The browser captures 16 kHz PCM in an AudioWorklet with a local VAD, and plays output through a scheduler that marks the first audible frame. One `Transport` interface hides the mode: the Realtime and Realtime translate transports speak WebRTC straight to OpenAI with an ephemeral secret; the cascade transport streams PCM over a WebSocket to the .NET server, which runs STT, translation and TTS as a back-pressured pipeline of `IAsyncEnumerable` stages behind provider interfaces. The UI, transcript store, output checks and latency waterfall are the same for every mode. Diagram and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Why .NET + TypeScript
+
+The brief prefers .NET and asks for the choice to be explained. The cascade is a streaming problem, and .NET makes the hard parts explicit and testable: `System.Threading.Channels` with bounded capacity for back-pressure, `CancellationToken` for teardown on a speaker switch or End, Kestrel WebSockets with no extra libraries. Vendor adapters talk to the raw WebSocket and HTTP APIs instead of SDKs, so the only vendor-specific code lives in `Interpreter.Providers.*`. The cost was writing those adapters by hand; a Python voice framework would have been faster but would hide the streaming, flush policy and provider seams this project is meant to show. The browser side is TypeScript because audio capture, WebRTC and playback timing only exist there. Python is used only for the offline eval scripts, where `jiwer` and `sacrebleu` are the standard tools; it is never part of the app. Full reasoning: [docs/DECISIONS.md](docs/DECISIONS.md) D1 and D2.
+
+## CI
+
+Local hooks: lint-staged and the secret check on commit, commitlint on the message, build and test on push. GitLab CI runs change-scoped jobs (web, server, eval, gitleaks); the bundle is grepped for key-like strings. Live provider tests and the soak are manual jobs because they make billed calls.
+
+Step times and peak memory, cloud container, warm caches:
+
+| Step | Day 1 (skeleton) | Day 4 (2026-10-15) |
+|---|---|---|
+| npm ci | 3.5 s, 375 MB | 10.6 s, 351 MB |
+| eslint | 1.7 s, 223 MB | 6.5 s, 405 MB |
+| prettier --check | 0.9 s, 104 MB | 6.1 s, 273 MB |
+| tsc | 1.9 s, 258 MB | 5.1 s, 291 MB |
+| vitest run | 1.8 s, 168 MB | 16.0 s, 211 MB |
+| vite build | 1.0 s, 192 MB | 2.0 s, 230 MB |
+| dotnet restore | 1.8 s, 165 MB | 2.4 s, 157 MB |
+| dotnet format --verify-no-changes | 9.3 s, 255 MB | 26.7 s, 352 MB |
+| dotnet build -m:1 | 3.1 s, 173 MB | 13.2 s, 191 MB |
+| dotnet test (not Live) | 2.6 s, 124 MB | 7.4 s, 156 MB |
+
+Every step stays under the smallest runner slot's 1.5 GB. `dotnet format` is now the slowest step; it runs only when server files change.
+
 ## Layout
 
 ```
 server/   .NET 10: Interpreter.Api, Interpreter.Core, Interpreter.Providers.*, Interpreter.Tests
 web/      React + Vite + TypeScript SPA (audio/, transports/, session/, components/)
-config/   languages.json (adding a language pair is config only)
+config/   languages.json (adding a language pair is config only), glossary.json, prices.json
+eval/     replay clips script, red-team suite, summarize.py, results/
 docs/     spec, architecture, tasks, acceptance, decisions
 ```
 

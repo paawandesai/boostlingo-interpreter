@@ -1,0 +1,259 @@
+{
+ "schema": "workbench.session-log/1",
+ "exportedAt": "2026-10-15T13:20:02.864Z",
+ "appVersion": "1.0.0.0",
+ "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+ "languages": {
+  "a": "en",
+  "b": "vi"
+ },
+ "glossary": false,
+ "providers": {
+  "cascade": {
+   "stt": "deepgram",
+   "translator": "anthropic",
+   "tts": "elevenlabs"
+  },
+  "realtimeModel": "gpt-realtime-2.1"
+ },
+ "modes": [
+  {
+   "mode": "cascade",
+   "minutes": 0.7528166666666667,
+   "utterances": 8,
+   "latency": [],
+   "cost": {
+    "mode": "cascade",
+    "minutes": 0.7528166666666667,
+    "lines": [
+     {
+      "component": "Translation input (anthropic)",
+      "quantity": 0.005894,
+      "unit": "MTok",
+      "unitPrice": 0.1,
+      "cost": 0.0005894,
+      "priceSource": "https://www.anthropic.com/pricing (checked 2026-10-14)"
+     },
+     {
+      "component": "Translation output (anthropic)",
+      "quantity": 0.000117,
+      "unit": "MTok",
+      "unitPrice": 0.5,
+      "cost": 5.85e-05,
+      "priceSource": "https://www.anthropic.com/pricing (checked 2026-10-14)"
+     },
+     {
+      "component": "TTS (elevenlabs)",
+      "quantity": 0.271,
+      "unit": "k chars",
+      "unitPrice": null,
+      "cost": null,
+      "priceSource": null
+     }
+    ],
+    "pricedTotal": 0.0006479,
+    "unpriced": [
+     "TTS (elevenlabs)"
+    ],
+    "perMinute": null
+   }
+  }
+ ],
+ "utterances": [
+  {
+   "id": "c2-1",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Xin chào, tôi cần gặp bác sĩ hôm nay.",
+    "final": true,
+    "confidence": 0.9873047
+   },
+   "target": {
+    "text": "Hello, I need to see a doctor today.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 636,
+    "outputTokens": 16,
+    "ttsCharacters": 36
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-2",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Nhà thuốc gần nhất ở đâu?",
+    "final": true,
+    "confidence": 0.99609375
+   },
+   "target": {
+    "text": "Where is the nearest pharmacy?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 681,
+    "outputTokens": 15,
+    "ttsCharacters": 30
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-3",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Tôi bị đau đầu từ hôm qua,",
+    "final": true,
+    "confidence": 0.9980469
+   },
+   "target": {
+    "text": "I've had a headache since yesterday,",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 725,
+    "outputTokens": 14,
+    "ttsCharacters": 36
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-4",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Bạn có thể nói chậm hơn được không?",
+    "final": true,
+    "confidence": 0.99902344
+   },
+   "target": {
+    "text": "Can you speak more slowly, please?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 767,
+    "outputTokens": 14,
+    "ttsCharacters": 34
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-5",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Cảm ơn bạn rất nhiều vì đã giúp tôi.",
+    "final": true,
+    "confidence": 0.99853516
+   },
+   "target": {
+    "text": "Thank you so much for helping me.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 766,
+    "outputTokens": 13,
+    "ttsCharacters": 33
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-6",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Xin chào, tôi cần gặp bác sĩ hôm nay.",
+    "final": true,
+    "confidence": 0.9873047
+   },
+   "target": {
+    "text": "Hello, I need to see a doctor today.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 771,
+    "outputTokens": 16,
+    "ttsCharacters": 36
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-7",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Nhà thuốc gần nhất ở đâu?",
+    "final": true,
+    "confidence": 0.99609375
+   },
+   "target": {
+    "text": "Where is the nearest pharmacy?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 773,
+    "outputTokens": 15,
+    "ttsCharacters": 30
+   },
+   "checks": []
+  },
+  {
+   "id": "c2-8",
+   "mode": "cascade",
+   "side": "B",
+   "source": {
+    "text": "Tôi bị đau đầu từ hôm qua.",
+    "final": true,
+    "confidence": 0.9970703
+   },
+   "target": {
+    "text": "I've had a headache since yesterday.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 775,
+    "outputTokens": 14,
+    "ttsCharacters": 36
+   },
+   "checks": []
+  }
+ ],
+ "markers": [],
+ "incidents": [],
+ "notes": [
+  "Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.",
+  "Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.",
+  "Realtime translate lines are cut client-side: each translated sentence is paired with the source sentence that had started when it began (both streams carry elapsed_ms). Boundaries are approximate, the source text is the model's own transcript, not ground truth, and start lag is measured only on lines that start after a pause.",
+  "Realtime input-transcription usage is billed separately and is not captured here.",
+  "Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.",
+  "A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.",
+  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md)."
+ ]
+}

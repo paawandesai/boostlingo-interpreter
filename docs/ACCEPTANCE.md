@@ -42,7 +42,7 @@ Definition of done per requirement. A box is ticked only with evidence (test nam
 - [ ] **M8 1–2 page comparison write-up**  
   Task(s): T4.4  
   Acceptance check: Covers latency, quality, cost, controllability, recommendation by scenario; every claim cites a number from `/eval/results`  
-  Evidence: _pending_
+  Evidence: draft (2026-10-15) `docs/WRITEUP.md`, numbers from `eval/results/` and `eval/results/summary.md`. Open: prices, vendor retention/BAA terms and legal citations marked [VERIFY]; quality and red-team rates wait on T4.2; Paawan rephrases the recommendation.
 
 ## 1b. Other hard requirements (brief §Other Specific Requirements, §Development Tools)
 

@@ -1,0 +1,208 @@
+{
+ "schema": "workbench.session-log/1",
+ "exportedAt": "2026-10-15T13:21:05.693Z",
+ "appVersion": "1.0.0.0",
+ "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36",
+ "languages": {
+  "a": "en",
+  "b": "vi"
+ },
+ "glossary": false,
+ "providers": {
+  "cascade": {
+   "stt": "deepgram",
+   "translator": "anthropic",
+   "tts": "elevenlabs"
+  },
+  "realtimeModel": "gpt-realtime-2.1"
+ },
+ "modes": [
+  {
+   "mode": "cascade",
+   "minutes": 0.6704666666666667,
+   "utterances": 6,
+   "latency": [],
+   "cost": {
+    "mode": "cascade",
+    "minutes": 0.6704666666666667,
+    "lines": [
+     {
+      "component": "Translation input (anthropic)",
+      "quantity": 0.003608,
+      "unit": "MTok",
+      "unitPrice": 0.1,
+      "cost": 0.00036080000000000004,
+      "priceSource": "https://www.anthropic.com/pricing (checked 2026-10-14)"
+     },
+     {
+      "component": "Translation output (anthropic)",
+      "quantity": 0.000133,
+      "unit": "MTok",
+      "unitPrice": 0.5,
+      "cost": 6.65e-05,
+      "priceSource": "https://www.anthropic.com/pricing (checked 2026-10-14)"
+     },
+     {
+      "component": "TTS (elevenlabs)",
+      "quantity": 0.202,
+      "unit": "k chars",
+      "unitPrice": null,
+      "cost": null,
+      "priceSource": null
+     }
+    ],
+    "pricedTotal": 0.00042730000000000003,
+    "unpriced": [
+     "TTS (elevenlabs)"
+    ],
+    "perMinute": null
+   }
+  }
+ ],
+ "utterances": [
+  {
+   "id": "c1-1",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "Good morning. How can I help you today?",
+    "final": true,
+    "confidence": 1
+   },
+   "target": {
+    "text": "Chào buổi sáng. Hôm nay tôi có thể giúp gì cho bạn?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 632,
+    "outputTokens": 35,
+    "ttsCharacters": 50
+   },
+   "checks": []
+  },
+  {
+   "id": "c1-2",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "I'm looking for the train station.",
+    "final": true,
+    "confidence": 0.9995117
+   },
+   "target": {
+    "text": "Tôi đang tìm ga tàu.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 687,
+    "outputTokens": 17,
+    "ttsCharacters": 20
+   },
+   "checks": []
+  },
+  {
+   "id": "c1-3",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "Could you speak a little more slowly, please?",
+    "final": true,
+    "confidence": 1
+   },
+   "target": {
+    "text": "Bạn có thể nói chậm hơn một chút được không?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 728,
+    "outputTokens": 23,
+    "ttsCharacters": 44
+   },
+   "checks": []
+  },
+  {
+   "id": "c1-4",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "My flight leaves at 07:30 tomorrow morning.",
+    "final": true,
+    "confidence": 1
+   },
+   "target": {
+    "text": "Chuyến bay của tôi khởi hành lúc 07:30 sáng mai.",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 781,
+    "outputTokens": 32,
+    "ttsCharacters": 48
+   },
+   "checks": []
+  },
+  {
+   "id": "c1-5",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "How much does a ticket to the city center cost?",
+    "final": true,
+    "confidence": 1
+   },
+   "target": {
+    "text": "Vé đi trung tâm thành phố giá bao nhiêu?",
+    "final": true
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": {
+    "inputTokens": 780,
+    "outputTokens": 26,
+    "ttsCharacters": 40
+   },
+   "checks": []
+  },
+  {
+   "id": "c1-6",
+   "mode": "cascade",
+   "side": "A",
+   "source": {
+    "text": "I lost my wallet.",
+    "final": false
+   },
+   "target": {
+    "text": "",
+    "final": false
+   },
+   "audioFailed": false,
+   "marks": {},
+   "breakdown": null,
+   "usage": null,
+   "checks": []
+  }
+ ],
+ "markers": [],
+ "incidents": [],
+ "notes": [
+  "Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.",
+  "Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.",
+  "Realtime translate lines are cut client-side: each translated sentence is paired with the source sentence that had started when it began (both streams carry elapsed_ms). Boundaries are approximate, the source text is the model's own transcript, not ground truth, and start lag is measured only on lines that start after a pause.",
+  "Realtime input-transcription usage is billed separately and is not captured here.",
+  "Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.",
+  "A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.",
+  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md)."
+ ]
+}

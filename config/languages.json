@@ -1,5 +1,5 @@
 {
-  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter. outputChecks (G15): markers are common function words for a deterministic language check; assistantPatterns and refusalPatterns are lower-case substrings that mark an output as not a translation. Model-written and unverified. realtimeTranslate (G17): gpt-realtime-translate can output this language; en and es were checked live 2026-10-14.",
+  "$comment": "One entry per language. Adding a pair = adding an entry here, no code changes (D16). Vendor-specific fields are filled in by the task that adds that adapter. outputChecks (G15): markers are common function words for a deterministic language check; assistantPatterns and refusalPatterns are lower-case substrings that mark an output as not a translation. Model-written and unverified. realtimeTranslate (G17): gpt-realtime-translate can output this language; en and es were checked live 2026-10-14. vi (T4.1): text model-written and not checked by a Vietnamese speaker; realtimeTranslate false until checked live.",
   "languages": [
     {
       "code": "en",
@@ -175,12 +175,92 @@
         ]
       },
       "realtimeTranslate": true
+    },
+    {
+      "code": "vi",
+      "name": "Vietnamese",
+      "disclosure": {
+        "notice": "Cuộc trò chuyện này do AI phiên dịch, không phải con người. Những gì bạn nói sẽ được gửi đến các dịch vụ AI của bên thứ ba và có thể được chép lại thành văn bản. Giọng nói bạn nghe là do AI tạo ra. Ứng dụng này không lưu âm thanh. Đừng dùng cho các quyết định y tế, pháp lý hoặc quan trọng khác; hãy yêu cầu một phiên dịch viên là người.",
+        "spoken": "Cuộc trò chuyện này được phiên dịch bằng giọng nói trí tuệ nhân tạo, không phải con người. Những gì bạn nói sẽ được các dịch vụ AI của bên thứ ba xử lý và có thể được chép lại."
+      },
+      "stt": {
+        "deepgram": {
+          "model": "nova-3",
+          "language": "vi"
+        }
+      },
+      "tts": {
+        "elevenlabs": {
+          "voiceId": null
+        },
+        "openaiRealtime": {
+          "voice": "marin"
+        }
+      },
+      "flush": {
+        "sentenceEnd": [
+          ".",
+          "?",
+          "!"
+        ],
+        "clauseBreak": [
+          ",",
+          ";",
+          ":"
+        ]
+      },
+      "metric": "wer",
+      "outputChecks": {
+        "markers": [
+          "và",
+          "là",
+          "của",
+          "có",
+          "không",
+          "tôi",
+          "bạn",
+          "này",
+          "được",
+          "cho",
+          "với",
+          "một",
+          "những",
+          "các",
+          "trong",
+          "đã",
+          "sẽ",
+          "người",
+          "thì",
+          "ở"
+        ],
+        "assistantPatterns": [
+          "là một ai",
+          "tôi là trí tuệ nhân tạo",
+          "với tư cách là ai",
+          "là một mô hình ngôn ngữ",
+          "đây là bản",
+          "tôi chỉ có thể dịch",
+          "hướng dẫn của tôi",
+          "lời nhắc hệ thống"
+        ],
+        "refusalPatterns": [
+          "tôi không thể giúp",
+          "tôi không thể hỗ trợ",
+          "xin lỗi, nhưng tôi không thể",
+          "tôi không thể dịch"
+        ]
+      },
+      "realtimeTranslate": false
     }
   ],
   "pairs": [
     [
       "en",
       "es"
+    ],
+    [
+      "en",
+      "vi"
     ]
   ]
 }

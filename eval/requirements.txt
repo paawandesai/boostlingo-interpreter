@@ -1,0 +1,11 @@
+# eval/summarize.py and its tests (T4.3). Every package pinned, transitive included; licences in LICENSES.md.
+jiwer==4.0.0
+sacrebleu==2.5.1
+click==8.5.0
+colorama==0.4.6
+lxml==6.1.3
+numpy==2.5.3
+portalocker==4.4.0
+rapidfuzz==3.14.6
+regex==2026.9.29
+tabulate==0.10.0
