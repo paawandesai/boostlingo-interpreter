@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Interpreter workbench public demo (T5, docs/GUARDRAILS.md G14), free-tier shaped. ECS on one
+  t3.micro EC2 instance behind CloudFront (HTTPS for the mic, and WebSockets); no load balancer,
+  not Lambda. Keys come from SSM SecureString parameters by name; no key value appears in this
+  template, its parameters or its outputs.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image (repo:tag) built by infra/deploy.sh.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet (the default VPC's subnets are public).
+  ParameterPath:
+    Type: String
+    Default: /interpreter-demo
+    Description: SSM path holding the SecureString keys the app reads.
+  CloudFrontPrefixListId:
+    Type: String
+    Description: The region's com.amazonaws.global.cloudfront.origin-facing managed prefix list id.
+  ShutdownAt:
+    Type: String
+    Description: When the instance stops by itself, as yyyy-mm-ddThh:mm:ss UTC (after grading).
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id
+
+Resources:
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AWS::StackName}
+      # The app logs ids and status codes only; a day is enough and doubles as the purge.
+      RetentionInDays: 1
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Demo instance, reachable from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds: [!Ref InstanceSecurityGroup]
+      MetadataOptions: { HttpTokens: required, HttpPutResponseHopLimit: 2 }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${Cluster} >> /etc/ecs/ecs.config
+      Tags:
+        - { Key: Name, Value: !Ref AWS::StackName }
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-demo-keys
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameters
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPath}/*
+
+  # The app calls no AWS API, so its task role grants nothing.
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities: [EC2]
+      NetworkMode: bridge
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref ImageUri
+          Essential: true
+          # t3.micro has 1 GiB; leave room for the OS and the ECS agent.
+          Memory: 700
+          MemoryReservation: 400
+          PortMappings: [{ ContainerPort: 8080, HostPort: 80, Protocol: tcp }]
+          Environment:
+            # Deepgram is not used in the demo: its terms need consent for comparative use.
+            - { Name: Cascade__Stt, Value: openai }
+            # CloudFront appends the viewer address and reaches the instance directly: one hop.
+            - { Name: Demo__ForwardLimit, Value: '1' }
+          Secrets:
+            - { Name: OPENAI_API_KEY, ValueFrom: !Sub '${ParameterPath}/OPENAI_API_KEY' }
+            - { Name: ELEVENLABS_API_KEY, ValueFrom: !Sub '${ParameterPath}/ELEVENLABS_API_KEY' }
+            - { Name: CLAUDE_TRANSLATOR_API_KEY, ValueFrom: !Sub '${ParameterPath}/CLAUDE_TRANSLATOR_API_KEY' }
+            - { Name: DEMO_ACCESS_TOKEN, ValueFrom: !Sub '${ParameterPath}/DEMO_ACCESS_TOKEN' }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Instance
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: EC2
+      DesiredCount: 1
+      TaskDefinition: !Ref TaskDefinition
+      # One instance and a fixed host port: stop the old task before starting the new one.
+      DeploymentConfiguration: { MinimumHealthyPercent: 0, MaximumPercent: 100 }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${AWS::StackName} demo (synthetic data only)
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: instance
+            DomainName: !GetAtt Instance.PublicDnsName
+            CustomOriginConfig: { OriginProtocolPolicy: http-only, HTTPPort: 80 }
+        DefaultCacheBehavior:
+          TargetOriginId: instance
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          # Managed CachingDisabled and AllViewer: nothing is cached and the access-token header and
+          # WebSocket upgrade reach the app.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: stop-demo-instance
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+
+  # Turns the demo off after grading even if nobody remembers to (G14). A stopped instance is not
+  # billed for compute.
+  Shutdown:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: !Sub at(${ShutdownAt})
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow: { Mode: 'OFF' }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:stopInstances
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"InstanceIds":["${Instance}"]}'
+
+Outputs:
+  Url:
+    Value: !Sub https://${Distribution.DomainName}
+  Instance:
+    Value: !Ref Instance

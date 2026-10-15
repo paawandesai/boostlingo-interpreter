@@ -14,4 +14,23 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!--
+    Public demo image (T5, docs/GUARDRAILS.md G14), built by the SDK without a Docker daemon:
+      (cd web && npm run build)
+      dotnet publish server/Interpreter.Api -c Release -p:DemoImage=true /t:PublishContainer
+    The built SPA and config/ go into the image; keys never do (they come from the task definition).
+  -->
+  <PropertyGroup Condition="'$(DemoImage)' == 'true'">
+    <ContainerRepository>interpreter-demo</ContainerRepository>
+    <ContainerFamily>noble-chiseled</ContainerFamily>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(DemoImage)' == 'true'">
+    <Content Include="..\..\web\dist\**\*" LinkBase="spa" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\config\*.json" LinkBase="config" CopyToPublishDirectory="PreserveNewest" />
+    <ContainerEnvironmentVariable Include="Languages__Path" Value="/app/config/languages.json" />
+    <ContainerEnvironmentVariable Include="Demo__SpaPath" Value="/app/spa" />
+    <ContainerEnvironmentVariable Include="Demo__NoIndex" Value="true" />
+    <ContainerEnvironmentVariable Include="Demo__ForwardLimit" Value="1" />
+  </ItemGroup>
+
 </Project>
