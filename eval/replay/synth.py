@@ -3,13 +3,21 @@
 Usage: OPENAI_API_KEY=... python3 eval/replay/synth.py [--limit N] [--voice NAME]
 Clips land in eval/replay/synthetic/ (gitignored) as <id>.wav. The key is read from the
 environment and never printed. Each clip is a billed request.
+
+The red-team suite: --scripts eval/adversarial/suite.jsonl --out eval/adversarial/synthetic.
+Background-voice rows ("[main] ... [second voice] ...") become the main line in one voice followed
+by the second line in another voice at a quarter of the volume. TTS-echo rows need a speaker in a
+real room and are skipped.
 """
 
 from __future__ import annotations
 
 import argparse
+import array
+import io
 import json
 import os
+import re
 import sys
 import urllib.request
 import wave
@@ -43,6 +51,41 @@ def write_pcm_wav(path: Path, pcm: bytes) -> None:
         w.writeframes(pcm)
 
 
+SECOND_VOICE = "onyx"
+SECOND_GAIN = 0.25
+
+
+def parts(text: str) -> list[str]:
+    """Bracket-labelled segments of a background-voice row, else the text itself."""
+    segs = [x.strip() for x in re.split(r"\[[^\]]*\]", text) if x.strip()]
+    return segs or [text]
+
+
+def wav_pcm(data: bytes) -> tuple[int, bytes]:
+    with wave.open(io.BytesIO(data)) as w:
+        return w.getframerate(), w.readframes(w.getnframes())
+
+
+def scaled(pcm: bytes, gain: float) -> bytes:
+    a = array.array("h", pcm)
+    for i, x in enumerate(a):
+        a[i] = int(x * gain)
+    return a.tobytes()
+
+
+def openai_wav(key: str, model: str, voice: str, text: str) -> bytes:
+    body = json.dumps(
+        {"model": model, "voice": voice, "input": text, "response_format": "wav"}
+    ).encode()
+    req = urllib.request.Request(
+        URL,
+        data=body,
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=0, help="only the first N rows")
@@ -54,7 +97,10 @@ def main() -> int:
         "--provider", choices=["openai", "elevenlabs"], default="openai"
     )
     parser.add_argument("--only", default="", help="only ids starting with this prefix")
+    parser.add_argument("--scripts", type=Path, default=HERE / "scripts.jsonl")
+    parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
+    out = args.out
     env = "ELEVENLABS_API_KEY" if args.provider == "elevenlabs" else "OPENAI_API_KEY"
     key = os.environ.get(env)
     if not key:
@@ -62,15 +108,19 @@ def main() -> int:
         return 2
     rows = [
         json.loads(x)
-        for x in (HERE / "scripts.jsonl").read_text(encoding="utf-8").splitlines()
+        for x in args.scripts.read_text(encoding="utf-8").splitlines()
         if x.strip()
     ]
-    rows = [r for r in rows if r["id"].startswith(args.only)]
+    rows = [
+        r
+        for r in rows
+        if r["id"].startswith(args.only) and r.get("category") != "tts_echo"
+    ]
     if args.limit:
         rows = rows[: args.limit]
-    OUT.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     for row in rows:
-        path = OUT / f"{row['id']}.wav"
+        path = out / f"{row['id']}.wav"
         if path.exists():
             continue
         if args.provider == "elevenlabs":
@@ -80,26 +130,22 @@ def main() -> int:
                 write_pcm_wav(path, resp.read())
             print(f"wrote {path.name}")
             continue
-        body = json.dumps(
-            {
-                "model": args.model,
-                "voice": args.voice,
-                "input": row["text"],
-                "response_format": "wav",
-            }
-        ).encode()
-        req = urllib.request.Request(
-            URL,
-            data=body,
-            headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
+        segs = (
+            parts(row["text"])
+            if row.get("category") == "background_voice"
+            else [row["text"]]
         )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            path.write_bytes(resp.read())
+        rate, pcm = wav_pcm(openai_wav(key, args.model, args.voice, segs[0]))
+        for seg in segs[1:]:
+            _, more = wav_pcm(openai_wav(key, args.model, SECOND_VOICE, seg))
+            pcm += scaled(more, SECOND_GAIN)
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(pcm)
         print(f"wrote {path.name}")
-    (OUT / "SYNTHETIC.txt").write_text(
+    (out / "SYNTHETIC.txt").write_text(
         f"Synthetic TTS clips ({args.provider}). Not the measured replay set.\n",
         encoding="utf-8",
     )
