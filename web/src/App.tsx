@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type { ReplayClip } from './audio/replay'
 import { speakNotice } from './audio/spokenNotice'
 import { AiBanner } from './components/AiBanner'
@@ -11,7 +11,14 @@ import { initialState } from './session/store'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
 import { buildSessionLog, download } from './session/export'
 import { fetchHealth } from './session/health'
-import { fetchCascadeProviders, fetchGlossaryInfo, fetchPrices, type CascadeProviders } from './session/providers'
+import { MODE_LABEL } from './session/modes'
+import {
+  fetchCascadeProviders,
+  fetchGlossaryInfo,
+  fetchPrices,
+  vendorsFor,
+  type CascadeProviders,
+} from './session/providers'
 import { useSession } from './session/useSession'
 
 /** `?replayGap=800` shortens the pause between replay clips, for the soak (T3.6). */
@@ -83,68 +90,88 @@ export default function App() {
   const inSession = state.status === 'connecting' || state.status === 'live'
 
   return (
-    <main className="app">
-      <header className="app-header">
-        <div>
-          <h1>AI Interpreter Workbench</h1>
-          <p className="meta">Realtime API vs. cascade pipeline, measured the same way</p>
-        </div>
-        <BackendStatus />
-      </header>
+    <>
       <AiBanner />
-      {inSession ? (
-        <LiveSession
-          state={state}
-          languages={languages}
-          onSpeaker={setSpeaker}
-          onEnd={() => void end()}
-          onRetry={() => void start()}
-          onDismissError={dismissError}
-          onRequestHuman={() => void requestHuman()}
-          onSwitchMode={(m) => void switchMode(m)}
-          onExport={() => void exportLog()}
-        />
-      ) : (
-        <>
-          {announcing && (
-            <p role="status" className="banner info">
-              Reading the AI notice aloud. The mic opens when it finishes.
-            </p>
-          )}
-          {state.handoffRequested && (
-            <div role="alert" className="banner info">
-              <div>
-                <strong>Human interpreter requested. The AI session has ended.</strong>
-                <span className="meta">
-                  In a production deployment this hands the call to a qualified human interpreter. This demo has no
-                  interpreter queue, so no request was sent anywhere.
-                </span>
-              </div>
-            </div>
-          )}
-          {state.error && (
-            <p role="alert" className="banner">
-              {state.error.message}
-            </p>
-          )}
-          <SetupPanel
+      <main className={inSession ? 'app live' : 'app'}>
+        {inSession ? (
+          <LiveSession
             state={state}
             languages={languages}
-            models={models}
-            cascadeProviders={cascadeProviders}
-            glossaryTerms={glossaryTerms}
-            replay={replay}
-            onReplay={setReplay}
-            onConfigure={configure}
             onSpeaker={setSpeaker}
-            onStart={(opts) => void startWithNotice(opts)}
+            onEnd={() => void end()}
+            onRetry={() => void start()}
+            onDismissError={dismissError}
+            onRequestHuman={() => void requestHuman()}
+            onSwitchMode={(m) => void switchMode(m)}
+            onExport={() => void exportLog()}
           />
-          <details className="panel">
-            <summary>Audio check (mic, VAD, test tone)</summary>
-            <AudioCheck />
-          </details>
-        </>
-      )}
-    </main>
+        ) : (
+          <>
+            <header className="app-header">
+              <div>
+                <h1>AI Interpreter Workbench</h1>
+                <p className="meta">Realtime API vs. cascade pipeline, measured the same way</p>
+              </div>
+              <BackendStatus />
+            </header>
+            {announcing && (
+              <p role="status" className="banner info">
+                Reading the AI notice aloud. The mic opens when it finishes.
+              </p>
+            )}
+            {state.handoffRequested && (
+              <div role="alert" className="banner info">
+                <div>
+                  <strong>Human interpreter requested. The AI session has ended.</strong>
+                  <span className="meta">
+                    In a production deployment this hands the call to a qualified human interpreter. This demo has no
+                    interpreter queue, so no request was sent anywhere.
+                  </span>
+                </div>
+              </div>
+            )}
+            {state.error && (
+              <p role="alert" className="banner">
+                {state.error.message}
+              </p>
+            )}
+            <div className="setup-layout">
+              <SetupPanel
+                state={state}
+                languages={languages}
+                models={models}
+                cascadeProviders={cascadeProviders}
+                glossaryTerms={glossaryTerms}
+                replay={replay}
+                onReplay={setReplay}
+                onConfigure={configure}
+                onSpeaker={setSpeaker}
+                onStart={(opts) => void startWithNotice(opts)}
+              />
+              <aside className="setup-aside">
+                <details className="panel">
+                  <summary>Audio check (mic, VAD, test tone)</summary>
+                  <AudioCheck />
+                </details>
+                <section aria-labelledby="vendors-h" className="panel">
+                  <h2 id="vendors-h">Where the conversation goes</h2>
+                  <dl className="vendor-list">
+                    {(['translate', 'realtime', 'cascade'] as const).map((m) => (
+                      <Fragment key={m}>
+                        <dt>{MODE_LABEL[m]}</dt>
+                        <dd>{vendorsFor(m, cascadeProviders)?.join(', ') ?? 'not loaded'}</dd>
+                      </Fragment>
+                    ))}
+                  </dl>
+                  <p className="meta">
+                    No audio is stored. Transcripts stay in this tab and are discarded at End unless you export them.
+                  </p>
+                </section>
+              </aside>
+            </div>
+          </>
+        )}
+      </main>
+    </>
   )
 }

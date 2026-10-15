@@ -1,5 +1,8 @@
 import type { SessionState } from '../session/store'
 
+/** Recoverable states are amber; the session stopping or refusing is red (screen C). */
+const WARN_KINDS = new Set(['rate_limited', 'empty_transcript', 'tts_failed'])
+
 const messages: Record<string, { title: string; action: string }> = {
   rate_limited: { title: 'Rate limited by the provider.', action: 'Retry' },
   timeout: { title: 'The provider timed out.', action: 'Retry' },
@@ -28,7 +31,7 @@ export function ErrorBanner({
   const m = messages[error.kind] ?? messages.unavailable
   const retries = m.action !== 'Dismiss'
   return (
-    <div role="alert" className="banner">
+    <div role="alert" className={WARN_KINDS.has(error.kind) ? 'banner warn' : 'banner'}>
       <div>
         <strong>{m.title}</strong>
         <span className="meta">
@@ -36,7 +39,7 @@ export function ErrorBanner({
           {error.retryAfterMs ? ` · retry after ${Math.ceil(error.retryAfterMs / 1000)} s` : ''}
         </span>
       </div>
-      <button type="button" onClick={retries ? onRetry : onDismiss}>
+      <button type="button" className="end" onClick={retries ? onRetry : onDismiss}>
         {m.action}
       </button>
     </div>

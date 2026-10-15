@@ -54,32 +54,48 @@ export function SetupPanel({
       <h2 id="setup-h">New session</h2>
       <div className="field">
         <span className="label">Mode</span>
-        <ModeToggle value={state.mode} onChange={(mode) => onConfigure({ mode })} translateAvailable={canTranslate} />
+        <ModeToggle
+          value={state.mode}
+          onChange={(mode) => onConfigure({ mode })}
+          translateAvailable={canTranslate}
+          described
+        />
       </div>
-      <div className="field">
-        <label htmlFor="pair" className="label">
-          Language pair
-        </label>
-        <select
-          id="pair"
-          value={pairKey}
-          onChange={(e) => {
-            const [langA, langB] = e.target.value.split('|')
-            // G17: Realtime translate is the default wherever the pair supports it.
-            const mode = translateSupported(languages, langA, langB)
-              ? 'translate'
-              : state.mode === 'translate'
-                ? 'realtime'
-                : state.mode
-            onConfigure({ langA, langB, mode })
-          }}
-        >
-          {(languages?.pairs ?? [[state.langA, state.langB]]).map(([a, b]) => (
-            <option key={`${a}|${b}`} value={`${a}|${b}`}>
-              {name(a)} ↔ {name(b)}
-            </option>
-          ))}
-        </select>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="pair" className="label">
+            Language pair
+          </label>
+          <select
+            id="pair"
+            value={pairKey}
+            onChange={(e) => {
+              const [langA, langB] = e.target.value.split('|')
+              // G17: Realtime translate is the default wherever the pair supports it.
+              const mode = translateSupported(languages, langA, langB)
+                ? 'translate'
+                : state.mode === 'translate'
+                  ? 'realtime'
+                  : state.mode
+              onConfigure({ langA, langB, mode })
+            }}
+          >
+            {(languages?.pairs ?? [[state.langA, state.langB]]).map(([a, b]) => (
+              <option key={`${a}|${b}`} value={`${a}|${b}`}>
+                {name(a)} ↔ {name(b)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <span className="label">Who speaks first</span>
+          <SpeakerSideToggle
+            value={state.speaker}
+            onChange={onSpeaker}
+            nameA={name(state.langA)}
+            nameB={name(state.langB)}
+          />
+        </div>
       </div>
       {state.mode === 'realtime' && models && (
         <div className="field">
@@ -116,34 +132,36 @@ export function SetupPanel({
         <label htmlFor="replay-files" className="label">
           Input
         </label>
-        <input
-          id="replay-files"
-          type="file"
-          accept="audio/*"
-          multiple
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []).sort((a, b) => a.name.localeCompare(b.name))
-            setReplayError(null)
-            Promise.all(files.map(async (f) => ({ name: f.name, data: await f.arrayBuffer() })))
-              .then(decodeClips)
-              .then(onReplay)
-              .catch(() => {
-                setReplayError('Could not decode one of those files.')
-                onReplay([])
-              })
-          }}
-        />
-        <span className="meta">
-          {replay.length > 0
-            ? `Replaying ${replay.length} clip${replay.length === 1 ? '' : 's'} in a loop instead of the mic. Name files en-01.wav, es-01.wav, … to set the speaker side per clip.`
-            : 'Microphone. Pick recorded clips to replay the same audio into either mode.'}
-        </span>
-        {replayError && <span role="alert">{replayError}</span>}
-        {replay.length > 0 && (
-          <button type="button" onClick={() => onReplay([])}>
-            Use the microphone
-          </button>
-        )}
+        <div className="input-box">
+          <input
+            id="replay-files"
+            type="file"
+            accept="audio/*"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []).sort((a, b) => a.name.localeCompare(b.name))
+              setReplayError(null)
+              Promise.all(files.map(async (f) => ({ name: f.name, data: await f.arrayBuffer() })))
+                .then(decodeClips)
+                .then(onReplay)
+                .catch(() => {
+                  setReplayError('Could not decode one of those files.')
+                  onReplay([])
+                })
+            }}
+          />
+          <span className="meta">
+            {replay.length > 0
+              ? `Replaying ${replay.length} clip${replay.length === 1 ? '' : 's'} in a loop instead of the mic. Name files en-01.wav, es-01.wav, … to set the speaker side per clip.`
+              : 'Microphone. Pick recorded clips to replay the same audio into either mode.'}
+          </span>
+          {replayError && <span role="alert">{replayError}</span>}
+          {replay.length > 0 && (
+            <button type="button" onClick={() => onReplay([])}>
+              Use the microphone
+            </button>
+          )}
+        </div>
       </div>
       <div className="field">
         <label htmlFor="access-token" className="label">
@@ -158,16 +176,7 @@ export function SetupPanel({
             setToken(e.target.value)
             setAccessToken(e.target.value)
           }}
-          placeholder="The server's DEMO_ACCESS_TOKEN"
-        />
-      </div>
-      <div className="field">
-        <span className="label">Who speaks first</span>
-        <SpeakerSideToggle
-          value={state.speaker}
-          onChange={onSpeaker}
-          nameA={name(state.langA)}
-          nameB={name(state.langB)}
+          placeholder="Invite code (the server's DEMO_ACCESS_TOKEN)"
         />
       </div>
       <ConsentNotice

@@ -32,7 +32,10 @@ export function TranscriptColumn({
 }) {
   return (
     <div className="panel transcript">
-      <h2>{title}</h2>
+      <div className="transcript-head">
+        <h2>{title}</h2>
+        <span className="meta">{role === 'source' ? 'what was heard' : 'what was spoken back'}</span>
+      </div>
       {timeline.length > TRANSCRIPT_LINES && (
         <p className="meta">
           {timeline.length - TRANSCRIPT_LINES} earlier lines hidden; Export log has the whole session.

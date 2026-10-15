@@ -14,7 +14,7 @@ export function BackendStatus() {
   }, [])
 
   return (
-    <p role="status">
+    <p role="status" className="backend-status">
       Backend:{' '}
       {state.kind === 'loading'
         ? 'checking…'
