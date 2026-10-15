@@ -56,7 +56,7 @@ dotnet test --solution server/Interpreter.slnx --filter-not-trait "Category=Live
 cd web && npm run lint && npm run typecheck && npm test
 ```
 
-Live provider checks (call the real APIs with synthetic speech; skipped for any key that isn't set; not run in CI):
+Live provider checks (call the real APIs with synthetic speech; skipped for any key that isn't set; in CI only as the manual `server:live` job on the `heavy` lane):
 
 ```bash
 dotnet test --solution server/Interpreter.slnx --filter-trait "Category=Live"
@@ -82,7 +82,9 @@ The brief prefers .NET and asks for the choice to be explained. The cascade is a
 
 ## CI
 
-Local hooks: lint-staged and the secret check on commit, commitlint on the message, build and test on push. GitLab CI runs change-scoped jobs (web, server, eval, gitleaks); the bundle is grepped for key-like strings. Live provider tests and the soak are manual jobs because they make billed calls.
+Local hooks: lint-staged and the secret check on commit (about 4 s), commitlint on the message, and on push only the stacks the branch changed against `origin/main` (web typecheck and related tests, server build, unit tests and format check on changed C# files, eval tests when their deps are installed; 8 to 39 s). Never bypass a hook with `--no-verify`.
+
+GitLab CI runs one pipeline per push (MR pipelines win), cancels stale ones, and runs a stack's jobs only when it changed against `main`; gitleaks runs on every pipeline and the bundle is grepped for key-like strings. Jobs are sized from the measured 3 CPU / 3 GB job budget. Live provider tests (`server:live`) and the browser jobs (`e2e:switch`, `e2e:soak`) run on the `heavy` runner tag, manually, or on a schedule that sets `RUN_LIVE=1` / `RUN_E2E=1`, because they make billed calls. Decisions and numbers: MR !31.
 
 Step times and peak memory, cloud container, warm caches:
 
