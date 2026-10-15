@@ -5,13 +5,17 @@ const messages: Record<string, { title: string; action: string }> = {
   timeout: { title: 'The provider timed out.', action: 'Retry' },
   empty_transcript: { title: 'No speech recognised. Check the input level.', action: 'Dismiss' },
   tts_failed: { title: 'Speech synthesis failed. The text is still shown.', action: 'Dismiss' },
-  mic_denied: { title: 'Microphone access is blocked. Allow it from the address bar.', action: 'Try again' },
+  mic_denied: {
+    title:
+      'Microphone access is blocked. Click the icon at the left of the address bar, set Microphone to Allow, then press Try again.',
+    action: 'Try again',
+  },
   webrtc_dropped: { title: 'Connection to the Realtime API dropped.', action: 'Reconnect' },
-  auth: { title: 'The server has no valid provider key.', action: 'Dismiss' },
+  auth: { title: 'The server refused the request (access token or provider key).', action: 'Dismiss' },
   unavailable: { title: 'The provider is unavailable.', action: 'Retry' },
 }
 
-/** Day-1 failure banner; T3.4 adds countdowns and per-kind secondary actions (docs/UI.md). */
+/** Failure banner: one title and one recovery action per error kind (T3.4). */
 export function ErrorBanner({
   error,
   onRetry,

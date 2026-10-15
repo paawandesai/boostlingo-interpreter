@@ -84,7 +84,7 @@ describe('CascadeEventParser', () => {
   it('maps provider errors to error kinds, with TTS outages as tts_failed', () => {
     const p = parser()
     expect(p.parse({ type: 'error', u: 2, stage: 'translation', provider: 'x', kind: 'RateLimited', t: 1 })).toEqual([
-      { type: 'error', kind: 'rate_limited', message: 'Cascade translation failed (x)' },
+      { type: 'error', kind: 'rate_limited', message: 'Cascade translation failed (x)', utteranceId: 'c1-2' },
     ])
     expect(
       p.parse({ type: 'error', stage: 'tts', provider: 'elevenlabs', kind: 'Unavailable', t: 1 })[0],
@@ -98,6 +98,38 @@ describe('CascadeEventParser', () => {
       kind: 'auth',
       message: 'Missing or wrong access token.',
     })
+  })
+
+  it('turns a retry into a notice and keeps Retry-After on errors', () => {
+    const p = parser()
+    expect(
+      p.parse({
+        type: 'retry',
+        u: 3,
+        stage: 'translation',
+        provider: 'openai',
+        kind: 'RateLimited',
+        attempt: 1,
+        delayMs: 250,
+        t: 1,
+      }),
+    ).toEqual([
+      {
+        type: 'notice',
+        message: 'openai rate limited the request; retrying translation in 250 ms (attempt 1)',
+        utteranceId: 'c1-3',
+      },
+    ])
+    expect(
+      p.parse({
+        type: 'error',
+        u: 3,
+        stage: 'translation',
+        provider: 'openai',
+        kind: 'RateLimited',
+        retryAfterMs: 30000,
+      })[0],
+    ).toMatchObject({ kind: 'rate_limited', retryAfterMs: 30000 })
   })
 
   it('ignores unknown messages and mark names', () => {

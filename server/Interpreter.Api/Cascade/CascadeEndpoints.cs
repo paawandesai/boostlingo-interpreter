@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using System.Text.Json;
+using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Cascade;
 using Interpreter.Core.Errors;
@@ -34,6 +35,7 @@ public static class CascadeEndpoints
         IOptions<CascadeOptions> cascade,
         IOptions<AccessOptions> access,
         LanguageCatalog languages,
+        ProviderActivity activity,
         ILoggerFactory loggers)
     {
         if (!http.WebSockets.IsWebSocketRequest)
@@ -132,6 +134,12 @@ public static class CascadeEndpoints
         {
             await foreach (var e in pipeline.RunAsync(audio.Reader.ReadAllAsync(stop.Token), settings, stop.Token, clock))
             {
+                switch (e)
+                {
+                    case SourceFinal: activity.Success($"stt:{stt.Name}"); break;
+                    case TranslationFinal: activity.Success($"translator:{translator.Name}"); break;
+                    case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;
+                }
                 if (e is TtsAudio a)
                 {
                     await send.WaitAsync(ct);

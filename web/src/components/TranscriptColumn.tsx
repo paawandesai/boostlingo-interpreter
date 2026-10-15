@@ -32,6 +32,7 @@ export function TranscriptColumn({
                 #{i + 1} · {item.side} · {item.mode}
                 {item[role].final ? '' : ' · partial'}
                 {role === 'source' ? sourceFlags(item) : ''}
+                {role === 'target' && item.audioFailed ? ' · audio failed, text only' : ''}
               </span>
               <span className={item[role].final ? 'final' : 'partial'} aria-hidden={!item[role].final}>
                 {item[role].text || '…'}

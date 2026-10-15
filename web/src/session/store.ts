@@ -16,6 +16,8 @@ export interface Utterance {
   target: { text: string; final: boolean }
   marks: Partial<Record<MarkName, number>>
   usage?: Usage
+  /** Speech synthesis failed for this utterance; its text is still shown (T3.4). */
+  audioFailed?: boolean
 }
 
 export interface Marker {
@@ -38,6 +40,8 @@ export interface SessionState {
   gated: boolean
   /** Client VAD speech end not yet matched to an utterance (vendor endpointing comes later). */
   pendingSpeechEnd: number | null
+  /** Latest non-blocking notice (a retry in progress, dropped late audio); cleared by the next finished turn. */
+  notice: string | null
   /** The user asked for a human interpreter; the AI session was ended (G7). */
   handoffRequested: boolean
 }
@@ -63,6 +67,7 @@ export const initialState: SessionState = {
   level: 0,
   gated: false,
   pendingSpeechEnd: null,
+  notice: null,
   handoffRequested: false,
 }
 
@@ -87,7 +92,14 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       }
     }
     case 'started':
-      return { ...state, status: 'connecting', error: null, pendingSpeechEnd: null, handoffRequested: false }
+      return {
+        ...state,
+        status: 'connecting',
+        error: null,
+        notice: null,
+        pendingSpeechEnd: null,
+        handoffRequested: false,
+      }
     case 'ended':
       return { ...state, status: 'ended', level: 0, gated: false }
     case 'handoff':
@@ -124,21 +136,39 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       return { ...state, level: e.rms }
     case 'gated':
       return { ...state, gated: e.gated }
-    case 'error':
-      return { ...state, error: { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs } }
-    case 'transcript':
-      return updateUtterance(state, e.utteranceId, (u) => ({
+    case 'error': {
+      const next = { ...state, error: { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs } }
+      return e.kind === 'tts_failed' && e.utteranceId
+        ? updateUtterance(next, e.utteranceId, (u) => ({ ...u, audioFailed: true }))
+        : next
+    }
+    case 'notice':
+      return { ...state, notice: e.message }
+    case 'transcript': {
+      const cleared = e.role === 'target' && e.final ? { ...state, notice: null } : state
+      return updateUtterance(cleared, e.utteranceId, (u) => ({
         ...u,
         [e.role]:
           e.role === 'source' && e.confidence !== undefined
             ? { text: e.text, final: e.final, confidence: e.confidence }
             : { text: e.text, final: e.final },
       }))
+    }
     case 'usage':
       return e.utteranceId ? updateUtterance(state, e.utteranceId, (u) => ({ ...u, usage: e.usage })) : state
     case 'mark': {
       if (!e.utteranceId) {
-        return e.name === 'speech.end' ? { ...state, pendingSpeechEnd: e.t } : state
+        if (e.name !== 'speech.end') return state
+        // The previous turn's speech end was never claimed by an endpoint: nothing was recognised (T3.4).
+        const missed =
+          state.pendingSpeechEnd !== null && e.t - state.pendingSpeechEnd >= SPEECH_END_MATCH_WINDOW_MS && !state.error
+        return {
+          ...state,
+          pendingSpeechEnd: e.t,
+          error: missed
+            ? { kind: 'empty_transcript', message: 'The provider recognised no speech in your last turn.' }
+            : state.error,
+        }
       }
       let pending = state.pendingSpeechEnd
       const next = updateUtterance(state, e.utteranceId, (u) => {

@@ -112,11 +112,24 @@ export class CascadeEventParser {
       case 'error': {
         const stage = e.stage as string
         const kind = kindMap[e.kind as string] ?? 'unavailable'
+        const retryAfterMs = typeof e.retryAfterMs === 'number' ? e.retryAfterMs : undefined
         return [
           {
             type: 'error',
             kind: stage === 'tts' && kind === 'unavailable' ? 'tts_failed' : kind,
             message: (e.message as string | undefined) ?? `Cascade ${stage} failed (${String(e.provider)})`,
+            ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+            ...(u === undefined ? {} : { utteranceId: u }),
+          },
+        ]
+      }
+      case 'retry': {
+        const why = e.kind === 'Timeout' ? 'timed out' : 'rate limited the request'
+        return [
+          {
+            type: 'notice',
+            message: `${String(e.provider)} ${why}; retrying ${String(e.stage)} in ${Math.round(Number(e.delayMs))} ms (attempt ${String(e.attempt)})`,
+            ...(u === undefined ? {} : { utteranceId: u }),
           },
         ]
       }

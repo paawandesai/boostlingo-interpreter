@@ -75,4 +75,29 @@ describe('sessionReducer', () => {
     expect(s.timeline.at(-1)).toMatchObject({ kind: 'marker', text: 'AI session ended: human interpreter requested' })
     expect(sessionReducer(s, { type: 'started' }).handoffRequested).toBe(false)
   })
+
+  it('flags a turn the provider never recognised as an empty transcript', () => {
+    const s = run([
+      { type: 'mark', name: 'speech.end', t: 1000 },
+      { type: 'mark', name: 'speech.end', t: 9000 },
+    ])
+    expect(s.error?.kind).toBe('empty_transcript')
+    expect(s.pendingSpeechEnd).toBe(9000)
+  })
+
+  it('marks the utterance whose speech synthesis failed and keeps its text', () => {
+    const s = run([
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'error', kind: 'tts_failed', message: 'x', utteranceId: 'u1' },
+    ])
+    expect(utterances(s)[0]).toMatchObject({ audioFailed: true, target: { text: 'Hola' } })
+    expect(s.error?.kind).toBe('tts_failed')
+  })
+
+  it('shows a notice until the next finished turn', () => {
+    let s = run([{ type: 'notice', message: 'retrying' }])
+    expect(s.notice).toBe('retrying')
+    s = run([{ type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true }], s)
+    expect(s.notice).toBeNull()
+  })
 })

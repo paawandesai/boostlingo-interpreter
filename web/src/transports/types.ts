@@ -62,7 +62,9 @@ export type TransportEvent =
     }
   | { type: 'mark'; name: MarkName; t: number; utteranceId?: string }
   | { type: 'usage'; utteranceId?: string; usage: Usage }
-  | { type: 'error'; kind: ErrorKind; message: string; retryAfterMs?: number }
+  | { type: 'error'; kind: ErrorKind; message: string; retryAfterMs?: number; utteranceId?: string }
+  /** Something the user should know that needs no action (a retry in progress, dropped late audio). */
+  | { type: 'notice'; message: string; utteranceId?: string }
   | { type: 'level'; rms: number }
   | { type: 'gated'; gated: boolean }
 

@@ -162,6 +162,32 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task Rate_limited_translation_is_retried_with_backoff_before_any_text()
+    {
+        var translator = new FakeTranslator { FailTimes = 2 };
+        var events = await RunAll(new CascadePipeline(new FakeStt([Final("Hello.")]), translator, new FakeTts()));
+
+        var retries = events.OfType<CascadeRetry>().ToList();
+        Assert.Equal([(1, 250.0), (2, 500.0)], retries.Select(r => (r.Attempt, r.DelayMs)));
+        Assert.All(retries, r => Assert.Equal(("translation", ProviderErrorKind.RateLimited), (r.Stage, r.Kind)));
+        Assert.Empty(events.OfType<CascadeError>());
+        Assert.Equal("ES(Hello.)", Spoken(events, 1));
+    }
+
+    [Fact]
+    public async Task Retry_after_is_honoured_and_a_long_one_is_reported_not_waited()
+    {
+        var shortWait = await RunAll(new CascadePipeline(new FakeStt([Final("Hi.")]),
+            new FakeTranslator { FailTimes = 1, FailRetryAfter = TimeSpan.FromMilliseconds(40) }, new FakeTts()));
+        Assert.Equal(40.0, Assert.Single(shortWait.OfType<CascadeRetry>()).DelayMs);
+
+        var longWait = await RunAll(new CascadePipeline(new FakeStt([Final("Hi.")]),
+            new FakeTranslator { FailTimes = 1, FailRetryAfter = TimeSpan.FromSeconds(30) }, new FakeTts()));
+        Assert.Empty(longWait.OfType<CascadeRetry>());
+        Assert.Equal(30000.0, Assert.Single(longWait.OfType<CascadeError>()).RetryAfterMs);
+    }
+
+    [Fact]
     public async Task Tts_error_is_reported_and_translation_text_still_arrives()
     {
         var tts = new FakeTts { FailOn = "ES(Bad.)" };
@@ -269,6 +295,9 @@ public class CascadePipelineTests
     {
         public List<TranslationRequest> Requests { get; } = [];
         public string? FailOn { get; init; }
+        /// <summary>Fail this many calls (any text) before succeeding, with this Retry-After.</summary>
+        public int FailTimes { get; set; }
+        public TimeSpan? FailRetryAfter { get; init; }
         public string[]? Script { get; init; }
         public TimeSpan PauseAfterFirstToken { get; init; }
         public bool HangAfterFirstToken { get; init; }
@@ -281,6 +310,11 @@ public class CascadePipelineTests
             Requests.Add(request);
             if (request.Text == FailOn)
                 throw new ProviderException(ProviderErrorKind.RateLimited, Name, "429");
+            if (FailTimes > 0)
+            {
+                FailTimes--;
+                throw new ProviderException(ProviderErrorKind.RateLimited, Name, "429", FailRetryAfter);
+            }
             var pieces = Script ?? ["ES(", request.Text, ")"];
             try
             {
