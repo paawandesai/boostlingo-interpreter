@@ -60,7 +60,7 @@ class SummarizeTests(unittest.TestCase):
             ],
             SCRIPTS,
         )
-        q = summarize.quality(modes["cascade"]["matched"], "cascade")
+        q = summarize.quality(modes["cascade:openai"]["matched"], "cascade:openai")
         self.assertEqual(q["n"], 1)
         self.assertAlmostEqual(q["wer"], 0.25)
         self.assertGreater(q["chrf"], 99)
@@ -77,10 +77,10 @@ class SummarizeTests(unittest.TestCase):
             ],
             SCRIPTS,
         )
-        agg = modes["cascade"]
+        agg = modes["cascade:openai"]
         self.assertEqual(agg["latency_withheld"], 1)
         self.assertEqual(dict(agg["stages"]), {})
-        self.assertNotIn("wer", summarize.quality(agg["matched"], "cascade"))
+        self.assertNotIn("wer", summarize.quality(agg["matched"], "cascade:openai"))
         self.assertIn("withheld (Deepgram)", summarize.render(modes, []))
 
     def test_never_scores_realtime_source_as_recognition(self) -> None:

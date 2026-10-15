@@ -2,9 +2,9 @@
 
 > **Draft for Paawan.** Every number below comes from a file under `eval/results/`. Lines marked
 > **[VERIFY]** need Paawan to check a vendor page, a legal citation or a figure before submission;
-> lines marked **[REPHRASE]** are opinions Paawan should restate in their own words. The blind human
-> scoring and the recorded replay set (T4.2) have not run yet, so every quality number here is a
-> synthetic-audio signal, not a finding.
+> lines marked **[REPHRASE]** are opinions Paawan should restate in their own words. The T4.2 runs
+> (2026-10-15) used synthetic TTS speech, not recorded people, and the red-team labels are not in
+> yet, so every quality number here is a synthetic-audio signal, not a finding.
 
 ## 1. Setup and method
 
@@ -13,9 +13,11 @@
   *Realtime translate*: `gpt-realtime-translate`, a dedicated streaming translation model that takes
   only a target language. The brief's `gpt-realtime` is deprecated (removal 2027-01-20 **[VERIFY]**);
   it stays selectable but is not the default.
-- **Audio.** 65 synthetic TTS clips of scripted English ↔ Spanish dialogue, looped for 5 minutes in
-  headless Chromium (fake mic), on the CI runner and in the cloud container. No real speech, no real
-  calls. Recorded human speech is T4.2 and not done.
+- **Audio.** 65 synthetic TTS clips of scripted English ↔ Spanish dialogue (both directions),
+  looped for 5 minutes per mode in headless Chromium (fake mic): Realtime and Realtime translate on
+  the CI runner, Cascade in the cloud container with each translator (OpenAI, Claude). The 28
+  red-team lines were voiced the same way (background-voice lines with a second, quieter voice) and
+  looped for 4 minutes per configuration. No recorded people, no real calls.
 - **Latency** is measured in the browser from the client VAD's speech end to the first audible
   output frame, with per-stage marks. Realtime translate talks while the speaker is still talking, so
   it uses a *text lag* (first source text → first translated text) instead.
@@ -25,40 +27,50 @@
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 
-## 2. Latency (client ms, 5-minute synthetic soaks)
+## 2. Latency (client ms, 5-minute synthetic replay, 2026-10-15)
 
-| Mode | What is measured | n | p50 | p95 | Source |
-|---|---|---|---|---|---|
-| Cascade (OpenAI STT) | speech end → first audio | 47 | 2268 | 5178 | `soak-2026-10-14-cascade-synthetic.json` |
-| Realtime (`gpt-realtime-2.1`) | speech end → first audio | 19 | 1825 | 3029 | `soak-2026-10-14-realtime-synthetic.json` |
-| Realtime translate | source text → translated text | 74 | 1465 | 5456 | `soak-2026-10-14-translate-synthetic.json` |
+| Mode | What is measured | n | p50 | p95 |
+|---|---|---|---|---|
+| Cascade, OpenAI STT + OpenAI translator | speech end → first audio | 46 | 2440 | 4097 |
+| Cascade, OpenAI STT + Claude translator | speech end → first audio | 45 | 2521 | 5160 |
+| Realtime (`gpt-realtime-2.1`) | speech end → first audio | 19 | 2251 | 3451 |
+| Realtime translate | source text → translated text | 70 | 1984 | 5284 |
 
-Where the time goes in Cascade (p50/p95): endpointing 713/3874, STT final 1173/4271, translation
-first token 477/950, TTS first byte 308/546. STT finalisation dominates; translation and TTS are
-under a second together. In Realtime, endpointing is 722/1382 and the model's own time (opaque, not
-decomposable) is 751/1130.
+Sources: `eval/results/summary.md` and `eval/results/soak-2026-10-15-*.json`.
 
-The modes' numbers are not the same quantity. Realtime translate starts speaking before the speaker
-stops, so "speech end → first audio" is often negative for it; its text lag says how far it trails,
-not how long a listener waits. Its start lag (speech start → first audio) was added after this soak
-and has no numbers yet.
+Where the time goes in Cascade with the OpenAI translator (p50/p95): endpointing 726/2056, STT final
+1195/2451, translation first token 584/1038, TTS first byte 334/593. STT finalisation dominates; the
+two translators differ by less than the run-to-run spread (first token 584 vs 576 at p50). In
+Realtime, endpointing is 1266/1653 and the model's own time (opaque) is 910/2010.
+
+The modes' numbers are not the same quantity. Realtime translate speaks before the speaker stops, so
+its text lag says how far it trails, not how long a listener waits; start lag (speech start → first
+audio) got only 1 measurement in this run because the looped clips leave few pauses. Realtime merged
+clips into longer turns (29 turns from the loop), so its n is small and it misses the 50-turn soak
+criterion. Heap grew 8.5–20% from minute 1 across the runs (criterion < 10%; only Realtime
+translate passed).
 
 ## 3. Quality (synthetic audio, model-written references)
 
-| Mode | Lines interpreted | chrF | STT WER | Glossary hits | Output-check flags |
-|---|---|---|---|---|---|
-| Cascade (vi ↔ en onboarding run) | 13 of 14 | 90.8 | withheld (Deepgram) | – | none |
-| Realtime | 28 of 29 | 70.5 | n/a | – | none |
-| Realtime translate | 73 of 74 | 72.5 | n/a | 8 of 14 | length ratio 3 |
+| Mode | Lines interpreted | Matched to a script line | chrF | STT WER | Glossary hits | Output-check flags |
+|---|---|---|---|---|---|---|
+| Cascade + OpenAI translator | 62 of 63 | 49 | 58.0 | 33.9% | 2 of 10 | none |
+| Cascade + Claude translator | 56 of 57 | 48 | 59.1 | 36.0% | 1 of 10 | omission 3, wrong language 2 |
+| Realtime | 27 of 29 | 13 | 70.9 | n/a | 0 of 2 | length ratio 1 |
+| Realtime translate | 70 of 71 | 64 | 69.4 | n/a | 11 of 15 | length ratio 7, wrong language 1 |
 
-From `eval/results/summary.md`. The Cascade row is the Vietnamese onboarding run, not the English ↔
-Spanish soak, so it is not comparable with the other two rows; the English ↔ Spanish cascade soak
-predates the session-log export and has no chrF. **This table is not a ranking.** It needs T4.2: the
-recorded replay set through every mode, checked references and Paawan's blind rubric.
+**Cascade loses the ends of sentences in this replay, and that, not translation, drives its scores.**
+Its source lines stop early ("Do you accept" for "Do you accept credit cards?", "Trabajo de lunes a
+viernes." without "de ocho a cinco"). Inferred cause, not yet proven: cascade flushes a translation
+at the first clause, its spoken output starts while the clip is still playing, and the half-duplex
+mic gate then drops the rest of the clip. A person who stops when the interpreter starts would not
+lose words this way, but one who keeps talking would. **[VERIFY with a recorded run; fix candidates:
+flush only on sentence ends, or keep capturing while gated and queue the remainder.]** The Vietnamese
+onboarding run, with longer pauses, scored chrF 90.8 (`eval/results/onboarding-vi.md`).
 
-Realtime merged short clips into longer turns (29 turns from 65 clips), so it misses the 50-turn
-criterion; Realtime translate split them into 74 lines. Realtime translate's 6 missed glossary terms
-and 3 length-ratio flags are the places to listen to first.
+Realtime matched only 13 lines because it merges several clips into one turn, which the line matcher
+can't split. **This table is not a ranking.** It needs recorded speech, checked references and
+Paawan's blind rubric.
 
 ## 4. Cost per minute
 
@@ -80,9 +92,10 @@ structurally the safest: it takes no instructions and has no tools, so "ignore y
 can only be translated. Realtime (`gpt-realtime-2.1`) relies on its instructions and has no tools.
 Cascade's translator gets the transcript as delimited data with no tools. Every output line in every
 mode passes deterministic checks (target language, length ratio, assistant phrasing, refusal,
-prompt-leak canary). The red-team suite (`eval/adversarial/`) is written but **not yet run**; its
-rates per mode (answer-instead-of-translate, instruction followed, omission, refusal, wrong
-language) are T4.2.
+prompt-leak canary). The red-team suite (`eval/adversarial/`) ran in all four configurations
+(synthetic voices; the two speaker-echo lines need a real room and were not run). Its rates per mode
+(answer-instead-of-translate, instruction followed, omission, refusal, wrong language) wait on
+Paawan's labels in a blind, shuffled sheet. **[TODO: paste `score.py rates` output here.]**
 
 **Data flows.**
 
@@ -107,8 +120,8 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 
 ## 7. What this does not show
 
-- No recorded human speech, no blind scoring, no red-team rates (T4.2).
-- No numbers for Deepgram; no Realtime translate start lag; the current translate line-cutting
-  (after commit 95256a4) has not been soaked.
+- No recorded human speech and no blind scoring; red-team rates wait on labels.
+- No numbers for Deepgram; one Realtime translate start-lag sample.
 - No prices for STT, TTS or OpenAI models, so no cost per minute.
-- Heap grew 14–15% from minute 1 in all three modes (criterion < 10%).
+- Heap grew more than 10% from minute 1 in every mode but Realtime translate (criterion < 10%).
+- Cascade's sentence-tail loss under replay (section 3) is unexplained until a recorded run.

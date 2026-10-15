@@ -58,8 +58,7 @@ def load_scripts(path: Path = SCRIPTS) -> list[dict]:
     return [json.loads(x) for x in lines if x.strip()]
 
 
-def match_script(text: str, lang: str, scripts: list[dict]) -> dict | None:
-    """The script line in `lang` closest to `text`, if close enough."""
+def best_script(text: str, lang: str, scripts: list[dict]) -> tuple[dict | None, float]:
     norm = normalize(text)
     best, best_score = None, 0.0
     for row in scripts:
@@ -68,7 +67,13 @@ def match_script(text: str, lang: str, scripts: list[dict]) -> dict | None:
         score = SequenceMatcher(None, norm, normalize(row["text"])).ratio()
         if score > best_score:
             best, best_score = row, score
-    return best if best_score >= MATCH_MIN else None
+    return best, best_score
+
+
+def match_script(text: str, lang: str, scripts: list[dict]) -> dict | None:
+    """The script line in `lang` closest to `text`, if close enough."""
+    best, score = best_script(text, lang, scripts)
+    return best if score >= MATCH_MIN else None
 
 
 def glossary_targets() -> dict[str, dict[str, str]]:
@@ -102,15 +107,22 @@ def summarize(logs: list[dict], scripts: list[dict]) -> dict:
     for log in logs:
         langs = log["languages"]
         cascade = (log.get("providers") or {}).get("cascade") or {}
+
+        # Cascade runs with different translators are different systems: keep them apart.
+        translator = cascade.get("translator")
+
+        def key(mode: str, t: str | None = translator) -> str:
+            return f"cascade:{t}" if mode == "cascade" and t else mode
+
         for m in log.get("modes", []):
-            agg = modes[m["mode"]]
+            agg = modes[key(m["mode"])]
             agg["minutes"] += m.get("minutes", 0)
             cost = m.get("cost") or {}
             agg["cost"] += cost.get("pricedTotal", 0)
             agg["unpriced"].update(cost.get("unpriced", []))
         for u in log["utterances"]:
             mode = u["mode"]
-            agg = modes[mode]
+            agg = modes[key(mode)]
             agg["utterances"] += 1
             if mode == "cascade":
                 agg["providers"].add(
@@ -132,25 +144,48 @@ def summarize(logs: list[dict], scripts: list[dict]) -> dict:
                 for stage in breakdown.get("stages", []):
                     if stage.get("ms") is not None:
                         agg["stages"][stage["label"]].append(stage["ms"])
-            src_lang = langs["a"] if u["side"] == "A" else langs["b"]
-            tgt_lang = langs["b"] if u["side"] == "A" else langs["a"]
-            row = match_script(u["source"]["text"], src_lang, scripts)
-            if row is None or row.get("target") != tgt_lang:
-                continue
-            u = {
-                **u,
-                "_deepgram": mode == "cascade" and cascade.get("stt") == "deepgram",
-            }
-            agg["matched"].append((u, row))
-            for term in row.get("terms", []):
-                want = gloss.get(term.lower(), {}).get(tgt_lang)
-                if want:
-                    agg["glossary"][1] += 1
-                    agg["glossary"][0] += want.lower() in u["target"]["text"].lower()
+
+        finals = [
+            u
+            for u in log["utterances"]
+            if u["source"]["final"] and u["target"]["final"]
+        ]
+        by_mode: dict[str, list[dict]] = defaultdict(list)
+        for u in finals:
+            by_mode[u["mode"]].append(u)
+        for mode, utts in by_mode.items():
+            agg = modes[key(mode)]
+            for u in utts:
+                score_line(agg, u, mode, cascade, langs, scripts, gloss)
     return modes
 
 
+def score_line(
+    agg: dict,
+    u: dict,
+    mode: str,
+    cascade: dict,
+    langs: dict,
+    scripts: list[dict],
+    gloss: dict,
+) -> None:
+    """Matches one (re-joined) line to the script and records it for chrF, WER and glossary."""
+    src_lang = langs["a"] if u["side"] == "A" else langs["b"]
+    tgt_lang = langs["b"] if u["side"] == "A" else langs["a"]
+    row = match_script(u["source"]["text"], src_lang, scripts)
+    if row is None or row.get("target") != tgt_lang:
+        return
+    u = {**u, "_deepgram": mode == "cascade" and cascade.get("stt") == "deepgram"}
+    agg["matched"].append((u, row))
+    for term in row.get("terms", []):
+        want = gloss.get(term.lower(), {}).get(tgt_lang)
+        if want:
+            agg["glossary"][1] += 1
+            agg["glossary"][0] += want.lower() in u["target"]["text"].lower()
+
+
 def quality(matched: list[tuple[dict, dict]], mode: str) -> dict:
+    mode = mode.split(":")[0]
     hyps = [u["target"]["text"] for u, _ in matched]
     refs = [row["reference"] for _, row in matched]
     out: dict = {"n": len(matched)}
@@ -164,6 +199,12 @@ def quality(matched: list[tuple[dict, dict]], mode: str) -> dict:
             [normalize(u["source"]["text"]) for u, _ in stt],
         )
     return out
+
+
+def name_of(mode: str) -> str:
+    base, _, translator = mode.partition(":")
+    name = MODE_NAMES.get(base, base)
+    return f"{name} ({translator} translator)" if translator else name
 
 
 def fmt(ms: float | None) -> str:
@@ -184,7 +225,7 @@ def render(modes: dict, inputs: list[str]) -> str:
         "",
     ]
     for mode, agg in sorted(modes.items()):
-        name = MODE_NAMES.get(mode, mode)
+        name = name_of(mode)
         if agg["latency_withheld"]:
             lines += [
                 (
@@ -215,7 +256,7 @@ def render(modes: dict, inputs: list[str]) -> str:
     for mode, agg in sorted(modes.items()):
         q = quality(agg["matched"], mode)
         chrf = f"{q['chrf']:.1f}" if "chrf" in q else "–"
-        if mode != "cascade":
+        if not mode.startswith("cascade"):
             wer = "n/a (not STT)"
         elif "wer" in q:
             wer = f"{q['wer']:.1%}"
@@ -231,7 +272,7 @@ def render(modes: dict, inputs: list[str]) -> str:
         else:
             cost = "–"
         lines.append(
-            f"| {MODE_NAMES.get(mode, mode)} | {agg['finals']} of {agg['utterances']} | {q['n']} | {chrf} | {wer} | {gloss} | {flags} | {cost} |"
+            f"| {name_of(mode)} | {agg['finals']} of {agg['utterances']} | {q['n']} | {chrf} | {wer} | {gloss} | {flags} | {cost} |"
         )
     lines += [
         "",
