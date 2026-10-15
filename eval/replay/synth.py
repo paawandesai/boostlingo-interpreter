@@ -82,8 +82,14 @@ def openai_wav(key: str, model: str, voice: str, text: str) -> bytes:
         data=body,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read()
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return resp.read()
+        except TimeoutError:
+            if attempt == 2:
+                raise
+    raise AssertionError("unreachable")
 
 
 def main() -> int:
