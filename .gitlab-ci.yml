@@ -239,6 +239,8 @@ e2e:soak:
       - web/test-results/soak/
   script:
     # Without REPLAY_DIR the job makes the labelled synthetic clips itself (stdlib Python, OpenAI speech).
+    # SOAK_SET=adversarial voices the red-team suite instead (synthetic, for testing; G18).
+    - if [ "$SOAK_SET" = adversarial ]; then (command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3 >/dev/null)) && python3 ../eval/replay/synth.py --scripts ../eval/adversarial/suite.jsonl --out ../eval/adversarial/synthetic && export REPLAY_DIR=../eval/adversarial/synthetic; fi
     - if [ -z "$REPLAY_DIR" ]; then (command -v python3 >/dev/null || (apt-get update -qq && apt-get install -y -qq python3 >/dev/null)) && python3 ../eval/replay/synth.py && export REPLAY_DIR=../eval/replay/synthetic; fi
     - SOAK=1 SOAK_MODE=${SOAK_MODE:-cascade} npx playwright test e2e/soak.spec.ts
 

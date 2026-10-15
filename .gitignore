@@ -32,3 +32,4 @@ test-results/
 eval/replay/audio/
 eval/replay/synthetic/
 eval/adversarial/audio/
+eval/adversarial/synthetic/
