@@ -5,11 +5,11 @@
     {
       "key": "realtime-translate:openai",
       "model": "gpt-realtime-translate",
-      "perMinute": null,
-      "note": "Billed per minute of session (G17). The project guardrails quote $0.034/min; not checked against OpenAI's page yet (blocked from the cloud container).",
-      "source": "https://openai.com/api/pricing/",
-      "checkedOn": null,
-      "checkedBy": null
+      "perMinute": 0.034,
+      "note": "Billed per minute of audio (G17): \"Realtime audio duration Per minute Price $0.034\".",
+      "source": "https://developers.openai.com/api/docs/models/gpt-realtime-translate",
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)"
     },
     {
       "key": "translator:anthropic",
@@ -24,60 +24,65 @@
     {
       "key": "translator:openai",
       "model": "gpt-5.4-mini",
-      "inputPerMTok": null,
-      "outputPerMTok": null,
-      "source": "https://openai.com/api/pricing/",
-      "checkedOn": null,
-      "checkedBy": null
+      "inputPerMTok": 0.75,
+      "outputPerMTok": 4.50,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)",
+      "note": "Cached input $0.075 per M tokens (unused here). Regional data-residency processing adds 10%."
     },
     {
       "key": "stt:deepgram",
       "model": "nova-3 (streaming)",
-      "perMinute": null,
+      "perMinute": 0.0077,
       "source": "https://deepgram.com/pricing",
-      "checkedOn": null,
-      "checkedBy": null
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)",
+      "note": "Monolingual streaming, pay-as-you-go list price. Deepgram currently shows a limited-time promotional $0.0048/min with no end date; the list price is used here."
     },
     {
       "key": "stt:openai",
       "model": "gpt-4o-transcribe (realtime transcription)",
-      "perMinute": null,
-      "source": "https://openai.com/api/pricing/",
-      "checkedOn": null,
-      "checkedBy": null
+      "perMinute": 0.006,
+      "source": "https://developers.openai.com/api/docs/models/gpt-4o-transcribe",
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)",
+      "note": "OpenAI's per-minute estimate; billed per token ($2.50 audio in / $10.00 out per M tokens). OpenAI's deprecations page lists gpt-4o-transcribe for shutdown on 2027-02-26 (replacements gpt-live-transcribe or gpt-transcribe)."
     },
     {
       "key": "tts:elevenlabs",
       "model": "eleven_flash_v2_5",
-      "perThousandCharacters": null,
-      "note": "Depends on the plan tier; record the tier Paawan is on.",
+      "perThousandCharacters": 0.04,
+      "note": "Flash/Turbo API rate, the same on every tier. Paawan is on Starter ($6/month; first month $1 under a promotion until 2026-10-18).",
       "source": "https://elevenlabs.io/pricing/api",
-      "checkedOn": null,
-      "checkedBy": null
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)"
     },
     {
       "key": "realtime:openai",
       "model": "gpt-realtime-2.1",
-      "audioInputPerMTok": null,
-      "audioOutputPerMTok": null,
-      "textInputPerMTok": null,
-      "textOutputPerMTok": null,
-      "cachedInputPerMTok": null,
-      "source": "https://openai.com/api/pricing/",
-      "checkedOn": null,
-      "checkedBy": null
+      "audioInputPerMTok": 32.00,
+      "audioOutputPerMTok": 64.00,
+      "textInputPerMTok": 4.00,
+      "textOutputPerMTok": 24.00,
+      "cachedInputPerMTok": 0.40,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)",
+      "note": "Cached input is $0.40 per M tokens for both text and audio."
     },
     {
       "key": "realtime:openai",
       "model": "gpt-realtime",
-      "audioInputPerMTok": null,
-      "audioOutputPerMTok": null,
-      "textInputPerMTok": null,
-      "textOutputPerMTok": null,
-      "cachedInputPerMTok": null,
-      "source": "https://openai.com/api/pricing/",
-      "checkedOn": null,
-      "checkedBy": null
+      "audioInputPerMTok": 32.00,
+      "audioOutputPerMTok": 64.00,
+      "textInputPerMTok": 4.00,
+      "textOutputPerMTok": 16.00,
+      "cachedInputPerMTok": 0.40,
+      "source": "https://developers.openai.com/api/docs/models/gpt-realtime",
+      "checkedOn": "2026-10-16",
+      "checkedBy": "Paawan (official page read 2026-10-16)",
+      "note": "Deprecated; prices from its model page (no longer on the main pricing page). Removal 2027-01-20, replaced by gpt-realtime-2.1."
     }
   ]
 }

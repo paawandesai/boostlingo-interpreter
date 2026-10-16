@@ -18,7 +18,8 @@ accuracy, output-check flags and cost per minute. Rules it follows (docs/GUARDRA
   exported them) times the matching price in config/prices.json, mapped exactly as
   web/src/session/cost.ts does. Filling a price and re-running changes the cost column without
   re-exporting. A null price leaves its component unpriced and the mode without a cost per minute;
-  nothing is ever estimated. The logs on disk are never modified.
+  nothing is ever estimated. A billed component the log has no quantity for (REQUIRED_LINES) is
+  named in the cost column, not counted as free. The logs on disk are never modified.
 """
 
 from __future__ import annotations
@@ -97,6 +98,13 @@ LINE_PRICES: list[tuple[re.Pattern[str], str, str]] = [
         "cachedInputPerMTok",
     ),
 ]
+# Billed components a mode's export may lack a quantity for: line prefix -> what to call it. A
+# missing quantity is not a zero cost, so the cost column names what it leaves out.
+REQUIRED_LINES: dict[str, list[tuple[str, str]]] = {
+    "cascade": [("STT (", "STT")],
+    # Realtime bills its input transcription separately; the browser never exported a line for it.
+    "realtime": [("Realtime input transcription", "input transcription")],
+}
 # The unit each price field is quoted in; a line in any other unit stays unpriced, never rescaled.
 PRICE_UNITS = {"perMinute": "min", "perThousandCharacters": "k chars"}  # else MTok
 STT_UPPER_BOUND = "upper bound: session minutes"
@@ -261,6 +269,7 @@ def summarize(
             "minutes": 0.0,
             "cost": 0.0,
             "unpriced": set(),
+            "missing": set(),
             "stt_upper_bound": False,
             "providers": set(),
         }
@@ -286,6 +295,10 @@ def summarize(
                 cost = reprice(cost, prices, minutes)
             agg["cost"] += cost.get("pricedTotal", 0)
             agg["unpriced"].update(cost.get("unpriced", []))
+            components = [x["component"] for x in cost.get("lines", [])]
+            for prefix, label in REQUIRED_LINES.get(m["mode"], []):
+                if not any(c.startswith(prefix) for c in components):
+                    agg["missing"].add(label)
             agg["stt_upper_bound"] |= any(
                 STT_UPPER_BOUND in x["component"] for x in cost.get("lines", [])
             )
@@ -440,6 +453,8 @@ def render(modes: dict, inputs: list[str]) -> str:
             cost = f"${agg['cost'] / agg['minutes']:.4f}"
             if agg["stt_upper_bound"]:
                 cost = f"≤ {cost} (upper bound: STT charged for the whole session)"
+            if agg["missing"]:
+                cost += f" (excludes {', '.join(sorted(agg['missing']))}: no quantity in the log)"
         else:
             cost = "–"
         lines.append(

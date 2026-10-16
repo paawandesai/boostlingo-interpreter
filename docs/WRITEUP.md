@@ -2,13 +2,15 @@
 
 > Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers await
 > Paawan: a vendor page, citation or figure to check, or an opinion to restate in their own words.
+> Vendor prices, data terms and legal citations were read on the official pages on 2026-10-16 (the
+> Claude Haiku price on 2026-10-14).
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
 
 Three modes behind one UI: *Cascade* (streaming STT → LLM translator → streaming TTS on our server),
 *Realtime* (`gpt-realtime-2.1` speech-to-speech over WebRTC, instructed only to interpret, no tools)
-and *Realtime translate* (`gpt-realtime-translate`, which takes only a target language). The brief's `gpt-realtime` is deprecated (removal 2027-01-20 **[VERIFY]**); it is selectable
+and *Realtime translate* (`gpt-realtime-translate`, which takes only a target language). The brief's `gpt-realtime` is deprecated (removal 2027-01-20 per OpenAI's deprecations page); it is selectable
 in the setup screen with no code change but is not the default, and all Realtime numbers here are for
 `gpt-realtime-2.1`: `gpt-realtime` minted sessions (2026-10-14) but was never measured, because OpenAI
 credit ran out on 2026-10-15 (`docs/ACCEPTANCE.md`). Stack: .NET 10 server, TypeScript SPA; the
@@ -94,21 +96,19 @@ is recorded speech, checked references and Paawan's own rubric, scored with the 
 
 | Mode | Billing unit | Price | Per minute |
 |---|---|---|---|
-| Cascade | STT minutes + translator tokens + TTS characters | Claude translator $0.10 / $0.50 per M tokens in/out (checked 2026-10-14); STT and TTS **[VERIFY]** | not computed |
-| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | **[VERIFY]** | not computed |
-| Realtime translate | session minutes | $0.034/min per the project guardrails **[VERIFY]** | $0.034 if confirmed |
+| Cascade | STT minutes + translator tokens + TTS characters | Translator per M tokens in/out: Claude Haiku $0.10 / $0.50, `gpt-5.4-mini` $0.75 / $4.50; OpenAI STT about $0.006/min (OpenAI's estimate); ElevenLabs Flash $0.04 per 1,000 characters; Deepgram Nova-3 streaming $0.0077/min list ($0.0048 under a current promotion) | Claude $0.0149–0.0209; OpenAI translator $0.0193–0.0253 |
+| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | `gpt-realtime-2.1` per M tokens: audio $32 in / $64 out, text $4 in / $24 out, cached input $0.40 | $0.2023 plus input transcription |
+| Realtime translate | minutes of audio | $0.034/min | $0.034 |
 
-OpenAI's and ElevenLabs' pricing pages could not be reached from the cloud container, and
-`config/prices.json` never estimates, so these stay blank. Once Paawan fills the prices (including
-`cachedInputPerMTok`, null today on both realtime entries), re-run
-`python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json` and the cost column fills
-from the token, character and minute counts already in the logs; unpriced components stay listed.
-Realtime's cached input tokens are priced at the cached rate (one cached count covers text and
-audio, so it is taken off text input first, then audio), and its separately billed input
-transcription is not captured in these logs. The cascade logs carry no STT minutes (the browser
-emitted them only on End), so a cascade cost per minute needs a re-export or
-`--stt-minutes-from-session`, an explicitly labelled upper bound that charges the whole session at
-the STT per-minute price. Cascade costs three vendors; the Realtime modes cost one.
+Costs are `eval/summarize.py` on the four 2026-10-15 replay logs, priced from `config/prices.json`
+(`eval/results/summary.md`). Neither range is complete. The cascade logs carry no STT minutes (the
+browser emitted them only on End), so the low end leaves STT out and the high end
+(`--stt-minutes-from-session`) charges STT for the whole session, an upper bound. Realtime's
+separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and has no
+price entry, so its figure is a floor; its cached input tokens are priced at the cached rate (one
+cached count covers text and audio, so it is taken off text input first, then audio). On these
+runs Realtime costs about ten times either cascade, and Realtime translate about twice. Cascade
+costs three vendors; the Realtime modes cost one.
 
 ## 5. Controllability and compliance
 
@@ -144,15 +144,18 @@ config entry behind one interface: the STT swap (Deepgram to OpenAI transcriptio
 swap (OpenAI to Claude) were config-only, and every stage reports its own marks, so a slow or failing
 vendor is visible per stage. Realtime and Realtime translate are one vendor each: the model's time is
 opaque, no stage can be swapped, and leaving the vendor means a new transport, not a setting.
+Model lifecycle is part of the same risk: the brief's `gpt-realtime` is already deprecated, and the
+cascade's OpenAI STT fallback (`gpt-4o-transcribe`) is listed for shutdown on 2027-02-26. Both are
+config entries here, but a replacement must be re-tested and re-measured before it is trusted.
 
 **Data flows.**
 
 | Vendor | Used in | Default retention | Zero retention | BAA |
 |---|---|---|---|---|
-| OpenAI | Realtime, Realtime translate, cascade STT | abuse logs up to 30 days **[VERIFY]** | by approval **[VERIFY]** | realtime/audio only with Healthcare Addendum and Modified Retention **[VERIFY]** |
-| Anthropic | cascade translator | **[VERIFY]** | **[VERIFY]** | **[VERIFY]** |
-| ElevenLabs | cascade TTS | **[VERIFY]** | enterprise only **[VERIFY]** | **[VERIFY]** |
-| Deepgram (adapter only) | cascade STT | **[VERIFY]**; `mip_opt_out=true` sent | **[VERIFY]** | **[VERIFY]** |
+| OpenAI | Realtime, Realtime translate, cascade STT | abuse-monitoring logs up to 30 days by default (30 days listed for `/v1/realtime`; none for `/v1/audio/transcriptions`); API data not used for training by default | Zero Data Retention or Modified Abuse Monitoring, by OpenAI's prior approval | `/v1/realtime` and `/v1/audio/{transcriptions,translations,speech}` are eligible with an executed BAA and Modified Retention, unless OpenAI specifies otherwise; **`/v1/realtime/translations` (Realtime translate) is not on the eligible list** |
+| Anthropic | cascade translator | prompts and outputs not retained by default (Covered Models 30 days; flagged sessions up to 2 years); never used for training without permission (fetched 2026-10-16) | per organization, through Anthropic sales (fetched 2026-10-16) | available: executed in the Claude Console for HIPAA-enabled organizations, eligible API features only (fetched 2026-10-16) |
+| ElevenLabs | cascade TTS | TTS text and audio kept by default (history on), no period stated; deleted items stay in backups up to 30 days; non-enterprise data used to improve models unless the account turns off "Data use" | Zero Retention Mode, select enterprise customers only | listed as an Enterprise plan feature |
+| Deepgram (adapter only) | cascade STT | audio retained by default to improve models, no period stated; `mip_opt_out=true` is sent, so audio is kept only as long as needed to process the request | none published beyond the opt-out | on request for covered entities (docs); the pricing page lists it for Enterprise |
 
 No BAA or zero-retention terms are in place for this project, and it is not HIPAA-compliant.
 Cascade sends the conversation to three vendors at once, so a covered deployment needs three
@@ -162,10 +165,11 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 
 | Scenario | Recommendation | Why |
 |---|---|---|
-| Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. Latency comparable on synthetic audio. |
+| Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. |
+| Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime or cascade, only with each vendor's BAA and zero- or modified-retention terms signed; not Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. Cascade needs three agreements, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
-| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | AI here is not a "qualified interpreter" under ACA Section 1557 (45 CFR 92.4 and 92.201(c)) **[VERIFY]**, and the project guardrails read California AB 1242 as excluding unreviewed AI **[VERIFY: CA AB 1242]**; court and deposition work needs certified interpreters **[VERIFY: cite the federal (28 U.S.C. §1827) and state rule]**. Latency and cost are secondary. |
+| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation must be reviewed by a qualified human translator when the text is critical to rights, benefits or meaningful access, when accuracy is essential, or when the source is complex or technical (45 CFR 92.201(c)(3)); 92.4 defines machine translation as text-based, and spoken interpretation falls under the separate qualified-interpreter requirement in (c)(1). California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law. In proceedings instituted by the United States, federal courts use the most available certified interpreter, or an otherwise qualified one (28 U.S.C. §1827(d)(1)); California courts require certified or registered interpreters (Gov. Code §68561), with narrow provisional and temporary exceptions (Cal. Rules of Court 2.893). Latency and cost are secondary. |
 
 ## 7. What this does not show
 
@@ -173,7 +177,8 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
   (154 of 158 drafted by Claude, approved by Paawan), no second rater.
 - All Realtime numbers are for `gpt-realtime-2.1`; the brief's `gpt-realtime` was never measured.
 - No Deepgram numbers; one Realtime translate start-lag sample; no run reached 50 latency samples.
-- No prices for STT, TTS or OpenAI models, so no cost per minute.
+- Cost per minute is a range for cascade (no STT minutes in the logs) and a floor for Realtime
+  (input transcription not captured); STT is priced at OpenAI's own per-minute estimate.
 - Heap grew more than 10% from minute 1 in every mode but Realtime translate; cascade dropped
   22–26 s of late interpreter audio per 5-minute replay to stay in sync.
 - Cascade's sentence-tail loss under replay (section 3) was the replay's turn-taking; only one

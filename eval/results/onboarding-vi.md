@@ -43,7 +43,7 @@ prints (2026-10-16):
 
 | Mode | Lines (final) | Matched to script | chrF | STT WER | Glossary | Output-check flags | Cost/min |
 |---|---|---|---|---|---|---|---|
-| Cascade (anthropic translator) | 13 of 14 | 8 | 90.8 | withheld (Deepgram) | – | none | unpriced: TTS (elevenlabs) |
+| Cascade (anthropic translator) | 13 of 14 | 8 | 90.8 | withheld (Deepgram) | – | none | $0.0140 (excludes STT: no quantity in the log) |
 
 Read the chrF with these caveats:
 

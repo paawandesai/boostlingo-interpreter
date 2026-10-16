@@ -58,10 +58,10 @@ unverified; quality numbers are a rough signal until Paawan checks them and scor
 
 | Mode | Lines (final) | Matched to script | chrF | STT WER | Glossary | Output-check flags | Cost/min |
 |---|---|---|---|---|---|---|---|
-| Cascade (anthropic translator) | 56 of 57 | 48 | 59.1 | 36.0% | 1/10 | omission 3, wrong_language 2 | unpriced: TTS (elevenlabs) |
-| Cascade (openai translator) | 62 of 63 | 49 | 58.0 | 33.9% | 2/10 | none | unpriced: TTS (elevenlabs), Translation input (openai), Translation output (openai) |
-| Realtime | 27 of 29 | 13 | 70.9 | n/a (not STT) | 0/2 | length_ratio 1 | unpriced: Realtime audio input (gpt-realtime-2.1), Realtime audio output (gpt-realtime-2.1), Realtime text input (gpt-realtime-2.1), Realtime text output (gpt-realtime-2.1) |
-| Realtime translate | 70 of 71 | 64 | 69.4 | n/a (not STT) | 11/15 | length_ratio 7, wrong_language 1 | unpriced: Realtime translate (session time) |
+| Cascade (anthropic translator) | 56 of 57 | 48 | 59.1 | 36.0% | 1/10 | omission 3, wrong_language 2 | $0.0149 (excludes STT: no quantity in the log) |
+| Cascade (openai translator) | 62 of 63 | 49 | 58.0 | 33.9% | 2/10 | none | $0.0193 (excludes STT: no quantity in the log) |
+| Realtime | 27 of 29 | 13 | 70.9 | n/a (not STT) | 0/2 | length_ratio 1 | $0.2023 (excludes input transcription: no quantity in the log) |
+| Realtime translate | 70 of 71 | 64 | 69.4 | n/a (not STT) | 11/15 | length_ratio 7, wrong_language 1 | $0.0340 |
 
 WER compares cascade STT text with the script line (normalised: lower case, no punctuation).
 chrF compares the translation with the script's reference. Neither is computed between modes.
