@@ -6,7 +6,7 @@ import { AudioCheck } from './components/AudioCheck'
 import { BackendStatus } from './components/BackendStatus'
 import { LiveSession } from './components/LiveSession'
 import { SetupPanel } from './components/SetupPanel'
-import { fetchLanguages, translateSupported, type LanguagesResponse } from './session/languages'
+import { defaultMode, fetchLanguages, type LanguagesResponse } from './session/languages'
 import { initialState } from './session/store'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
 import { browserSummary, buildSessionLog, download } from './session/export'
@@ -37,8 +37,10 @@ export default function App() {
     fetchLanguages()
       .then((langs) => {
         setLanguages(langs)
-        // G17: translate is the default only where the model speaks both languages of the pair.
-        if (!translateSupported(langs, initialState.langA, initialState.langB)) configure({ mode: 'realtime' })
+        // G17: translate is the default only where the model speaks both languages of the pair; otherwise the
+        // first mode BAA mode does not block.
+        const mode = defaultMode(langs, initialState.langA, initialState.langB)
+        if (mode !== initialState.mode) configure({ mode })
       })
       .catch(() => {
         setLanguages(null)
