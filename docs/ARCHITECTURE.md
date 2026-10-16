@@ -45,10 +45,12 @@ flowchart LR
   Api -- "POST /v1/realtime/client_secrets (API key)" --> OAI
   Api -- "POST /v1/realtime/translations/client_secrets (API key)" --> OAT
   CT == "WS: PCM16 16 kHz up, PCM 24 kHz down, JSON events" ==> Api
-  Prov --> Vendors["Deepgram or OpenAI STT · OpenAI / Claude translation · ElevenLabs TTS"]
+  Prov --> Vendors["Deepgram or OpenAI STT · OpenAI / Claude translation · ElevenLabs or OpenAI TTS"]
 ```
 
 Every session needs the demo access token (`X-Access-Token`, checked server-side in constant time) and the mint endpoints and the cascade upgrade are rate-limited per client address (G2). Ephemeral secrets live 60 s and a session is capped at 30 minutes in every mode (G19).
+
+BAA mode (`Compliance:RequireBaa`, off by default; README "BAA mode", DECISIONS D18) makes the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's HIPAA-eligible list or whose vendor has no BAA declared in `Compliance:BaaSigned`, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. The eligibility table is `BaaRoutes` in `server/Interpreter.Api/Security/Compliance.cs`. Cascade passes only as OpenAI STT + Claude translator + OpenAI TTS (`Cascade:Tts=openai`, `/v1/audio/speech`).
 
 Rules enforced by tooling (see [ACCEPTANCE.md](ACCEPTANCE.md)):
 - `web/src/components/**` may not import a concrete transport: ESLint `no-restricted-imports` in `web/eslint.config.js` blocks `transports/*` and `transports/*/**` and allows only `transports/types` and `transports/index` (widened from `{realtime,cascade}` in dc09251). Components import only `transports/types`.
@@ -174,7 +176,7 @@ sequenceDiagram
   participant STT as IStreamingStt (Deepgram or OpenAI transcription)
   participant TR as IStreamingTranslator (OpenAI / Claude)
   participant FP as FlushPolicy
-  participant TTS as IStreamingTts (ElevenLabs)
+  participant TTS as IStreamingTts (ElevenLabs or OpenAI speech)
   B->>P: WS /ws/cascade, start {token, source, target, translator?, history}; ping/pong (clock offset)
   Note over B,P: speaker flip: B sends direction {source, target}; P finishes the turn in flight, then runs the new direction, carries finished turns, acks direction {source, target, t}. Error frames carry kind, provider, message.
   Mic->>B: PCM16 16 kHz frames
