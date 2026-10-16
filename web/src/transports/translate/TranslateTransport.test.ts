@@ -138,6 +138,24 @@ describe('TranslateTransport', () => {
     })
   })
 
+  it('reports a denied microphone, opens no peer connection and can still be stopped', async () => {
+    const { MicDeniedError, startCapture } = await import('../../audio/capture')
+    vi.mocked(startCapture).mockRejectedValueOnce(new MicDeniedError('Microphone access was denied'))
+    const peerBefore = FakePeer.last
+    const { TranslateTransport } = await import('./TranslateTransport')
+    const t = new TranslateTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'mic_denied', message: 'Microphone access was denied' })
+    expect(FakePeer.last).toBe(peerBefore)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // the secret was minted, no SDP exchange followed
+    await t.stop()
+    expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+  })
+
   it('stop() finishes open lines and releases everything', async () => {
     const { t, pc, events } = await started()
     pc.dc.open()

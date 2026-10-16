@@ -15,20 +15,31 @@ describe('fetchHealth', () => {
 })
 
 describe('missingConfig', () => {
-  it('lists unset keys and a missing access token, and nothing for an older server', () => {
-    const base = { status: 'ok', version: '1' }
+  const base = { status: 'ok', version: '1' }
+  const adapters = { cascadeStt: 'openai', cascadeTranslator: 'openai', cascadeTts: 'elevenlabs' }
+
+  it('shows the keys the server says are missing, after a missing access token', () => {
     expect(missingConfig(base)).toEqual([])
     expect(
       missingConfig({
         ...base,
-        config: {
-          accessTokenSet: false,
-          keys: { OPENAI_API_KEY: true, DEEPGRAM_API_KEY: false },
-          cascadeStt: 'deepgram',
-          cascadeTranslator: 'openai',
-          cascadeTts: 'elevenlabs',
-        },
+        config: { accessTokenSet: false, keys: { A_KEY: true, B_KEY: false }, ...adapters, missing: ['B_KEY'] },
       }),
-    ).toEqual(['DEMO_ACCESS_TOKEN', 'DEEPGRAM_API_KEY'])
+    ).toEqual(['DEMO_ACCESS_TOKEN', 'B_KEY'])
+    expect(
+      missingConfig({
+        ...base,
+        config: { accessTokenSet: true, keys: { A_KEY: true, B_KEY: false }, ...adapters, missing: [] },
+      }),
+    ).toEqual([])
+  })
+
+  it('lists every unset key when an older server sends no missing list', () => {
+    expect(
+      missingConfig({
+        ...base,
+        config: { accessTokenSet: true, keys: { A_KEY: false, B_KEY: true, C_KEY: false }, ...adapters },
+      }),
+    ).toEqual(['A_KEY', 'C_KEY'])
   })
 })

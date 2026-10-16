@@ -7,7 +7,10 @@ namespace Interpreter.Core.Cascade;
 
 /// <summary>One cascade session's settings. Language names go to the translator, codes to STT and TTS.</summary>
 /// <param name="ContextPairs">How many recent source/target pairs the translator sees.</param>
-/// <param name="History">Finished pairs from before this session's socket (G9); context only, never re-translated.</param>
+/// <param name="History">Finished pairs from before this run (G9): an earlier socket, or the other direction on
+/// this one. Context only, never re-translated.</param>
+/// <param name="FirstUtterance">Id of the first utterance. A direction change on one connection starts a new
+/// run, and its ids continue where the last one stopped so the client never sees an id twice.</param>
 public sealed record CascadeSettings(
     string SourceCode,
     string SourceName,
@@ -19,7 +22,8 @@ public sealed record CascadeSettings(
     IReadOnlyList<string>? Keyterms = null,
     IReadOnlyDictionary<string, string>? Glossary = null,
     RetryOptions? Retry = null,
-    IReadOnlyList<(string Source, string Target)>? History = null);
+    IReadOnlyList<(string Source, string Target)>? History = null,
+    int FirstUtterance = 1);
 
 /// <summary>
 /// Retries for a translation that fails with a rate limit or timeout before its first token (T3.4).
@@ -63,8 +67,11 @@ public sealed record UtteranceUsage(int Utterance, int? InputTokens, int? Output
     : CascadeEvent(Utterance);
 
 /// <param name="Stage">"stt", "translation" or "tts".</param>
+/// <param name="Message">The adapter's own words (a fixed string per failure, never vendor payloads), so the
+/// UI can say which key is missing or what timed out.</param>
 /// <param name="RetryAfterMs">The provider's Retry-After, when it sent one.</param>
-public sealed record CascadeError(int Utterance, string Stage, string Provider, ProviderErrorKind Kind, double? RetryAfterMs = null)
+public sealed record CascadeError(
+    int Utterance, string Stage, string Provider, ProviderErrorKind Kind, string Message, double? RetryAfterMs = null)
     : CascadeEvent(Utterance);
 
 /// <summary>A failed call is being retried after <see cref="DelayMs"/>; attempt 1 is the first retry.</summary>
@@ -143,8 +150,8 @@ public sealed class CascadePipeline(
         private readonly CascadeSettings _s = s;
         private readonly CancellationToken _ct = ct;
         private readonly Channel<Utterance> _utterances = Channel.CreateBounded<Utterance>(QueueCapacity);
-        // Seeded with turns from before this socket (a speaker switch or a mode switch, G9), so the
-        // translator keeps pronouns and register across the reconnect.
+        // Seeded with turns from before this run (the other direction on this socket, a reopened socket
+        // or a mode switch, G9), so the translator keeps pronouns and register across the restart.
         private readonly Queue<(string Source, string Target)> _context =
             new((s.History ?? []).TakeLast(Math.Max(0, s.ContextPairs)));
         private readonly FlushOptions _flush = s.Flush ?? new FlushOptions();
@@ -159,7 +166,7 @@ public sealed class CascadePipeline(
         /// <summary>STT stage: splits the event stream into utterances and queues their finals.</summary>
         public async Task ListenAsync(IAsyncEnumerable<AudioFrame> audio)
         {
-            var nextId = 1;
+            var nextId = Math.Max(1, _s.FirstUtterance);
             Utterance? current = null;
             // Endpoints seen while the previous utterance still waits for its final (OpenAI transcribes after
             // speech stops, so a quick next turn can end first). Each belongs to the next utterance opened.
@@ -228,7 +235,7 @@ public sealed class CascadePipeline(
             }
             catch (ProviderException ex)
             {
-                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
             }
             finally
             {
@@ -309,7 +316,7 @@ public sealed class CascadePipeline(
                 }
                 catch (ProviderException ex)
                 {
-                    await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                    await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
                     return false;
                 }
             }
@@ -432,7 +439,7 @@ public sealed class CascadePipeline(
                 {
                     _failed = true;
                     _text!.Writer.TryComplete();
-                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
                 }
             }
         }

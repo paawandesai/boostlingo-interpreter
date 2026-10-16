@@ -53,7 +53,8 @@ class ScoreTests(unittest.TestCase):
                 score.blind(str(key), [str(a), str(b)])
             rows = list(csv.DictReader(io.StringIO(buf.getvalue())))
             self.assertNotIn("mode", rows[0])
-            keyed = {r["row"]: r["mode"] for r in csv.DictReader(key.open())}
+            with key.open(newline="") as f:
+                keyed = {r["row"]: r["mode"] for r in csv.DictReader(f)}
             for r in rows:
                 r["label"] = (
                     "faithful" if keyed[r["row"]] == "translate" else "answered"

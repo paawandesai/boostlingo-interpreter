@@ -44,12 +44,15 @@ public static class RealtimeEndpoints
     /// <summary>WebRTC SDP exchange URL (GA). Verified live 2026-10-14: POST with the ek_ secret returns 201 + SDP answer.</summary>
     public const string CallsUrl = "https://api.openai.com/v1/realtime/calls";
 
+    /// <summary>A mint request is two language codes and a model name; anything bigger is refused unread.</summary>
+    public const long MintBodyLimit = 4 * 1024;
+
     public static IEndpointRouteBuilder MapRealtimeEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/realtime/models", (IRealtimeSessionMinter minter) =>
             Results.Ok(new RealtimeModelsResponse(minter.DefaultModel, minter.AllowedModels)));
-        app.MapPost("/api/realtime/session", CreateSession).RequireAccess();
-        app.MapPost("/api/realtime/translation-session", CreateTranslationSession).RequireAccess();
+        app.MapPost("/api/realtime/session", CreateSession).RequireAccess().WithMaxRequestBodySize(MintBodyLimit);
+        app.MapPost("/api/realtime/translation-session", CreateTranslationSession).RequireAccess().WithMaxRequestBodySize(MintBodyLimit);
         return app;
     }
 

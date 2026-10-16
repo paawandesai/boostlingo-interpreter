@@ -4,7 +4,7 @@ import { getAccessToken, setAccessToken } from '../session/access'
 import { translateSupported, type LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
 import { vendorsFor } from '../session/providers'
-import type { RealtimeModels } from '../session/models'
+import { realtimeModelLabel, type RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
 import { ConsentNotice } from './ConsentNotice'
@@ -49,6 +49,10 @@ export function SetupPanel({
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
   const canTranslate = translateSupported(languages, state.langA, state.langB)
+  // Start waits for the two things a session cannot do without: the server's access token (an
+  // empty one is refused with 401 before any provider is reached) and both parties' consent (G7).
+  const blocker =
+    token.trim() === '' ? 'Enter the access token first' : consented ? null : 'Confirm both parties agreed first'
   return (
     <section aria-labelledby="setup-h" className="panel setup">
       <h2 id="setup-h">New session</h2>
@@ -109,7 +113,7 @@ export function SetupPanel({
           >
             {models.allowed.map((m) => (
               <option key={m} value={m}>
-                {m === models.default ? `${m} (default)` : m}
+                {realtimeModelLabel(m, models)}
               </option>
             ))}
           </select>
@@ -196,8 +200,8 @@ export function SetupPanel({
         <button
           type="button"
           className="primary"
-          disabled={!consented}
-          title={consented ? undefined : 'Confirm both parties agreed first'}
+          disabled={blocker !== null}
+          title={blocker ?? undefined}
           onClick={() => onStart({ spokenNotice: spoken })}
         >
           Start session

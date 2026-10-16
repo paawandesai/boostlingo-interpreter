@@ -7,6 +7,7 @@
 # DEMO_ACCESS_TOKEN. Their values go straight into SSM Parameter Store (SecureString, free tier)
 # through a private temp file, never a command-line argument, and are never printed.
 # Optional: STACK (interpreter-demo), SHUTDOWN_AT (UTC, default 14 days from now), IMAGE_TAG.
+# Tear down: infra/teardown.sh removes the stack, the four parameters and the ECR repository.
 set -euo pipefail
 
 STACK=${STACK:-interpreter-demo}
@@ -58,4 +59,4 @@ aws cloudformation deploy --stack-name "$STACK" --template-file infra/demo.yml \
   --parameter-overrides ImageUri="$REGISTRY/$REPO:$TAG" VpcId="$VPC" SubnetId="$SUBNET" \
   ParameterPath="/$STACK" CloudFrontPrefixListId="$PREFIX" ShutdownAt="$SHUTDOWN_AT"
 aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].Outputs' --output table
-echo "The instance stops at $SHUTDOWN_AT UTC. Tear down: aws cloudformation delete-stack --stack-name $STACK"
+echo "The instance stops at $SHUTDOWN_AT UTC. Tear down (stack, parameters, ECR): STACK=$STACK bash infra/teardown.sh"

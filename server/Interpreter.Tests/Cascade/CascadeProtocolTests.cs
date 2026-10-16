@@ -1,4 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Interpreter.Api.Cascade;
+using Interpreter.Core.Cascade;
+using Interpreter.Core.Errors;
 
 namespace Interpreter.Tests.Cascade;
 
@@ -24,5 +28,27 @@ public class CascadeProtocolTests
     public void No_history_is_an_empty_list()
     {
         Assert.Empty(CascadeProtocol.History(new CascadeProtocol.Start("start", "tok", "en", "es", null)));
+    }
+
+    [Fact]
+    public void Error_frames_carry_the_adapters_message()
+    {
+        var error = new CascadeError(3, "stt", "deepgram", ProviderErrorKind.Auth, "DEEPGRAM_API_KEY is not configured on the server");
+
+        var frame = JsonNode.Parse(JsonSerializer.Serialize(CascadeProtocol.ToWire(error), CascadeProtocol.Json))!;
+
+        Assert.Equal("error", (string?)frame["type"]);
+        Assert.Equal(3, (int?)frame["u"]);
+        Assert.Equal("Auth", (string?)frame["kind"]);
+        Assert.Equal("DEEPGRAM_API_KEY is not configured on the server", (string?)frame["message"]);
+    }
+
+    [Fact]
+    public void A_direction_message_carries_the_new_languages()
+    {
+        var control = JsonSerializer.Deserialize<CascadeProtocol.ClientMessage>(
+            """{"type":"direction","source":"es","target":"en"}""", CascadeProtocol.Json)!;
+
+        Assert.Equal(("direction", "es", "en"), (control.Type, control.Source, control.Target));
     }
 }

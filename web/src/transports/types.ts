@@ -18,11 +18,16 @@ export interface SessionConfig {
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
   /**
-   * Finished turns from before this connection (G9): a mode switch or a cascade speaker switch starts a
-   * new connection, and these are sent along as context data so the new one keeps names and register.
-   * Read at connect time; the newest last.
+   * Finished turns from before this connection (G9): a mode switch, or a cascade socket reopened after it
+   * dropped, starts a new connection, and these are sent along as context data so the new one keeps names
+   * and register. Read at connect time; the newest last.
    */
   history?: () => HistoryPair[]
+}
+
+/** Source and target language for the side that is speaking. */
+export function direction(config: SessionConfig, side: SpeakerSide): [string, string] {
+  return side === 'A' ? [config.langA, config.langB] : [config.langB, config.langA]
 }
 
 export interface HistoryPair {
@@ -67,9 +72,12 @@ export interface Usage {
   inputTextTokens?: number
   outputTextTokens?: number
   cachedTokens?: number
+  /** The cached input split by modality (Realtime reports it under input_token_details.cached_tokens_details). */
+  cachedTextTokens?: number
+  cachedAudioTokens?: number
   /** Characters sent to cascade TTS. */
   ttsCharacters?: number
-  /** Seconds of audio streamed to cascade STT (session-level usage events only). */
+  /** Seconds of audio streamed to cascade STT since the last report (session-level usage events; the store sums them). */
   sttAudioSeconds?: number
 }
 

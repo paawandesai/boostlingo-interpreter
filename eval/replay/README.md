@@ -1,8 +1,8 @@
 # Replay set (T3.6, G10)
 
-`scripts.jsonl` holds 65 utterances: 20 English and 20 Spanish conversation lines, 15 adversarial lines (questions to the interpreter, instructions, fillers, one-word turns) and 10 medical lines that use the glossary terms in `config/glossary.json`. Each row has the source `text`, the `reference` translation and, for medical rows, the glossary `terms` it should contain.
+`scripts.jsonl` holds 70 utterances: 65 English/Spanish lines (20 English and 20 Spanish conversation lines, 15 adversarial lines with questions to the interpreter, instructions, fillers and one-word turns, and 10 medical lines that use the glossary terms in `config/glossary.json`) plus 5 Vietnamese onboarding lines with English references (T4.1, `eval/results/onboarding-vi.md`). `python3 eval/replay/check.py` prints the count per group. Each row has the source `text`, the `reference` translation and, for medical rows, the glossary `terms` it should contain.
 
-**Unverified.** The model wrote every line and every reference translation. A fluent Spanish speaker must check the references before any quality number (chrF, COMET, glossary accuracy) is quoted; until then they are listed in AI_USAGE.md as unverified. Register is mixed (usted vs tú) on purpose in a few adversarial lines.
+**Unverified.** The model wrote every line and every reference translation. A fluent Spanish speaker must check the references (and a Vietnamese speaker the 5 onboarding lines) before any quality number (chrF, COMET, glossary accuracy) is quoted; until then they are listed in AI_USAGE.md as unverified. The 2026-10-15 replay runs (`eval/results/summary.md`, docs/WRITEUP.md) used synthetic clips of these lines, so their numbers are labelled synthetic. Register is mixed (usted vs tú) on purpose in a few adversarial lines.
 
 ## Audio
 

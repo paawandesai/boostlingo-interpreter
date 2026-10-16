@@ -38,7 +38,30 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
         Assert.True(body.Config!.AccessTokenSet);
         Assert.True(body.Config.Keys["OPENAI_API_KEY"]);
         Assert.False(body.Config.Keys["DEEPGRAM_API_KEY"]);
-        Assert.Equal("deepgram", body.Config.CascadeStt);
+        // The default STT is deepgram, but with no Deepgram key and an OpenAI key the openai adapter serves.
+        Assert.Equal("openai", body.Config.CascadeStt);
+        // Deepgram is not in use, so its key is not missing; the keys of the adapters in use that are unset are.
+        Assert.DoesNotContain("DEEPGRAM_API_KEY", body.Config.Missing);
+        Assert.All(body.Config.Missing, k => Assert.False(body.Config.Keys[k]));
+    }
+
+    [Fact]
+    public async Task Health_lists_only_the_unset_keys_the_configured_adapters_need()
+    {
+        var client = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("OPENAI_API_KEY", "health-test-placeholder-value");
+            b.UseSetting("DEEPGRAM_API_KEY", "");
+            b.UseSetting("ELEVENLABS_API_KEY", "");
+            b.UseSetting("CLAUDE_TRANSLATOR_API_KEY", "");
+            b.UseSetting("Cascade:Stt", "openai");
+            b.UseSetting("Cascade:Translator", "anthropic");
+            b.UseSetting("Cascade:Tts", "elevenlabs");
+        }).CreateClient();
+
+        var body = await client.GetFromJsonAsync<HealthResponse>("/health", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["CLAUDE_TRANSLATOR_API_KEY", "ELEVENLABS_API_KEY"], body!.Config!.Missing);
     }
 
     [Fact]

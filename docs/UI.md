@@ -1,5 +1,7 @@
 # UI spec (T0.3)
 
+> **Status: Day 1 design spec, kept as written.** Sections 1–4 are the research, flows, states and component plan from T0.3 (2026-10-14). The app was built to the v2 design and deviates from this page in several places; the "As built" section at the end lists the real components under `web/src/components/` and the differences. Where they disagree, the code and [ARCHITECTURE.md](ARCHITECTURE.md) describe what exists.
+
 **Design:** [Interpreter Workbench UI v2](https://claude.ai/artifact/QXMtSYuAfM3QhBQfatd7W4) (Claude Design canvas, 2026-10-15: A setup, B live session, C failure states, B at phone width), built from the prompt in the project notes. It adds Realtime translate, the consent step and the human handoff. The Day 1 canvas is [Interpreter Workbench UI](https://claude.ai/artifact/DNKbvX67vqPjUKU6XWfZ5P). Both are private until Paawan shares them.
 
 T1.4, T1.6, T2.6, T3.2 and T3.4 build to this page. Scope is three screens only: no animations, theming or design system. The brief scores function, not polish. Typeface in the design is IBM Plex Sans / Plex Mono; the app may fall back to `system-ui` and `ui-monospace`.
@@ -143,6 +145,37 @@ Accessibility rules:
 - States always pair colour with a text label.
 - Numbers use `--font-mono` with tabular-nums.
 - Respect `prefers-reduced-motion` (no animated bar growth).
+
+
+## As built (2026-10-15)
+
+Real files under `web/src/components/` (the session state machine is `web/src/App.tsx` with `web/src/session/store.ts` and `useSession.ts`, not a component):
+
+| File | Role |
+|---|---|
+| `SetupPanel.tsx` | Screen A: mode (three-way `ModeToggle` with a one-line description per mode), language pair, who speaks first, Realtime model select (`gpt-realtime-2.1` default, `gpt-realtime`), glossary toggle, replay files (loop) or mic, access token, consent step (`ConsentNotice`), Start |
+| `ModeToggle.tsx` | `role="radiogroup"`: Realtime translate / Realtime / Cascade; translate is disabled when the pair is not supported |
+| `ConsentNotice.tsx` | AI-use notice in both languages with the vendors the chosen mode sends audio to; Start stays disabled until "Both parties were told and agree" is ticked; the notice is read aloud before the mic opens (G7) |
+| `AiBanner.tsx` | Persistent "AI interpretation, not a qualified human interpreter" banner |
+| `BackendStatus.tsx` | `/health` round trip: backend version and which keys are not set on the server |
+| `LiveSession.tsx` | Screen B/C: top bar (mode toggle, status lamp with text, pair, **Export log**, **Request human interpreter**, End with an "export first?" confirmation), Source / Target columns, speaker-side toggle, input level meter, `LatencyPanel`, `ErrorBanner` |
+| `SpeakerSideToggle.tsx` | `aria-pressed` button pair |
+| `TranscriptColumn.tsx` | `aria-live="polite"` column, last 40 lines rendered (the rest stay in the store and the export); Realtime source lines are labelled "approximate (separate ASR), confidence unknown"; low-confidence cascade lines are flagged; a refusal shows "[segment not interpreted — model declined]"; flagged lines offer the handoff |
+| `LatencyPanel.tsx` | Per-utterance stacked bars (latest 20), the hatched opaque segment, running p50/p95 and n per mode, the VAD threshold note |
+| `ErrorBanner.tsx` | `role="alert"`: one title and one recovery action per error kind, including mic denied ("Try again" with browser instructions) and WebRTC drop ("Reconnect") |
+| `AudioCheck.tsx` | Day 1 audio check (mic level, VAD marks, test tone through the scheduler with mic gating); superseded by the live screen |
+
+Deviations from sections 2–4 above:
+- **Three modes, not two.** Realtime translate (`gpt-realtime-translate`, G17) is the third option and the default for EN↔ES; the mode toggle is three-way and describes each mode.
+- **Consent step before Start** (G7): notice in both languages, vendor list per mode, a checkbox that gates Start, a spoken notice. Not in the Day 1 flow.
+- **Human handoff is a button, not a disabled slot:** "Request human interpreter" ends the AI session and inserts a marker; this demo has no interpreter queue behind it.
+- **No mute toggle and no cost meter.** The output-audio mute (pattern 9, §3 table) and the `CostMeter` slot were not built; cost is computed in the session log export from usage and `config/prices.json` instead (null prices show as unpriced). The status text shows when the mic is gated ("Interpreter speaking (mic muted)").
+- **Export is "Export log"** in the top bar, not "Download session.json"; End asks to export first because transcripts are discarded at End (G20).
+- **`LatencyPanel` replaces `LatencyWaterfall`, `WaterfallBar` and `StatsBar`;** the bars are not individually focusable. `StatusLamp` is a span inside `LiveSession`. `LanguagePairSelect`, `InputSourcePicker` and `LevelMeter` are inline inside `SetupPanel` and `LiveSession` (`<meter>` elements), and `ExportButton`, `UtteranceRow` and `SetupScreen` do not exist as files.
+- **Error states:** the banner has one action per kind and, for a rate limit, a static "retry after N s" note from `Retry-After` rather than the §2.8 countdown; the "Retry utterance / Skip" and "Replay audio / Show text only" pairs were not built. A retry in progress and dropped late audio are notices, not errors. Mic denied offers "Try again"; replay as the fallback is chosen on the setup screen, not from the banner.
+- **Extra controls** not in the design: Realtime model select, glossary toggle, access token field, replay-file loop.
+- **Speaker side** is explicit only (D10); the mode switch marker says the new mode got the last 6 turns as context, or none for Realtime translate (G9).
+- Design tokens: `web/src/index.css` carries the token names and colours from the block above, with IBM Plex Sans / Plex Mono ahead of the `system-ui` / `ui-monospace` fallbacks (v2 canvas).
 
 ## Sources
 - Google Translate: https://9to5google.com/2024/02/01/google-translate-conversation-redesign/ · https://www.tomsguide.com/computing/mobile-apps/i-wish-id-known-about-these-google-translate-features-before-i-went-on-vacation · https://www.neowin.net/news/google-translate-adds-dual-screen-conversation-mode-for-foldables/

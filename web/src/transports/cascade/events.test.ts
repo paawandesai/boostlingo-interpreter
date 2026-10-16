@@ -98,6 +98,23 @@ describe('CascadeEventParser', () => {
       kind: 'auth',
       message: 'Missing or wrong access token.',
     })
+    // A provider's own message (say, which key is missing on the server) beats the generic one.
+    expect(
+      p.parse({
+        type: 'error',
+        u: 1,
+        stage: 'stt',
+        provider: 'deepgram',
+        kind: 'Auth',
+        message: 'DEEPGRAM_API_KEY is not configured on the server',
+        t: 1,
+      })[0],
+    ).toEqual({
+      type: 'error',
+      kind: 'auth',
+      message: 'DEEPGRAM_API_KEY is not configured on the server',
+      utteranceId: 'c1-1',
+    })
   })
 
   it('maps per-utterance usage, leaving unreported token counts undefined', () => {

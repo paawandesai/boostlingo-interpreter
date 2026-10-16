@@ -61,6 +61,7 @@ export function LiveSession({
         <div className="topbar-actions">
           <button
             type="button"
+            aria-describedby="export-note"
             onClick={() => {
               onExport()
               setExportedCount(utterances.length)
@@ -81,8 +82,9 @@ export function LiveSession({
           </button>
         </div>
       </header>
-      <p id="end-note" className="meta end-note">
-        Ending discards the transcript. Export the log first to keep it.
+      <p className="meta end-note">
+        <span id="export-note">The export holds the full transcript; use it only for scripted test sessions.</span>{' '}
+        <span id="end-note">Ending discards the transcript. Export the log first to keep it.</span>
       </p>
       <div className="live-body">
         {confirmEnd && (

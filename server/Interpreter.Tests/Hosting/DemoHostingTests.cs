@@ -34,6 +34,18 @@ public sealed class DemoHostingTests(WebApplicationFactory<Program> factory) : I
     }
 
     [Fact]
+    public async Task Every_run_sends_the_security_headers()
+    {
+        var res = await Client().GetAsync("/health", TestContext.Current.CancellationToken);
+
+        Assert.Equal("nosniff", res.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("DENY", res.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal("no-referrer", res.Headers.GetValues("Referrer-Policy").Single());
+        Assert.Equal("microphone=(self), camera=(), geolocation=()", res.Headers.GetValues("Permissions-Policy").Single());
+        Assert.False(res.Headers.Contains("Content-Security-Policy"));
+    }
+
+    [Fact]
     public async Task Demo_serves_the_spa_with_noindex_and_keeps_unknown_api_paths_404()
     {
         await File.WriteAllTextAsync(Path.Combine(_spa, "index.html"), "<html>spa</html>", TestContext.Current.CancellationToken);
@@ -48,6 +60,7 @@ public sealed class DemoHostingTests(WebApplicationFactory<Program> factory) : I
         Assert.Equal("<html>spa</html>", await deep.Content.ReadAsStringAsync(ct));
         Assert.Equal(HttpStatusCode.NotFound, api.StatusCode);
         Assert.Equal("noindex, nofollow", root.Headers.GetValues("X-Robots-Tag").Single());
+        Assert.Equal("DENY", root.Headers.GetValues("X-Frame-Options").Single());
         Assert.Contains("Disallow: /", await client.GetStringAsync("/robots.txt", ct));
     }
 

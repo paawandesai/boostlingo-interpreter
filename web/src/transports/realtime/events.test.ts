@@ -57,6 +57,32 @@ describe('RealtimeEventParser', () => {
     })
   })
 
+  it('keeps the cached input split by modality when the API reports it', () => {
+    const parser = new RealtimeEventParser(() => 0)
+    const done = {
+      type: 'response.done',
+      response: {
+        id: 'resp_R2',
+        status: 'completed',
+        usage: {
+          input_tokens: 300,
+          output_tokens: 10,
+          input_token_details: {
+            audio_tokens: 100,
+            text_tokens: 200,
+            cached_tokens: 150,
+            cached_tokens_details: { text_tokens: 120, audio_tokens: 30 },
+          },
+          output_token_details: { audio_tokens: 8, text_tokens: 2 },
+        },
+      },
+    }
+
+    const usage = parser.parse(JSON.stringify(done)).find((e) => e.type === 'usage')
+
+    expect(usage).toMatchObject({ usage: { cachedTokens: 150, cachedTextTokens: 120, cachedAudioTokens: 30 } })
+  })
+
   it('maps an empty transcription to empty_transcript', () => {
     const events = runFixture([
       { type: 'input_audio_buffer.speech_stopped', item_id: 'i', audio_end_ms: 0 },

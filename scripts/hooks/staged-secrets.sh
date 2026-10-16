@@ -4,11 +4,20 @@
 # Lists broader keyword matches so the committer confirms nothing real is staged.
 set -e
 
-# Secret scanner (docs/GUARDRAILS.md). CI always runs it; locally it runs when installed.
+# Secret scanner (docs/GUARDRAILS.md). CI runs gitleaks over the full history on every pipeline.
+# Locally it runs when installed; without it the commit still goes through on the pattern check
+# below, and this notice (printed once per commit, this hook runs once) says so. It never fails
+# the commit for a missing gitleaks: not every machine has it.
 if command -v gitleaks >/dev/null 2>&1; then
   gitleaks git --pre-commit --staged --redact --no-banner .
 else
-  echo "Secret check: gitleaks not installed, so only the pattern check runs here (CI runs gitleaks). Install: brew install gitleaks" >&2
+  cat >&2 <<'EOF'
+Secret check: gitleaks is not installed, so this commit gets the pattern check only.
+  CI still runs gitleaks over the full history on every pipeline. To scan locally, install it once:
+    macOS: brew install gitleaks
+    Linux: a release binary from https://github.com/gitleaks/gitleaks/releases
+           (gitleaks_<version>_linux_x64.tar.gz; unpack it onto your PATH)
+EOF
 fi
 
 added=$(git diff --cached -U0 --no-color | grep -E '^\+' | grep -vE '^\+\+\+ ' || true)

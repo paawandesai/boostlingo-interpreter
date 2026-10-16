@@ -69,6 +69,33 @@ describe('sessionReducer', () => {
     expect(s.error).toBeNull()
   })
 
+  it('returns to the setup screen when the first connection of a session is refused', () => {
+    let s = sessionReducer(initialState, { type: 'started', at: 1000 })
+    s = run(
+      [
+        { type: 'state', state: 'connecting' },
+        { type: 'error', kind: 'auth', message: 'Missing or wrong access token.' },
+      ],
+      s,
+    )
+    expect(s.status).toBe('ended')
+    expect(s.error).toEqual({ kind: 'auth', message: 'Missing or wrong access token.' })
+    expect(s.segments).toEqual([])
+    // A late 'closed' from the transport changes nothing, and the next Start clears the banner.
+    expect(run([{ type: 'state', state: 'closed' }], s).status).toBe('ended')
+    expect(sessionReducer(s, { type: 'started' }).error).toBeNull()
+  })
+
+  it('stays on the live screen when a reconnect is refused, so the transcript can still be exported', () => {
+    let s = run([{ type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true }])
+    s = sessionReducer(s, { type: 'started' })
+    s = run([{ type: 'error', kind: 'auth', message: 'refused' }], s)
+    expect(s.status).toBe('connecting')
+    expect(s.error?.kind).toBe('auth')
+    expect(utterances(s)).toHaveLength(1)
+    expect(s.incidents).toEqual([{ mode: initialState.mode, kind: 'auth', message: 'refused' }])
+  })
+
   it('keeps STT confidence on the source line', () => {
     const s = run([{ type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hi', final: true, confidence: 0.5 }])
     expect(utterances(s)[0].source).toEqual({ text: 'Hi', final: true, confidence: 0.5 })

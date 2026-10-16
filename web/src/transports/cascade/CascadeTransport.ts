@@ -3,15 +3,18 @@
  * TTS with its own keys; the browser sends 16 kHz PCM16 and plays the 24 kHz PCM16 that comes back.
  *
  * Owns: mic capture (frames, client VAD marks), the socket, clock sync, the playback scheduler and the
- * half-duplex mic gate. stop() releases all of them. A speaker switch opens a new socket for the new
- * direction and keeps capture and playback; an utterance in flight is dropped (D12).
+ * half-duplex mic gate. stop() releases all of them. A speaker switch sends a direction message over the
+ * open socket and keeps capture and playback: the server finishes the turn in flight first, and everything
+ * it sends before its direction ack is the old direction's, shown and played as usual (only a mode switch
+ * drops an utterance, D12). The socket is only reopened when it dropped, because every upgrade spends one
+ * of the server's per-client rate-limit permits.
  */
 import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
 import { PlaybackScheduler } from '../../audio/playback'
 import { currentAccessToken } from '../../session/access'
-import { direction } from '../realtime/RealtimeTransport'
 import {
+  direction,
   HISTORY_PAIRS,
   TransportEmitter,
   type Mode,
@@ -25,6 +28,8 @@ import { CascadeEventParser } from './events'
 /** Capture worklet output rate (D6). */
 const STT_RATE = 16000
 const TTS_RATE = 24000
+/** STT audio time is reported to the store this often (T3.5), so an export taken before End has it. */
+const USAGE_REPORT_SECONDS = 5
 
 export class CascadeTransport implements Transport {
   readonly mode: Mode = 'cascade'
@@ -43,7 +48,7 @@ export class CascadeTransport implements Transport {
   private sockets = 0
   private firstOut = new Set<string>()
   private firstReceived = new Set<string>()
-  /** Samples sent to STT on this transport, reported as session usage on stop (T3.5). */
+  /** Samples sent to STT since the last usage report; the store sums the reports (T3.5). */
   private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
@@ -65,6 +70,7 @@ export class CascadeTransport implements Transport {
           if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(pcm as Int16Array<ArrayBuffer>)
             this.samplesSent += pcm.length
+            if (this.samplesSent >= USAGE_REPORT_SECONDS * STT_RATE) this.reportSttUsage()
           }
         },
         onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
@@ -83,7 +89,7 @@ export class CascadeTransport implements Transport {
             message: `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`,
           }),
       })
-      this.connect(config.speaker)
+      this.connect()
     } catch (e) {
       await this.release()
       this.emitter.emit(
@@ -97,23 +103,28 @@ export class CascadeTransport implements Transport {
   setSpeaker(side: SpeakerSide): void {
     if (!this.config || this.stopped) return
     this.config = { ...this.config, speaker: side }
-    this.playback?.stop()
-    this.connect(side)
+    const ws = this.ws
+    if (ws?.readyState === WebSocket.OPEN) {
+      // The server finishes the turn in flight, then runs the new direction on this socket; no new upgrade.
+      // Playback goes on: the old direction's speech still plays, gating the mic like any interpreter speech.
+      const [source, target] = direction(this.config, side)
+      ws.send(JSON.stringify({ type: 'direction', source, target }))
+    } else if (ws?.readyState !== WebSocket.CONNECTING) {
+      // No socket, or it dropped: reconnect. A socket still connecting reads the direction when it opens.
+      this.connect()
+    }
   }
 
   async stop(): Promise<void> {
     this.stopped = true
-    if (this.samplesSent > 0) {
-      this.emitter.emit({ type: 'usage', usage: { sttAudioSeconds: this.samplesSent / STT_RATE } })
-      this.samplesSent = 0
-    }
+    this.reportSttUsage()
     await this.release()
     this.emitter.emit({ type: 'state', state: 'closed' })
   }
 
-  private connect(side: SpeakerSide): void {
+  /** Opens a socket for the configured direction, closing the old one if any (a start or a reconnect). */
+  private connect(): void {
     this.closeSocket()
-    const [source, target] = direction(this.config!, side)
     const ws = new WebSocket(CascadeTransport.url())
     ws.binaryType = 'arraybuffer'
     this.ws = ws
@@ -124,16 +135,17 @@ export class CascadeTransport implements Transport {
     this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
-    const glossary = this.config!.glossary ?? false
     ws.onopen = () => {
-      const history = this.config?.history?.().slice(-HISTORY_PAIRS) ?? []
+      const config = this.config!
+      const [source, target] = direction(config, config.speaker)
+      const history = config.history?.().slice(-HISTORY_PAIRS) ?? []
       ws.send(
         JSON.stringify({
           type: 'start',
           token: currentAccessToken(),
           source,
           target,
-          glossary,
+          glossary: config.glossary ?? false,
           ...(history.length ? { history } : {}),
         }),
       )
@@ -167,6 +179,11 @@ export class CascadeTransport implements Transport {
       this.ready = true
       this.syncClock()
     }
+    if (json.type === 'direction') {
+      // The old direction's pipeline has delivered its last turn; whatever follows belongs to the new one.
+      if (this.parser) this.parser.speaking = null
+      return
+    }
     for (const ev of this.parser?.parse(json) ?? []) this.emitter.emit(ev)
   }
 
@@ -194,6 +211,13 @@ export class CascadeTransport implements Transport {
         utteranceId,
       })
     }
+  }
+
+  /** Reports the audio time sent to STT since the last report (T3.5) and starts a new count. */
+  private reportSttUsage(): void {
+    if (this.samplesSent === 0) return
+    this.emitter.emit({ type: 'usage', usage: { sttAudioSeconds: this.samplesSent / STT_RATE } })
+    this.samplesSent = 0
   }
 
   /** Five quick pings at connect, then one every 30 s (D9). */

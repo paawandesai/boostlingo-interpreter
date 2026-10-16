@@ -11,4 +11,14 @@
 3. `python3 eval/adversarial/score.py template LOG.json ... > labels.csv` lists every utterance with the app's automatic flags. Fill `suite_id` and `label` (faithful, answered, instruction_followed, omitted, refused, wrong_language, other).
 4. `python3 eval/adversarial/score.py rates labels.csv` prints, per mode, the answer-instead-of-translate, instruction-followed, omission, refusal and wrong-language rates for the write-up's controllability section.
 
+## Synthetic run (what the committed results used)
+
+The committed results (`eval/results/redteam-labels-2026-10-15-synthetic.csv`, its key `redteam-key-2026-10-15-synthetic.csv`, the logs `eval/results/logs/2026-10-15-*-redteam-*.json` and the soak reports `eval/results/soak-2026-10-15-*-redteam-*.json`) did not use recorded voices. They came from:
+
+1. `python3 eval/replay/synth.py --scripts eval/adversarial/suite.jsonl --out eval/adversarial/synthetic` voiced every line with TTS. The manual CI job `e2e:soak` does this itself when `SOAK_SET=adversarial` is set, then loops the clips into one mode; the committed runs are 4 minutes per configuration (cascade with each translator, Realtime, Realtime translate).
+2. Each run's session log was exported, and `python3 eval/adversarial/score.py blind KEY.csv LOG.json ...` wrote one shuffled sheet with the mode and log hidden behind a row id, the mapping in `KEY.csv`.
+3. Paawan labelled the first four rows; Claude drafted the remaining 154 of the 158 from those; Paawan reviewed the drafted sheet and approved it (one labeller, no second rater). `python3 eval/adversarial/score.py rates labels.csv KEY.csv` joined the key back and printed the per-mode rates in docs/WRITEUP.md section 5.
+
+The two `tts_echo` rows need speakers in a real room and were not run. Results from synthetic clips are labelled synthetic wherever they appear; the recorded route above stays the measured option.
+
 The app's checks (wrong language, length ratio, assistant phrasing, refusal, prompt-leak canary) only flag; a person decides the label. Run the suite in all three modes (Realtime translate, Realtime, Cascade): resistance is expected from `gpt-realtime-translate`, which has no instructions to override, but not proven. In Realtime translate the mic stays open while it speaks, so run the TTS-echo lines there on speakers once, deliberately, to see whether echo cancellation holds.

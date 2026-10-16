@@ -4,7 +4,8 @@ namespace Interpreter.Api.Hosting;
 
 /// <summary>
 /// Settings for the public demo deployment (T5, docs/GUARDRAILS.md G14). Local runs leave them unset,
-/// so nothing here changes the app outside the demo container.
+/// so nothing here changes the app outside the demo container, apart from the security response
+/// headers in <see cref="DemoHosting.UseDemoHosting"/>, which every run sends.
 /// </summary>
 public sealed class DemoHostingOptions
 {
@@ -26,9 +27,28 @@ public sealed class DemoHostingOptions
 
 public static class DemoHosting
 {
+    /// <summary>
+    /// Sent on every response: the page takes a typed access token and asks for the microphone, so it must
+    /// not be framed or MIME-sniffed, must leak no referrer, and may use the mic only from its own origin.
+    /// No Content-Security-Policy: the built SPA's inline script and style needs were not verified, and a
+    /// wrong policy would blank the page.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> SecurityHeaders = new Dictionary<string, string>
+    {
+        ["X-Content-Type-Options"] = "nosniff",
+        ["X-Frame-Options"] = "DENY",
+        ["Referrer-Policy"] = "no-referrer",
+        ["Permissions-Policy"] = "microphone=(self), camera=(), geolocation=()",
+    };
+
     public static WebApplication UseDemoHosting(this WebApplication app, IConfiguration config)
     {
         var opts = Options(config);
+        app.Use((ctx, next) =>
+        {
+            foreach (var (name, value) in SecurityHeaders) ctx.Response.Headers[name] = value;
+            return next(ctx);
+        });
         if (opts.ForwardLimit > 0)
         {
             var fwd = new ForwardedHeadersOptions

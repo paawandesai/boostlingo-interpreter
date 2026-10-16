@@ -107,16 +107,25 @@ export function computeCost(input: CostInput, prices: PriceList): CostReport {
       lines.push(line('Realtime translate (session time)', input.minutes, 'min', tr?.perMinute, tr))
   } else {
     const rt = find(prices, 'realtime:openai', providers.realtimeModel)
-    const parts: Array<[keyof Usage, string, number | null | undefined]> = [
-      ['inputAudioTokens', 'audio input', rt?.audioInputPerMTok],
-      ['outputAudioTokens', 'audio output', rt?.audioOutputPerMTok],
-      ['inputTextTokens', 'text input', rt?.textInputPerMTok],
-      ['outputTextTokens', 'text output', rt?.textOutputPerMTok],
-    ]
-    for (const [k, label, price] of parts) {
-      const n = sum(usage, k)
-      if (n !== null) lines.push(line(`Realtime ${label} (${providers.realtimeModel})`, n / 1e6, 'MTok', price, rt))
-    }
+    const label = (what: string) => `Realtime ${what} (${providers.realtimeModel})`
+    const audioIn = sum(usage, 'inputAudioTokens')
+    const textIn = sum(usage, 'inputTextTokens')
+    const cached = sum(usage, 'cachedTokens')
+    // cachedTokens is input_token_details.cached_tokens: text and audio together, inside the audio
+    // and text input counts (the transport keeps no split). The cached prefix is the instructions
+    // and glossary (text) and then the earlier turns' audio, so the cached count comes off text
+    // input first and audio input second; of the two attributions this one never understates.
+    const cachedText = Math.min(cached ?? 0, textIn ?? 0)
+    const cachedAudio = Math.min((cached ?? 0) - cachedText, audioIn ?? 0)
+    if (audioIn !== null)
+      lines.push(line(label('audio input'), (audioIn - cachedAudio) / 1e6, 'MTok', rt?.audioInputPerMTok, rt))
+    if (textIn !== null)
+      lines.push(line(label('text input'), (textIn - cachedText) / 1e6, 'MTok', rt?.textInputPerMTok, rt))
+    if (cached !== null) lines.push(line(label('cached input'), cached / 1e6, 'MTok', rt?.cachedInputPerMTok, rt))
+    const audioOut = sum(usage, 'outputAudioTokens')
+    const textOut = sum(usage, 'outputTextTokens')
+    if (audioOut !== null) lines.push(line(label('audio output'), audioOut / 1e6, 'MTok', rt?.audioOutputPerMTok, rt))
+    if (textOut !== null) lines.push(line(label('text output'), textOut / 1e6, 'MTok', rt?.textOutputPerMTok, rt))
   }
   const priced = lines.filter((l) => l.cost !== null)
   const unpriced = lines.filter((l) => l.cost === null).map((l) => l.component)

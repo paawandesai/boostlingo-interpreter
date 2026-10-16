@@ -22,6 +22,8 @@ builder.Services.AddSingleton<ProviderActivity>();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
 builder.Services.AddAccessControl(builder.Configuration);
 builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
+// Without a Deepgram key the default STT adapter can't run; with an OpenAI key the openai one serves instead.
+builder.Services.ConfigureOptions<CascadeSttFallback>();
 builder.Services.AddDeepgramStt(builder.Configuration);
 builder.Services.AddOpenAIStt(builder.Configuration);
 builder.Services.AddOpenAITranslator(builder.Configuration);
@@ -30,8 +32,11 @@ builder.Services.AddElevenLabsTts(builder.Configuration);
 
 var app = builder.Build();
 
-// Public demo only (T5, G14): proxy headers, noindex and the built SPA. All off unless configured.
+// Public demo only (T5, G14): proxy headers, noindex and the built SPA. All off unless configured,
+// except the security response headers, which every run sends.
 app.UseDemoHosting(builder.Configuration);
+// Endpoints that declare a body limit get it before the JSON body is bound (the mint routes: 4 KB).
+app.UseRequestBodyLimits();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseRateLimiter();
 

@@ -1,7 +1,7 @@
 /**
  * Maps cascade socket messages (D5, server/Interpreter.Api/Cascade/CascadeProtocol.cs) to transport events.
- * Pure apart from the clock. Utterance ids are prefixed per socket, because a speaker switch opens a new
- * socket whose numbering restarts at 1.
+ * Pure apart from the clock. Utterance ids are prefixed per socket, because a reopened socket's numbering
+ * restarts at 1; a speaker switch stays on the socket and the server keeps counting.
  */
 import type { ErrorKind, MarkName, TransportEvent } from '../types'
 import type { ClockSync } from './clock'
