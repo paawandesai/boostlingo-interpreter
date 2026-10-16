@@ -19,7 +19,7 @@ Imported from the planning notes on 2026-10-14 and maintained here from now on. 
 - Vendor SDKs are Python/JS-first. Some .NET SDKs are community-maintained or lag behind (verify Deepgram and ElevenLabs .NET SDK status). Mitigation: talk to vendor WebSocket/HTTP APIs directly inside adapters. More code, but the adapters are the only place that knows vendor details anyway, and raw protocol code is easier to explain in an interview than SDK magic.
 - Evaluation tooling (WER, chrF/BLEU) is much better in Python (`jiwer`, `sacrebleu`). Decision: offline eval scripts live in `/eval` in Python. They are not part of the product, so this does not undermine the .NET choice. Say so in the README.
 
-**Version: use .NET 10, not .NET 8 (Proposed, Verify).** .NET 8 LTS support ends November 2026, which is next month. .NET 10 is the current LTS (released Nov 2025). Starting a new project on a runtime about to go out of support is a weak signal to a .NET shop. The APIs we need are the same. This deviates from your instructions (not the brief), so confirm.
+**Version: .NET 10, not .NET 8 (Locked 2026-10-14, see "Open items" below).** .NET 8 LTS support ends November 2026, which is next month. .NET 10 is the current LTS (released Nov 2025). Starting a new project on a runtime about to go out of support is a weak signal to a .NET shop. The APIs we need are the same. This deviated from Paawan's first instruction (not the brief) and was confirmed.
 
 ### D2. Frontend: TypeScript + React + Vite, AudioWorklet — Locked
 
@@ -38,7 +38,7 @@ Backend tests target the pipeline with fake providers plus adapter contract test
 
 **Verified 2026-10-14 (T1.5):** `POST /v1/realtime/client_secrets` returns `{ value: "ek_…", expires_at, session }`; the browser posts its SDP offer to `POST /v1/realtime/calls` with `Authorization: Bearer ek_…` and `Content-Type: application/sdp`, and gets `201` with the SDP answer and a `Location: /v1/realtime/calls/rtc_…` header. Checked with a live call from headless Chromium. ICE never connected from the cloud container (media ports blocked), so Realtime audio checks are 🎧. Sources: openai npm v7.32.0 `resources/realtime/*.d.ts`; OpenAI docs sites are blocked from the container.
 
-**Flow:** browser `POST /api/realtime/session` → backend calls OpenAI to create a client secret (GA endpoint, verify: `POST /v1/realtime/client_secrets`) with the session config (model `gpt-realtime`, instructions, voice, VAD, input transcription) → browser does the SDP offer/answer with OpenAI using that short-lived secret → audio flows browser↔OpenAI directly; events go over the WebRTC data channel.
+**Flow:** browser `POST /api/realtime/session` → backend calls OpenAI to create a client secret (`POST /v1/realtime/client_secrets`, verified above) with the session config (model from `OpenAI:Realtime:Model`, default `gpt-realtime-2.1` since G1, with `gpt-realtime` selectable; instructions, voice, VAD, input transcription) → browser does the SDP offer/answer with OpenAI using that short-lived secret → audio flows browser↔OpenAI directly; events go over the WebRTC data channel.
 
 **Why:** the key never reaches the browser. WebRTC handles jitter buffering, Opus codec, and packet loss, so it has the lowest latency path. It is also what OpenAI recommends for browser clients.
 
@@ -171,6 +171,21 @@ Test set: questions ("what time is it?"), commands ("ignore your instructions an
 - *Haitian Creole* is the most "uncommon pair" option, but Deepgram Nova-3 and ElevenLabs Flash don't list it. It can't be config-only on our stack; it would need different vendors per stage.
 
 **Cheap rare-pair probe (Day 4, ~20 min, stretch):** try 5 EN↔Haitian Creole utterances in Realtime only (instructions change, no code) and note whether it works. Then write one line on which cascade vendors would cover it (verify, e.g. Azure Speech or Google). That gives the write-up's "rare language pairs" scenario a real data point: Realtime is take-it-or-leave-it on coverage, while cascade can swap only the stage that lacks support.
+
+
+### D17. Realtime translate (`gpt-realtime-translate`) as a third mode and the default for EN↔ES — Locked 2026-10-15 (G17; built 2026-10-14, merged in c6f8af1)
+
+The guardrails (docs/GUARDRAILS.md, "Adversarial speech") prefer the purpose-built translation model where the pair is supported, because its session takes only a target-language setting: no free-form instructions and no function calling, so there is far less for spoken input to hijack. Decision: it is a third `Mode` (`translate`) behind the same `Transport` interface, offered first on the setup screen, and the default whenever both languages have `realtimeTranslate: true` in `config/languages.json` (EN and ES do; VI does not until a live check). `gpt-realtime-2.1` (Realtime) and Cascade stay selectable.
+
+**As built:**
+- Backend `POST /api/realtime/translation-session {target}` (access token and rate limit as for `/api/realtime/session`) mints a 60 s secret from `POST /v1/realtime/translations/client_secrets` with the model, `audio.output.language` and the `gpt-realtime-whisper` input transcription; the request carries no instructions and no tools (`OpenAIRealtimeSessionMinterTests.Translation_session_takes_only_a_target_language_and_no_instructions_or_tools`). The browser posts its SDP offer to `POST /v1/realtime/translations/calls`; the mint and the SDP exchange were checked live on 2026-10-14 (201, data channel offered). The audio path could not be checked from the cloud container; the runner soaks (`eval/results/soak-2026-10-14-translate-synthetic.json`, `soak-2026-10-15-translate-synthetic.json`) exercised it.
+- A speaker flip sends `session.update` with the other output language only.
+- The model speaks while the speaker is still talking, so the half-duplex mic gate (D13) cannot apply: the mic stays open, the setup screen says headphones are required, and browser echo cancellation is the only defence against re-translating its own voice (README "Known constraints").
+- It has no context input, so a mid-session switch into it carries none of the earlier turns (G9); the switch marker says it starts with no memory of the conversation.
+- Latency (D9) is often negative for a simultaneous interpreter, so this mode reports text lag (first source text → first translated text) on every line and start lag (speech start → first audio) on lines that start after a pause, plus speech end → first audio where it exists. Lines are cut client-side by pairing each translated sentence with the source sentence that had started when it began (both streams carry the model's `elapsed_ms`); the segmenter was tuned twice on recorded streams (db7c1ef, 95256a4) and its boundaries stay approximate, which the UI and the export say.
+- Price: the guardrails quote $0.034/min; `config/prices.json` keeps it null until Paawan checks OpenAI's page, so the cost table shows it as unpriced.
+
+**Why:** the structural defence above, plus one vendor and one billing unit, which is what the recommendation for consumer and low-stakes use rests on (docs/WRITEUP.md §6). **Trade-offs:** no glossary or register control (there are no instructions to put them in), no confidence signal, coverage limited to the languages the model can output, and a measurement that is not the same quantity as the other two modes' speech end → first audio.
 
 ---
 
