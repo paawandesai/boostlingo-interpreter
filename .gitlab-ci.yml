@@ -258,6 +258,8 @@ server:live:
       allow_failure: true
   before_script:
     - !reference [.measure, before_script]
+    # dotnet-install.sh is fetched over TLS from Microsoft, which publishes no hash for the script
+    # itself, so only the channel is pinned: 10.0 resolves to that channel's latest SDK at run time.
     - curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
     - bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /opt/dotnet
     - export PATH=/opt/dotnet:$PATH
@@ -307,8 +309,15 @@ deploy:aws:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
+  variables:
+    # AWS CLI v2 pinned to one release and checked against the SHA-256 of that zip. Hash computed on
+    # 2026-10-16 from https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.38.1.zip (74,129,231
+    # bytes). Bump the version and the hash together.
+    AWSCLI_VERSION: "2.38.1"
+    AWSCLI_SHA256: "b11ed416d91f4251da363a17706938eeaf0e520745754c104c0c1890dd8363c7"
   script:
     - apt-get update -qq && apt-get install -y -qq unzip python3 >/dev/null
-    - curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscli.zip
+    - curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscli.zip
+    - echo "${AWSCLI_SHA256}  /tmp/awscli.zip" | sha256sum -c -
     - unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install >/dev/null
     - IMAGE_TAG=$CI_COMMIT_SHORT_SHA bash infra/deploy.sh
