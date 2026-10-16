@@ -12,7 +12,7 @@ public class OpenAIRealtimeSessionMinterTests
     private static readonly RealtimeSessionRequest Request = new("en", "es", "INSTRUCTIONS");
 
     private static OpenAIRealtimeSessionMinter Minter(StubHttpHandler handler, string? apiKey = "test-key") =>
-        new(new HttpClient(handler), Options.Create(new OpenAIRealtimeOptions { ApiKey = apiKey }));
+        new(new HttpClient(handler), Options.Create(new OpenAIRealtimeOptions { ApiKey = apiKey, Endpointing = "server" }));
 
     [Fact]
     public async Task Posts_session_config_to_client_secrets_with_server_key()
@@ -48,6 +48,20 @@ public class OpenAIRealtimeSessionMinterTests
         // G19: the shortest practical secret lifetime.
         var expires = JsonDocument.Parse(body).RootElement.GetProperty("expires_after");
         Assert.Equal(60, expires.GetProperty("seconds").GetInt32());
+    }
+
+    [Fact]
+    public async Task Client_endpointing_mints_a_session_without_turn_detection()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, """{"value":"ek_abc","expires_at":1760000000,"session":{}}""");
+        var minter = new OpenAIRealtimeSessionMinter(new HttpClient(handler),
+            Options.Create(new OpenAIRealtimeOptions { ApiKey = "test-key", Endpointing = "client" }));
+
+        await minter.CreateAsync(Request, CancellationToken.None);
+
+        var input = JsonDocument.Parse(Assert.Single(handler.Requests).Body).RootElement
+            .GetProperty("session").GetProperty("audio").GetProperty("input");
+        Assert.Equal(JsonValueKind.Null, input.GetProperty("turn_detection").ValueKind);
     }
 
     [Fact]

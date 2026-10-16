@@ -11,13 +11,21 @@ namespace Interpreter.Tests.Providers;
 
 public class OpenAIRealtimeSttTests
 {
-    private static OpenAIRealtimeStt Stt(Uri? baseUrl = null, TimeProvider? time = null) =>
-        new(Options.Create(new OpenAITranscriptionOptions
+    private static OpenAIRealtimeStt Stt(Uri? baseUrl = null, TimeProvider? time = null, Action<OpenAITranscriptionOptions>? configure = null)
+    {
+        var opts = new OpenAITranscriptionOptions
         {
             ApiKey = "test-key",
             BaseUrl = baseUrl ?? new Uri("wss://api.openai.com/v1/"),
             DrainTimeoutMs = 2000,
-        }), time);
+            // The production default is gpt-realtime-whisper with client endpointing; most tests here pin
+            // the server-VAD path and override per test.
+            Model = "gpt-4o-transcribe",
+            Endpointing = "server",
+        };
+        configure?.Invoke(opts);
+        return new(Options.Create(opts), time);
+    }
 
     /// <summary>A clock whose timers never fire: anything that waits on a drain timeout waits forever.</summary>
     private sealed class FrozenTime : TimeProvider
@@ -64,6 +72,85 @@ public class OpenAIRealtimeSttTests
         Assert.Equal("Vocabulary: ibuprofeno", (string?)input["transcription"]!["prompt"]);
         Assert.Equal("server_vad", (string?)input["turn_detection"]!["type"]);
         Assert.Equal("realtime?intent=transcription", Stt().SessionUri.PathAndQuery.TrimStart('/')[3..]);
+    }
+
+    [Fact]
+    public void Client_endpointing_turns_off_server_vad()
+    {
+        var update = Stt(configure: o => o.Endpointing = "client").SessionUpdate(new SttOptions("en"));
+        var input = update["session"]!["audio"]!["input"]!.AsObject();
+
+        Assert.True(input.ContainsKey("turn_detection"));
+        Assert.Null(input["turn_detection"]);
+    }
+
+    [Fact]
+    public void Realtime_whisper_has_no_vad_and_no_prompt_and_takes_a_delay()
+    {
+        var update = Stt(configure: o => { o.Model = "gpt-realtime-whisper"; o.Delay = "low"; })
+            .SessionUpdate(new SttOptions("es", Keyterms: ["ibuprofeno"]));
+        var input = update["session"]!["audio"]!["input"]!.AsObject();
+
+        Assert.Null(input["turn_detection"]);
+        Assert.Equal("gpt-realtime-whisper", (string?)input["transcription"]!["model"]);
+        Assert.Null(input["transcription"]!["prompt"]);
+        Assert.Equal("low", (string?)input["transcription"]!["delay"]);
+    }
+
+    [Fact]
+    public async Task Client_end_of_speech_commits_the_turn_and_marks_the_endpoint()
+    {
+        await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>
+        {
+            // The client's commit, not the final one: audio keeps coming after it.
+            await s.ReceiveUntil(ws, m => m.Text.Contains("input_audio_buffer.commit"));
+            await Send(ws, """{"type":"input_audio_buffer.committed","item_id":"a"}""");
+            await Send(ws, """{"type":"conversation.item.input_audio_transcription.completed","item_id":"a","transcript":"Hello."}""");
+            await s.ReceiveUntil(ws, m => m.Text.Contains("input_audio_buffer.append"));
+            // The final commit at the end of the audio finds nothing left.
+            await s.ReceiveUntil(ws, m => m.Text.Contains("input_audio_buffer.commit"));
+            await Send(ws, """{"type":"error","error":{"type":"invalid_request_error","code":"input_audio_buffer_commit_empty","message":"buffer empty"}}""");
+            await s.ReceiveUntil(ws, _ => false);
+        });
+
+        static async IAsyncEnumerable<AudioFrame> Turn()
+        {
+            await foreach (var f in Audio(3)) yield return f;
+            yield return AudioFrame.SpeechEnded(16000);
+            await Task.Delay(200);
+            await foreach (var f in Audio(2)) yield return f;
+        }
+
+        var events = await Collect(Stt(server.BaseUrl, configure: o => o.Endpointing = "client")
+                .TranscribeAsync(Turn(), new SttOptions("en"), TestContext.Current.CancellationToken))
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal<SttEvent>([new SttEndpoint(), new SttFinal("Hello.", true)], events);
+        Assert.Equal(2, server.Received.Count(m => m.Text.Contains("input_audio_buffer.commit")));
+        Assert.Equal(5, server.Received.Count(m => m.Text.Contains("input_audio_buffer.append")));
+    }
+
+    [Fact]
+    public async Task End_of_speech_is_ignored_with_server_vad()
+    {
+        await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>
+        {
+            await s.ReceiveUntil(ws, m => m.Text.Contains("input_audio_buffer.commit"));
+            await Send(ws, """{"type":"error","error":{"type":"invalid_request_error","code":"input_audio_buffer_commit_empty","message":"buffer empty"}}""");
+            await s.ReceiveUntil(ws, _ => false);
+        });
+
+        static async IAsyncEnumerable<AudioFrame> Turn()
+        {
+            await foreach (var f in Audio(2)) yield return f;
+            yield return AudioFrame.SpeechEnded(16000);
+        }
+
+        var events = await Collect(Stt(server.BaseUrl).TranscribeAsync(Turn(), new SttOptions("en"), TestContext.Current.CancellationToken))
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Empty(events);
+        Assert.Equal(1, server.Received.Count(m => m.Text.Contains("input_audio_buffer.commit")));
     }
 
     [Fact]

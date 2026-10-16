@@ -11,6 +11,8 @@ export interface RealtimeSessionInfo {
   instructions: Record<string, string>
   /** The client ends the session after this long (G19). */
   maxSessionSeconds?: number
+  /** "client": no turn detection on the session; the browser commits each turn (see ../endpointing). */
+  endpointing?: 'server' | 'client'
 }
 
 export class RealtimeApiError extends Error {

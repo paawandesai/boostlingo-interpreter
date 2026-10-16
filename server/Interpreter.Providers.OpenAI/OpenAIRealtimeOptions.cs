@@ -33,6 +33,14 @@ public sealed class OpenAIRealtimeOptions
     public int SilenceDurationMs { get; set; } = 500;
 
     /// <summary>
+    /// "server": OpenAI's VAD ends each turn and starts the response. "client": the session has no turn detection
+    /// and the browser commits the turn and asks for the response when its own VAD hears the speaker stop.
+    /// </summary>
+    public string Endpointing { get; set; } = "client";
+
+    public bool ClientEndpointing => string.Equals(Endpointing, "client", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Shortest practical lifetime (G19): the browser uses the secret once, right after minting, for the SDP
     /// exchange. A leaked secret is worthless a minute later.
     /// </summary>

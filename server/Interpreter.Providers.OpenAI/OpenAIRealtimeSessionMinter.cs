@@ -84,14 +84,16 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
                 {
                     transcription = new { model = _opts.TranscriptionModel, language = r.SourceLanguage },
                     noise_reduction = new { type = "near_field" },
-                    turn_detection = new
-                    {
-                        type = "server_vad",
-                        silence_duration_ms = _opts.SilenceDurationMs,
-                        create_response = true,
-                        // Half-duplex (D13): the mic is gated while the interpreter speaks, so no barge-in.
-                        interrupt_response = false,
-                    },
+                    turn_detection = _opts.ClientEndpointing
+                        ? null
+                        : new
+                        {
+                            type = "server_vad",
+                            silence_duration_ms = _opts.SilenceDurationMs,
+                            create_response = true,
+                            // Half-duplex (D13): the mic is gated while the interpreter speaks, so no barge-in.
+                            interrupt_response = false,
+                        },
                 },
                 output = new { voice = _opts.Voice },
             },

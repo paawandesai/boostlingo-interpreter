@@ -316,6 +316,8 @@ public static class CascadeEndpoints
                     var control = JsonSerializer.Deserialize<CascadeProtocol.ClientMessage>(msg.Data.Span, CascadeProtocol.Json);
                     if (control?.Type == "ping") await SendJson(new { type = "pong", c = control.C, t = Now() });
                     else if (control?.Type == "stop") break;
+                    // The browser's VAD heard the speaker stop; an adapter with client endpointing ends the turn now.
+                    else if (control?.Type == "commit") leg.Audio.Writer.TryWrite(AudioFrame.SpeechEnded(SttRate));
                     else if (control?.Type == "direction")
                     {
                         if (control.Source is not { } s || control.Target is not { } t || !languages.IsSupportedDirection(s, t))

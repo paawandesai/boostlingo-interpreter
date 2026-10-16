@@ -79,7 +79,10 @@ export function checkSegment(source: string, target: string, sourceFinal: boolea
   if (ctx.canary && squash(target).includes(squash(ctx.canary))) flags.push('prompt_leak')
   if (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) flags.push('assistant_reply')
   if (targetWords.length >= LANG_MIN_WORDS && tgt && src) {
-    const hits = (markers: string[]) => targetWords.filter((w) => markers.includes(w)).length
+    // Distinct words, so one short word both languages share ("a" is also Spanish) can't flag a
+    // correct line by repeating ("Voy a enviar una nueva receta a tu farmacia.").
+    const distinct = [...new Set(targetWords)]
+    const hits = (markers: string[]) => distinct.filter((w) => markers.includes(w)).length
     const asTarget = hits(tgt.markers)
     const asSource = hits(src.markers)
     if (asSource >= 2 && asSource > asTarget) flags.push('wrong_language')

@@ -17,6 +17,7 @@ import {
   type SpeakerSide,
   type Transport,
 } from '../types'
+import { ClientEndpointer } from '../endpointing'
 import { createRealtimeSession, exchangeSdp, RealtimeApiError, type RealtimeSessionInfo } from './api'
 import { RealtimeEventParser } from './events'
 import { createFirstAudioProbe, type FirstAudioProbe } from './firstAudioProbe'
@@ -42,6 +43,12 @@ export class RealtimeTransport implements Transport {
   private turnInFlight = false
   /** The session.update of a speaker flip made during a turn in flight; sent once that turn's response is done. */
   private pendingUpdate: string | null = null
+  /** Set when the session has no turn detection: the browser's VAD commits each turn (client endpointing). */
+  private endpointer: ClientEndpointer | null = null
+  /** Between response.created and response.done. */
+  private responding = false
+  /** Client endpointing: a turn ended while a response was active; it is committed when that one is done. */
+  private commitDeferred = false
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -54,19 +61,26 @@ export class RealtimeTransport implements Transport {
     this.responseQueued = false
     this.turnInFlight = false
     this.pendingUpdate = null
+    this.responding = false
+    this.commitDeferred = false
     this.parser = new RealtimeEventParser()
     this.emitter.emit({ type: 'state', state: 'connecting' })
     try {
       const [source, target] = direction(config, config.speaker)
       this.info = await createRealtimeSession(source, target, config.realtimeModel, undefined, config.glossary)
       if (this.stopped) return
+      if (this.info.endpointing === 'client') this.endpointer = new ClientEndpointer(() => this.commitTurn())
 
       this.capture = await startCapture({
         stream: config.inputStream,
-        onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
+        onVad: (kind, t) => {
+          this.emitter.emit({ type: 'mark', name: kind, t })
+          this.endpointer?.onVad(kind)
+        },
         onLevel: (rms) => this.emitter.emit({ type: 'level', rms }),
       })
       this.gate = createMicGate((gated) => {
+        this.endpointer?.onGated(gated)
         this.capture?.setGated(gated)
         this.emitter.emit({ type: 'gated', gated })
       })
@@ -165,6 +179,24 @@ export class RealtimeTransport implements Transport {
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
   }
 
+  /**
+   * Client endpointing: ends the turn and asks for its interpretation. A response still playing makes the
+   * response.create fail with an active-response error, which queues this turn (onServerEvent).
+   */
+  private commitTurn(): void {
+    if (this.dc?.readyState !== 'open') return
+    // Committing now would leave this turn without a response (one active response at a time) and the queued
+    // response.create could cover two items at once, which dropped turns in the first client-endpointing
+    // soak. The audio stays in the input buffer instead and is committed when the response is done.
+    if (this.responding) {
+      this.commitDeferred = true
+      return
+    }
+    this.turnInFlight = true
+    this.dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' }))
+    this.dc.send(JSON.stringify({ type: 'response.create' }))
+  }
+
   private onServerEvent(raw: string): void {
     const json = JSON.parse(raw) as { type: string; error?: { code?: string; message?: string } }
     // A turn that ends while the previous interpretation is still playing can't start its own response
@@ -179,7 +211,12 @@ export class RealtimeTransport implements Transport {
       return
     }
     if (json.type === 'input_audio_buffer.speech_stopped' || json.type === 'response.created') this.turnInFlight = true
-    if (json.type === 'response.done') {
+    if (json.type === 'response.created') this.responding = true
+    if (json.type === 'response.done') this.responding = false
+    if (json.type === 'response.done' && this.commitDeferred) {
+      this.commitDeferred = false
+      this.commitTurn()
+    } else if (json.type === 'response.done') {
       if (this.responseQueued && this.dc?.readyState === 'open') {
         // The queued turn was spoken before any flip, so it stays in flight with the current instructions.
         this.responseQueued = false
@@ -241,6 +278,8 @@ export class RealtimeTransport implements Transport {
   }
 
   private async release(): Promise<void> {
+    this.endpointer?.dispose()
+    this.endpointer = null
     this.clearConnectTimer()
     if (this.limitTimer !== null) clearTimeout(this.limitTimer)
     this.limitTimer = null

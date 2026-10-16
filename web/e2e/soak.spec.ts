@@ -17,6 +17,8 @@ const mode = modes[modeKey] ?? 'Cascade'
 const minutes = Number(process.env.SOAK_MINUTES ?? 5)
 const minUtterances = Number(process.env.SOAK_MIN_UTTERANCES ?? 50)
 const gapMs = Number(process.env.SOAK_GAP_MS ?? 600)
+/** Client endpointing only: extra wait after the VAD's speech end before committing (src/transports/endpointing.ts). */
+const commitDelay = process.env.SOAK_COMMIT_DELAY_MS
 const replayDir = resolve(process.env.REPLAY_DIR ?? '../eval/replay/audio')
 const label = process.env.SOAK_LABEL ?? (replayDir.includes('synthetic') ? 'synthetic' : 'recorded')
 
@@ -55,7 +57,10 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
     return (metrics.find((m) => m.name === 'JSHeapUsedSize')?.value ?? 0) / 1_048_576
   }
 
-  await startSession(page, mode, { replayFiles: files, query: `?replayGap=${gapMs}` })
+  await startSession(page, mode, {
+    replayFiles: files,
+    query: `?replayGap=${gapMs}${commitDelay ? `&commitDelay=${commitDelay}` : ''}`,
+  })
   const t0 = Date.now()
   const samples: HeapSample[] = []
   while (Date.now() - t0 < minutes * 60_000) {

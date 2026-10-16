@@ -17,6 +17,7 @@ public sealed record RealtimeModelsResponse(string Default, IReadOnlyList<string
 /// <param name="ClientSecret">Ephemeral ek_ secret; the only credential the browser ever sees.</param>
 /// <param name="Instructions">Interpreter instructions per direction ("en>es"), so a speaker flip can
 /// send session.update without the browser owning the prompt template.</param>
+/// <param name="Endpointing">"client" when the session has no turn detection and the browser commits each turn.</param>
 public sealed record CreateRealtimeSessionResponse(
     string ClientSecret,
     DateTimeOffset ExpiresAt,
@@ -24,7 +25,8 @@ public sealed record CreateRealtimeSessionResponse(
     string TranscriptionModel,
     string CallsUrl,
     IReadOnlyDictionary<string, string> Instructions,
-    int MaxSessionSeconds);
+    int MaxSessionSeconds,
+    string Endpointing = "server");
 
 /// <summary>Translation session (G17): the browser posts its SDP offer to <paramref name="CallsUrl"/> with the secret.</summary>
 public sealed record CreateTranslationSessionResponse(
@@ -85,7 +87,7 @@ public static class RealtimeEndpoints
                 new RealtimeSessionRequest(source.Code, target.Code, instructions[$"{source.Code}>{target.Code}"], req.Model), ct);
             activity.Success("realtime:openai");
             return Results.Ok(new CreateRealtimeSessionResponse(secret.Value, secret.ExpiresAt, secret.Model, secret.TranscriptionModel, CallsUrl, instructions,
-                realtime.Value.MaxSessionSeconds));
+                realtime.Value.MaxSessionSeconds, realtime.Value.ClientEndpointing ? "client" : "server"));
         }
         catch (ProviderException e)
         {

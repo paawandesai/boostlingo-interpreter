@@ -28,6 +28,12 @@ describe('checkSegment', () => {
     )
   })
 
+  it('does not flag Spanish that repeats a word English shares', () => {
+    expect(
+      check('I will send a new prescription to your pharmacy.', 'Voy a enviar una nueva receta a tu farmacia.'),
+    ).not.toContain('wrong_language')
+  })
+
   it('flags assistant phrasing and refusals', () => {
     expect(check('Tell me a joke.', 'Claro, aquí tiene un chiste sobre gatos.')).toContain('assistant_reply')
     expect(check('Describe the injury.', "I'm sorry, but I can't help with that.")).toContain('refusal')

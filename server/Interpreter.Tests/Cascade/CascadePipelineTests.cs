@@ -54,6 +54,21 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task Tts_stream_opens_while_the_translator_is_still_thinking()
+    {
+        // The vendor connect overlaps translation instead of following the first flush.
+        var tts = new FakeTts();
+        var translator = new FakeTranslator { BeforeFirstToken = tts.Opened.Task };
+        var pipeline = new CascadePipeline(new FakeStt([Final("Good morning.")]), translator, tts);
+
+        var events = await RunAll(pipeline);
+
+        Assert.Equal("ES(Good morning.)", Spoken(events, 1));
+        var marks = events.OfType<LatencyMark>().Select(m => m.Name).ToList();
+        Assert.True(marks.IndexOf("tts.first_flush") > marks.IndexOf("translation.first_token"));
+    }
+
+    [Fact]
     public async Task Carried_history_seeds_the_first_translation_context()
     {
         // G9: turns from before a reconnect (speaker or mode switch) are context, never re-translated.
@@ -329,6 +344,8 @@ public class CascadePipelineTests
         public TimeSpan PauseAfterFirstToken { get; init; }
         public bool HangAfterFirstToken { get; init; }
         public TaskCompletionSource Stopped { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        /// <summary>When set, the first token waits for it.</summary>
+        public Task? BeforeFirstToken { get; init; }
         public string Name => "fake-translator";
 
         public async IAsyncEnumerable<string> TranslateAsync(
@@ -342,6 +359,7 @@ public class CascadePipelineTests
                 FailTimes--;
                 throw new ProviderException(ProviderErrorKind.RateLimited, Name, "429", FailRetryAfter);
             }
+            if (BeforeFirstToken is { } gate) await gate.WaitAsync(TimeSpan.FromSeconds(10), ct);
             request.OnUsage?.Invoke(new TokenUsage(10, 3));
             var pieces = Script ?? ["ES(", request.Text, ")"];
             try
@@ -368,11 +386,14 @@ public class CascadePipelineTests
         public List<string> Received { get; } = [];
         public string? FailOn { get; init; }
         public TaskCompletionSource FirstChunk { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        /// <summary>Set when a stream is opened, which is when a real adapter connects.</summary>
+        public TaskCompletionSource Opened { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string Name => "fake-tts";
 
         public async IAsyncEnumerable<AudioChunk> SynthesizeAsync(
             IAsyncEnumerable<string> textChunks, TtsOptions options, [EnumeratorCancellation] CancellationToken ct)
         {
+            Opened.TrySetResult();
             await foreach (var chunk in textChunks.WithCancellation(ct))
             {
                 if (chunk == FailOn) throw new ProviderException(ProviderErrorKind.Unavailable, Name, "503");

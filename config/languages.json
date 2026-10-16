@@ -6,7 +6,7 @@
       "name": "English",
       "disclosure": {
         "notice": "This conversation is interpreted by AI, not by a person. Your speech is sent to third-party AI services, which may transcribe it. The voice you hear is AI-generated. Audio is not saved by this app. Do not use it for medical, legal or other critical decisions; ask for a human interpreter instead.",
-        "spoken": "This conversation is interpreted by an AI voice, not a person. Your speech is processed and may be transcribed by third-party AI services."
+        "spoken": "You're hearing an AI interpreter, not a person. Third-party AI services process this audio."
       },
       "stt": {
         "deepgram": {
@@ -93,7 +93,7 @@
       "name": "Spanish",
       "disclosure": {
         "notice": "Esta conversación la interpreta una IA, no una persona. Lo que diga se envía a servicios de IA de terceros, que pueden transcribirlo. La voz que escucha está generada por IA. Esta aplicación no guarda el audio. No la use para decisiones médicas, legales ni otras decisiones críticas; pida un intérprete humano.",
-        "spoken": "Esta conversación la interpreta una voz de inteligencia artificial, no una persona. Lo que diga lo procesan y pueden transcribirlo servicios de IA de terceros."
+        "spoken": "Está escuchando un intérprete de IA, no una persona. Servicios de IA de terceros procesan este audio."
       },
       "stt": {
         "deepgram": {

@@ -1,8 +1,12 @@
 /**
  * Replay input (T3.6): plays recorded clips into a MediaStream that either transport takes in
- * place of the mic, so both modes hear exactly the same audio. Clips play one at a time; the next
- * one waits for the interpreter to finish speaking (the mic gate) plus a pause, like a real
- * speaker would, then the set loops.
+ * place of the mic, so both modes hear exactly the same audio. Clips play one at a time, like a
+ * back-and-forth: after each clip the replay waits for the interpreter to start speaking (up to
+ * replyWaitMs) and finish, then pauses, then plays the next one; the set loops.
+ *
+ * Waiting for the reply to start matters: with only the pause, the next clip began while the
+ * previous one was still being interpreted, and when that interpretation started playing the mic
+ * gate cut the new clip mid-sentence (about 1 in 4 cascade turns in the 2026-10-15 replay runs).
  */
 export interface ReplayClip {
   name: string
@@ -20,6 +24,11 @@ export function langFromName(name: string): string | null {
 export interface ReplayOptions {
   /** Silence after the interpreter stops before the next clip. */
   gapMs?: number
+  /**
+   * After a clip, how long to wait for the interpreter to start speaking before moving on; read
+   * per clip so it can follow a mode switch. 0 skips the wait (a simultaneous mode with no gate).
+   */
+  replyWaitMs?: () => number
   loop?: boolean
   /** True while the interpreter's audio is playing (the mic gate). */
   isBusy?: () => boolean
@@ -47,13 +56,23 @@ async function whileTrue(cond: () => boolean, signal: AbortSignal, pollMs = 100)
   while (cond() && !signal.aborted) await new Promise((r) => setTimeout(r, pollMs))
 }
 
+/** Waits until cond() is true or maxMs passes, polling; resolves early when aborted. */
+async function untilTrue(cond: () => boolean, maxMs: number, signal: AbortSignal, pollMs = 50): Promise<void> {
+  const end = Date.now() + maxMs
+  while (!cond() && !signal.aborted && Date.now() < end) await new Promise((r) => setTimeout(r, pollMs))
+}
+
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const t = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => {
+    const onAbort = () => {
       clearTimeout(t)
       resolve()
-    })
+    }
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -69,14 +88,17 @@ export function createReplay(clips: ReplayClip[], opts: ReplayOptions = {}): Rep
       const src = ctx.createBufferSource()
       src.buffer = clip.buffer
       src.connect(dest)
+      // One listener per clip would pile up over a long soak, so each clip removes its own.
+      const onAbort = () => resolve()
       src.onended = () => {
+        abort.signal.removeEventListener('abort', onAbort)
         src.disconnect()
         current = null
         resolve()
       }
       current = src
       src.start()
-      abort.signal.addEventListener('abort', () => resolve())
+      abort.signal.addEventListener('abort', onAbort, { once: true })
     })
 
   return {
@@ -93,6 +115,10 @@ export function createReplay(clips: ReplayClip[], opts: ReplayOptions = {}): Rep
           if (abort.signal.aborted) break
           opts.onClip?.(clips[i], i)
           await play(clips[i])
+          // A speaker waits to hear the interpretation before going on.
+          const busy = () => opts.isBusy?.() ?? false
+          await untilTrue(busy, opts.replyWaitMs?.() ?? 0, abort.signal)
+          await whileTrue(busy, abort.signal)
         }
       } while ((opts.loop ?? true) && !abort.signal.aborted)
     },
