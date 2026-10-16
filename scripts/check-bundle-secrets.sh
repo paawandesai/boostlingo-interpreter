@@ -7,7 +7,8 @@ pattern='OPENAI_API_KEY|DEEPGRAM|ASSEMBLY|ELEVEN|DEEPL|(^|[^A-Za-z0-9_-])sk-'
 found=0
 for dir in "$@"; do
   [ -d "$dir" ] || continue
-  if grep -rEn "$pattern" "$dir"; then found=1; fi
+  # File names only: printing the matching line would put a leaked key in the job log.
+  if grep -rlE "$pattern" "$dir"; then found=1; fi
 done
 if [ "$found" -ne 0 ]; then
   echo "Provider key or key name found in built web output" >&2
