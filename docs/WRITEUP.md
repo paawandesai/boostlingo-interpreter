@@ -1,9 +1,9 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers await
-> Paawan: a vendor page, citation or figure to check, or an opinion to restate in their own words.
-> Vendor prices, data terms and legal citations were read on the official pages on 2026-10-16 (the
-> Claude Haiku price on 2026-10-14).
+> Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers are
+> mine to clear: a vendor page, citation or figure to check, or an opinion to restate in my own words.
+> A browsing AI assistant read the vendor prices, data terms and legal citations on the official pages
+> on 2026-10-16 and I checked its table (an AI coding agent read the Claude Haiku price on 2026-10-14).
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
@@ -19,7 +19,7 @@ reasoning is in the README under "Why .NET + TypeScript" and in `docs/DECISIONS.
 Every run (T4.2, 2026-10-15) looped synthetic TTS clips of scripted English ↔ Spanish dialogue for
 5 minutes per mode (4 per red-team configuration): no recorded people, so every quality number is a
 synthetic-audio signal, not a finding. WER covers cascade STT only; chrF scores each translation
-against a model-written, unverified reference **[VERIFY: Paawan checks references, then scores
+against a model-written, unverified reference **[VERIFY: I check references, then score
 blind]**. Deepgram's terms bar benchmarking, so every cascade number uses OpenAI transcription
 (method: appendix A).
 
@@ -92,7 +92,7 @@ configuration was re-run; the other modes wait on OpenAI credit (appendix C). Th
 matcher could pair, against references no Vietnamese speaker has checked, latency withheld because it
 ran on Deepgram STT (`eval/results/onboarding-vi.md`, "Summary of the two logs"). Realtime's 13
 matched lines are merged turns the matcher can't split. **This table is not a ranking** until there
-is recorded speech, checked references and Paawan's own rubric, scored with the mode hidden.
+is recorded speech, checked references and my own rubric, scored with the mode hidden.
 
 ## 4. Cost per minute
 
@@ -123,8 +123,8 @@ run through deterministic checks (target language, length ratio, assistant phras
 prompt-leak canary). The red-team suite (`eval/adversarial/`) ran in all four configurations on
 synthetic voices (the two speaker-echo lines need a real room and were not run). Rates come from a
 shuffled sheet on which the mode was hidden, each output judged against the line's intended
-(faithful) rendering, not against what the app heard. Claude drafted 154 of the 158 labels from
-Paawan's first four; Paawan reviewed the drafted sheet and approved it: one labeller, no second rater
+(faithful) rendering, not against what the app heard. An AI coding agent drafted 154 of the 158 labels
+from my first four; I reviewed the drafted sheet and approved it: one labeller, no second rater
 (`eval/results/redteam-labels-2026-10-15-synthetic.csv`, key in `redteam-key-2026-10-15-synthetic.csv`).
 
 | Rate | Cascade (both translators) | Realtime | Realtime translate |
@@ -162,14 +162,14 @@ and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
 |---|---|---|
 | Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. |
 | Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime, or cascade on OpenAI STT + Claude + OpenAI TTS (not yet run live; latency and cost unmeasured), with BAA mode on and each vendor's BAA and retention terms signed; never Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. That cascade needs two agreements (OpenAI and Anthropic); the default ElevenLabs TTS would add a third, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
-| Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
+| Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by an AI coding agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
 | Medical and legal | A qualified human interpreter; AI only with a human reviewing it | ACA Section 1557 requires qualified human review of machine translation where accuracy is critical and a qualified interpreter for spoken interpretation, and federal and California courts require certified or qualified interpreters (citations in [appendix F](WRITEUP-APPENDIX.md#f-medical-and-legal-citations)). Latency and cost are secondary. |
 
 ## 7. What this does not show
 
 - No recorded human speech; the red-team labels come from synthetic TTS voices and one labeller
-  (154 of 158 drafted by Claude, approved by Paawan), no second rater.
+  (154 of 158 drafted by an AI coding agent, approved by me), no second rater.
 - All Realtime numbers are for `gpt-realtime-2.1`; the brief's `gpt-realtime` was never measured.
 - No Deepgram numbers; one Realtime translate start-lag sample; no run reached 50 latency samples.
 - Cost per minute is a range for cascade (no STT minutes in the logs) and a floor for Realtime
