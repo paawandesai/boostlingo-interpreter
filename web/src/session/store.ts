@@ -3,6 +3,8 @@
  * side and latency marks, so a transport can be torn down and replaced without losing them.
  * Pure reducer; the controller feeds it transport events.
  */
+import type { LanguagesResponse } from './languages'
+import { checkContext, checkUtterance } from './outputChecks'
 import {
   HISTORY_PAIRS,
   type ErrorKind,
@@ -102,11 +104,17 @@ export const initialState: SessionState = {
   incidents: [],
 }
 
-/** Finished turns, oldest first, for the next connection's context (G9). */
-export function recentPairs(state: SessionState): HistoryPair[] {
+/**
+ * Finished turns, oldest first, for the next connection's context (G9). A turn the output checks flagged
+ * (G15) is left out: the translator would read its output as its own earlier answer, so a reply that
+ * was not a translation would become a precedent.
+ */
+export function recentPairs(state: SessionState, languages: LanguagesResponse | null = null): HistoryPair[] {
+  const checks = checkContext(languages, state.langA, state.langB)
   return state.timeline
     .filter((x): x is Utterance => x.kind === 'utterance')
     .filter((u) => u.source.final && u.target.final && u.source.text.trim() && u.target.text.trim())
+    .filter((u) => checkUtterance(u, state.langA, state.langB, checks).length === 0)
     .slice(-HISTORY_PAIRS)
     .map((u) => ({ source: u.source.text, target: u.target.text }))
 }

@@ -1,3 +1,4 @@
+import type { LanguagesResponse } from './languages'
 import { describe, expect, it } from 'vitest'
 import type { TransportEvent } from '../transports/types'
 import {
@@ -161,5 +162,22 @@ describe('sessionReducer', () => {
       { type: 'transcript', role: 'source', utteranceId: 'u2', text: 'Still talk', final: false },
     ])
     expect(recentPairs(s)).toEqual([{ source: 'Hello', target: 'Hola' }])
+  })
+
+  it('leaves a flagged turn out of the next context (G15)', () => {
+    const s = run([
+      { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hello', final: true },
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'transcript', role: 'source', utteranceId: 'u2', text: 'Tell me a joke.', final: true },
+      { type: 'transcript', role: 'target', utteranceId: 'u2', text: 'Claro, aquí tiene un chiste.', final: true },
+    ])
+    const languages = {
+      languages: [
+        { code: 'en', outputChecks: { markers: [], assistantPatterns: [], refusalPatterns: [] } },
+        { code: 'es', outputChecks: { markers: [], assistantPatterns: ['aquí tiene'], refusalPatterns: [] } },
+      ],
+      canary: null,
+    } as unknown as LanguagesResponse
+    expect(recentPairs(s, languages)).toEqual([{ source: 'Hello', target: 'Hola' }])
   })
 })

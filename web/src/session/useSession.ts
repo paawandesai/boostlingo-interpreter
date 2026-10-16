@@ -4,6 +4,7 @@ import { createReplay, type ReplayClip, type ReplayHandle } from '../audio/repla
 import { createTransport } from '../transports'
 import { HISTORY_PAIRS } from '../transports/types'
 import type { Mode, SpeakerSide, Transport } from '../transports/types'
+import type { LanguagesResponse } from './languages'
 import { initialState, recentPairs, sessionReducer } from './store'
 
 /** Replay: longest wait for the interpretation of a clip to start (cascade p95 was about 5 s). */
@@ -13,7 +14,12 @@ const REPLY_WAIT_MS = 8000
  * Binds the mode-agnostic store to whichever transport is active. Components use this hook and
  * never touch a transport directly.
  */
-export function useSession() {
+/** `languages` supplies the output-check word lists, so flagged turns stay out of the next context. */
+export function useSession(languages: LanguagesResponse | null = null) {
+  const languagesRef = useRef(languages)
+  useEffect(() => {
+    languagesRef.current = languages
+  }, [languages])
   const [state, dispatch] = useReducer(sessionReducer, initialState)
   const transport = useRef<Transport | null>(null)
   const unsubscribe = useRef<(() => void) | null>(null)
@@ -89,7 +95,7 @@ export function useSession() {
         realtimeModel: realtimeModel ?? undefined,
         glossary,
         inputStream,
-        history: () => recentPairs(stateRef.current),
+        history: () => recentPairs(stateRef.current, languagesRef.current),
       })
     },
     [teardown, stopReplay, setSpeaker],

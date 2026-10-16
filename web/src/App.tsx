@@ -25,8 +25,8 @@ import { useSession } from './session/useSession'
 const replayGapMs = Number(new URLSearchParams(window.location.search).get('replayGap')) || undefined
 
 export default function App() {
-  const { state, start, end, configure, setSpeaker, dismissError, requestHuman, switchMode } = useSession()
   const [languages, setLanguages] = useState<LanguagesResponse | null>(null)
+  const { state, start, end, configure, setSpeaker, dismissError, requestHuman, switchMode } = useSession(languages)
   const [models, setModels] = useState<RealtimeModels | null>(null)
   const [cascadeProviders, setCascadeProviders] = useState<CascadeProviders | null>(null)
   const [announcing, setAnnouncing] = useState(false)
