@@ -2,7 +2,7 @@
 
 Each run is a 5-minute soak on the synthetic clip set (`eval/replay/synth.py`, TTS voices, not people), with the turn-taking replay (MR !33): each clip waits for the previous clip's interpretation. Latency is measured client-side, from the browser VAD's speech end to the first audible output (D9). The measurement is the same in every row. chrF is multi-reference (reference plus `alternatives`, model-drafted and unverified). WER is cascade STT only. Rows come from `python3 eval/summarize.py <log>` on the files named.
 
-Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job ids in brackets). Realtime is `gpt-realtime-2.1`. The cascade translator is OpenAI and the TTS is ElevenLabs.
+Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job ids in brackets). Realtime is `gpt-realtime-2.1` except the `gpt-realtime` row, which ran with the same defaults afterwards. The cascade translator is OpenAI and the TTS is ElevenLabs.
 
 | Run | Endpointing | STT | Commit delay | n | p50 ms | p95 ms | Lines interpreted | chrF | WER | File |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -14,9 +14,11 @@ Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job
 | Realtime [234661] | client | – | 150 ms | 41 | 1404 | 1754 | 43/53 | 75.0 | – | `logs/2026-10-16-realtime-client150-synthetic.json` |
 | Realtime [234781] | client | – | 300 ms | 37 | 1459 | 1908 | 41/46 | 81.8 | – | `logs/2026-10-16-realtime-client300-synthetic.json` |
 | Realtime + held commit [234812] | client | – | 300 ms | 38 | **1271** | **1602** | 48/48 | 82.9 | – | `logs/2026-10-16-realtime-client300-held-synthetic.json` |
+| Realtime `gpt-realtime`, same defaults [234887] | client | – | 300 ms | 36 | 1150 | 1490 | 43/44 | 83.3 | – | `logs/2026-10-16-realtime-gpt-realtime-client300-synthetic.json` |
 
 Against the brief:
 - Realtime under 1.5 s is met at p50 (1271 ms) but not at p95 (1602 ms).
+- `gpt-realtime` (the brief's model) meets it at p50 (1150 ms) and, in this one run, at p95 (1490 ms, just under the line). Its 44th turn was cut by the end of the run, and its one `wrong_language` flag was a false positive on a correct Spanish line ("a" counted twice as an English marker; fixed in e6c712f). Its heap grew 18.0%.
 - Cascade under 3 s is met at p50 and p95. The 2 s target is met at p50 (1940 ms) but not at p95 (2319 ms).
 
 What changed:
