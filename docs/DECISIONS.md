@@ -192,6 +192,12 @@ The guardrails (docs/GUARDRAILS.md, "Adversarial speech") prefer the purpose-bui
 
 **Why:** the structural defence above, plus one vendor and one billing unit, which is what the recommendation for consumer and low-stakes use rests on (docs/WRITEUP.md §6). **Trade-offs:** no glossary or register control (there are no instructions to put them in), no confidence signal, coverage limited to the languages the model can output, and a measurement that is not the same quantity as the other two modes' speech end → first audio.
 
+### D18. BAA mode: route enforcement instead of a documented gap — Locked 2026-10-16 (Paawan)
+
+Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpoint (`/v1/realtime/translations`) is not on OpenAI's HIPAA-eligible list and that ElevenLabs offers a BAA only on Enterprise and lists HIPAA eligibility (Enterprise with Zero Retention Mode) for its speech-to-text, while no page checked covers the text-to-speech socket the cascade uses. Paawan chose to fix this in code rather than only document it. Decision: a server setting, `Compliance:RequireBaa`, plus `Compliance:BaaSigned` (vendors the operator declares a BAA with). With it on, the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's eligible list or whose vendor is not declared, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. An OpenAI text-to-speech adapter (`/v1/audio/speech`, `gpt-4o-mini-tts`, stock voice `alloy`) lets cascade run as OpenAI STT + Claude translator + OpenAI TTS under two BAAs instead of three.
+
+**Why:** a refusal in code is a control a reviewer can test; a paragraph is not. **Trade-offs:** eligibility is a table in code, read from vendor pages on one date, so it must be re-checked when they change; the OpenAI Chat Completions translator and ElevenLabs TTS are refused only because nothing checked lists them as eligible; the OpenAI TTS adapter has no live run yet; signing BAAs and Modified Retention remain outside the code.
+
 ---
 
 ## Part 5: How we make it stand out, and how we know it's good
@@ -263,12 +269,6 @@ Ordering principle: working end-to-end slices first, then measurement, then evid
 Execution runbook with CI folded in: docs/TASKS.md (supersedes the Part 7 hour table where they differ).
 
 Sources for D16: [AMN healthcare language study](https://www.businesswire.com/news/home/20210830005075/en/New-AMN-Study-Shows-Growing-Diversity-of-Languages-Spoken-in-Healthcare-Encounters) · [Deepgram models & languages](https://developers.deepgram.com/docs/models-languages-overview) · [ElevenLabs models](https://elevenlabs.io/docs/overview/models)
-
-### D18. BAA mode: route enforcement instead of a documented gap — Locked 2026-10-16 (Paawan)
-
-Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpoint (`/v1/realtime/translations`) is not on OpenAI's HIPAA-eligible list and that ElevenLabs offers a BAA only on Enterprise and lists HIPAA eligibility (Enterprise with Zero Retention Mode) for its speech-to-text, while no page checked covers the text-to-speech socket the cascade uses. Paawan chose to fix this in code rather than only document it. Decision: a server setting, `Compliance:RequireBaa`, plus `Compliance:BaaSigned` (vendors the operator declares a BAA with). With it on, the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's eligible list or whose vendor is not declared, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. An OpenAI text-to-speech adapter (`/v1/audio/speech`, `gpt-4o-mini-tts`, stock voice `alloy`) lets cascade run as OpenAI STT + Claude translator + OpenAI TTS under two BAAs instead of three.
-
-**Why:** a refusal in code is a control a reviewer can test; a paragraph is not. **Trade-offs:** eligibility is a table in code, read from vendor pages on one date, so it must be re-checked when they change; the OpenAI Chat Completions translator and ElevenLabs TTS are refused only because nothing checked lists them as eligible; the OpenAI TTS adapter has no live run yet; signing BAAs and Modified Retention remain outside the code.
 
 ---
 
