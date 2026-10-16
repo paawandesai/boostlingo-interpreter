@@ -151,22 +151,10 @@ Model lifecycle is part of the same risk: the brief's `gpt-realtime` is already 
 cascade's OpenAI STT fallback (`gpt-4o-transcribe`) is listed for shutdown on 2027-02-26. Both are
 config entries here, but a replacement must be re-tested and re-measured before it is trusted.
 
-**Data flows.**
-
-| Vendor | Used in | Default retention | Zero retention | BAA |
-|---|---|---|---|---|
-| OpenAI | Realtime, Realtime translate, cascade STT, cascade translator (default), cascade TTS (BAA mode) | abuse-monitoring logs up to 30 days by default (30 days listed for `/v1/realtime`; none for `/v1/audio/transcriptions`); API data not used for training by default | Zero Data Retention or Modified Abuse Monitoring, by OpenAI's prior approval | `/v1/realtime` and `/v1/audio/{transcriptions,translations,speech}` are eligible with an executed BAA and Modified Retention, unless OpenAI specifies otherwise; **`/v1/realtime/translations` (Realtime translate) is not on the eligible list** |
-| Anthropic | cascade translator | prompts and outputs not retained by default (Covered Models 30 days; flagged sessions up to 2 years); never used for training without permission (fetched 2026-10-16) | per organization, through Anthropic sales (fetched 2026-10-16) | available: executed in the Claude Console for HIPAA-enabled organizations, eligible API features only (fetched 2026-10-16) |
-| ElevenLabs | cascade TTS (default; refused in BAA mode) | TTS text and audio kept by default (history on), no period stated; deleted items stay in backups up to 30 days; non-enterprise data used to improve models unless the account turns off "Data use" | Zero Retention Mode, select enterprise customers only | listed as an Enterprise plan feature |
-| Deepgram (adapter only) | cascade STT | audio retained by default to improve models, no period stated; `mip_opt_out=true` is sent, so audio is kept only as long as needed to process the request | none published beyond the opt-out | on request for covered entities (docs); the pricing page lists it for Enterprise |
-
-No BAA or zero-retention terms are in place for this project, and it is not HIPAA-compliant. The
-code closes the routing gap instead: BAA mode (off by default, README "BAA mode") refuses any session
-whose route is not on its vendor's HIPAA-eligible list or whose vendor has no declared BAA. Realtime
-translate is always refused; Realtime runs; cascade runs on OpenAI speech-to-text, the Claude
-translator and an OpenAI text-to-speech adapter added for this (unit-tested, not yet run live).
-Cascade sends the conversation to up to three vendors at once (two in the BAA profile: OpenAI and
-Anthropic), so a covered deployment needs two agreements instead of one. No audio is stored; transcripts are discarded at End unless exported.
+**Data flows.** No BAA or zero-retention terms are in place for this project, and it is not
+HIPAA-compliant. BAA mode (off by default, README "BAA mode") refuses any route not on its vendor's
+HIPAA-eligible list, so Realtime translate is always refused; the per-vendor retention, zero-retention
+and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
 
 ## 6. Recommendation by scenario **[REPHRASE]**
 
@@ -176,7 +164,7 @@ Anthropic), so a covered deployment needs two agreements instead of one. No audi
 | Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime, or cascade on OpenAI STT + Claude + OpenAI TTS (not yet run live; latency and cost unmeasured), with BAA mode on and each vendor's BAA and retention terms signed; never Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. That cascade needs two agreements (OpenAI and Anthropic); the default ElevenLabs TTS would add a third, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
-| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation must be reviewed by a qualified human translator when the text is critical to rights, benefits or meaningful access, when accuracy is essential, or when the source is complex or technical (45 CFR 92.201(c)(3)); 92.4 defines machine translation as text-based, and spoken interpretation falls under the separate qualified-interpreter requirement in (c)(1). California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law. In proceedings instituted by the United States, federal courts use the most available certified interpreter, or an otherwise qualified one (28 U.S.C. §1827(d)(1)); California courts require certified or registered interpreters (Gov. Code §68561), with narrow provisional and temporary exceptions (Cal. Rules of Court 2.893). Latency and cost are secondary. |
+| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | ACA Section 1557 requires qualified human review of machine translation where accuracy is critical and a qualified interpreter for spoken interpretation, and federal and California courts require certified or qualified interpreters (citations in [appendix F](WRITEUP-APPENDIX.md#f-medical-and-legal-citations)). Latency and cost are secondary. |
 
 ## 7. What this does not show
 
