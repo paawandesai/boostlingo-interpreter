@@ -50,9 +50,14 @@ replay harness rather than the flush policy: the harness started the next clip a
 interpreter had been idle for 600 ms, before the previous turn had been interpreted, so 12 of 56
 turns (Claude translator) and 14 of 62 (OpenAI translator) have a speech end at or before the previous
 turn's `audio.first_out` mark (computed from `marks` in `eval/results/logs/`), and the half-duplex mic
-gate then cut the clip when that interpretation started playing. A fix to the replay (wait for the
-reply to start, up to 8 s, then for it to finish) is in progress on a separate branch; the cascade
-WER, chrF and omission figures are expected to change after a re-run, which needs OpenAI credit.
+gate then cut the clip when that interpretation started playing. The replay was fixed to wait for the
+reply to start (up to 8 s) and then to finish (MR !33). One cascade re-run with it on 2026-10-16
+(OpenAI STT, OpenAI translator, ElevenLabs, synthetic set, 5 minutes) gave 37 turns, STT WER 4.0%
+(was 33.9%), chrF 82.5 (was 58.0), 36 of 37 lines matched, total p50/p95 2540/4170 ms, heap +19.4%,
+10 drift skips, 0 disconnects (`eval/results/soak-2026-10-16-cascade-replay-openai-turntaking-synthetic.json`).
+Fewer turns fit in 5 minutes because each one now waits for its reply. The Claude-translator cascade,
+Realtime and Realtime translate were not re-run (OpenAI credit), so the quality table keeps the
+2026-10-15 set and its omission counts are inflated by the harness.
 A person who stops talking when the interpreter starts would not lose words this way, but one who
 keeps talking would, so the first-clause flush remains a secondary suspect. **[VERIFY with the fixed
 replay and a recorded run before quoting cascade quality.]** The Vietnamese onboarding run, with longer pauses, scored chrF 90.8

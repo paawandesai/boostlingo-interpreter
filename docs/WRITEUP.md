@@ -79,8 +79,12 @@ Claude-translator red-team run.
 ("Do you accept" for "Do you accept credit cards?"). The marks point at the replay harness, not
 the pipeline: it started the next clip once the interpreter had been idle for 600 ms, so 12 of 56
 (Claude translator) and 14 of 62 (OpenAI) turns ended at or before the previous turn's first
-interpreter audio, and the half-duplex mic gate then cut the clip. A replay fix is in progress and
-a re-run would change these numbers (appendix C). The Vietnamese onboarding run, with longer pauses, scored chrF 90.8 on the 8 of 13 translated lines the
+interpreter audio, and the half-duplex mic gate then cut the clip. With the replay fixed to wait for
+each interpretation (MR !33), one cascade re-run on 2026-10-16 (OpenAI STT and translator, 37 turns,
+`eval/results/logs/2026-10-16-cascade-replay-openai-turntaking-synthetic.json`) gave STT WER 4.0%
+(was 33.9%), chrF 82.5 (was 58.0), 36 of 37 lines matched and 3 of 8 glossary terms, at total
+p50/p95 2540/4170 ms (was 2440/4097). The table above keeps the 2026-10-15 set because only this one
+configuration was re-run; the other modes wait on OpenAI credit (appendix C). The Vietnamese onboarding run, with longer pauses, scored chrF 90.8 on the 8 of 13 translated lines the
 matcher could pair, against references no Vietnamese speaker has checked, latency withheld because it
 ran on Deepgram STT (`eval/results/onboarding-vi.md`, "Summary of the two logs"). Realtime's 13
 matched lines are merged turns the matcher can't split. **This table is not a ranking** until there
@@ -172,5 +176,6 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 - No prices for STT, TTS or OpenAI models, so no cost per minute.
 - Heap grew more than 10% from minute 1 in every mode but Realtime translate; cascade dropped
   22–26 s of late interpreter audio per 5-minute replay to stay in sync.
-- Cascade's sentence-tail loss under replay (section 3) is most likely the replay's turn-taking;
-  the cascade quality and omission numbers wait on a re-run with the fixed replay.
+- Cascade's sentence-tail loss under replay (section 3) was the replay's turn-taking; only one
+  cascade configuration has been re-run with the fixed replay, so the quality table is still the
+  2026-10-15 set.

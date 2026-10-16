@@ -26,7 +26,9 @@ Imported from the planning notes on 2026-10-14 and maintained here from now on. 
 **Why:** TS is the brief's preference. Vite gives fast dev and simple worklet bundling. AudioWorklet runs audio on the audio thread; ScriptProcessorNode is deprecated and runs on the main thread, so React re-renders cause glitches.
 **Trade-offs:** worklets are awkward to bundle and debug (separate module, no DOM, message-port only). React is heavier than needed, but it keeps transcript/latency state management simple. Keep state in one small store (Zustand or `useReducer`), not scattered across components, because mid-session toggle depends on it (D12).
 
-### D3. Tests: xUnit (backend), Vitest (frontend) — Proposed
+### D3. Tests: xUnit (backend), Vitest (frontend) — Locked
+
+As built (2026-10-16): xUnit v3 on Microsoft.Testing.Platform for the server, Vitest for the SPA, plus Playwright e2e for the mode switch and the 5-minute soak (manual CI jobs).
 
 Backend tests target the pipeline with fake providers plus adapter contract tests. Frontend tests target the pure latency calculator and flush-boundary logic if it lives client side. No E2E browser automation, which isn't worth the hours.
 
@@ -118,7 +120,9 @@ public interface IStreamingTts {
 
 The calculator is a pure function `computeLatency(marks: Mark[]): Breakdown`, unit tested.
 
-### D10. Speaker direction: explicit toggle first, auto-detect as an experiment — Proposed
+### D10. Speaker direction: explicit toggle first, auto-detect as an experiment — Locked
+
+As built (2026-10-16): the explicit toggle only (Option A); auto-detect was not built.
 
 **Option A, explicit toggle** (two buttons, "I'm speaking English" / "Spanish speaker", or push-to-talk per side). Deterministic, simple prompts, a reliable STT language setting (better WER), clean measurement.
 **Option B, auto-detect.** One session handles both directions; more natural. But Realtime has to infer the language from audio (misfires on short or code-switched utterances), and cascade STT needs multi-language mode (Deepgram `multi`, verify), which usually costs accuracy.
