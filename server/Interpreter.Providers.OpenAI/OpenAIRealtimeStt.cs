@@ -21,11 +21,13 @@ namespace Interpreter.Providers.OpenAI;
 /// resampled here.
 /// </para>
 /// </summary>
-public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> options) : IStreamingStt
+public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> options, TimeProvider? time = null) : IStreamingStt
 {
     private const string Provider = "openai-transcribe";
     private const int SessionRate = 24000;
     private readonly OpenAITranscriptionOptions _opts = options.Value;
+    /// <summary>Drives the drain timers after the audio ends; tests pass a frozen clock to prove nothing waits on them.</summary>
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     public string Name => Provider;
 
@@ -179,11 +181,11 @@ public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> optio
             await sendLock.WaitAsync(ct);
             try { await WebSocketText.SendTextAsync(ws, """{"type":"input_audio_buffer.commit"}""", ct); }
             finally { sendLock.Release(); }
-            await turns.FinalCommitAcked.Task.WaitAsync(TimeSpan.FromSeconds(2), ct)
+            await turns.FinalCommitAcked.Task.WaitAsync(TimeSpan.FromSeconds(2), _time, ct)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             turns.AudioEnded = true;
             turns.CheckDrained();
-            await turns.Drained.Task.WaitAsync(TimeSpan.FromMilliseconds(_opts.DrainTimeoutMs), ct)
+            await turns.Drained.Task.WaitAsync(TimeSpan.FromMilliseconds(_opts.DrainTimeoutMs), _time, ct)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             events.TryComplete();
         }

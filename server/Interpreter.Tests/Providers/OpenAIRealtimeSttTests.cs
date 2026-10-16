@@ -11,13 +11,26 @@ namespace Interpreter.Tests.Providers;
 
 public class OpenAIRealtimeSttTests
 {
-    private static OpenAIRealtimeStt Stt(Uri? baseUrl = null) =>
+    private static OpenAIRealtimeStt Stt(Uri? baseUrl = null, TimeProvider? time = null) =>
         new(Options.Create(new OpenAITranscriptionOptions
         {
             ApiKey = "test-key",
             BaseUrl = baseUrl ?? new Uri("wss://api.openai.com/v1/"),
             DrainTimeoutMs = 2000,
-        }));
+        }), time);
+
+    /// <summary>A clock whose timers never fire: anything that waits on a drain timeout waits forever.</summary>
+    private sealed class FrozenTime : TimeProvider
+    {
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) => new NeverTimer();
+
+        private sealed class NeverTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => default;
+        }
+    }
 
     private static async IAsyncEnumerable<AudioFrame> Audio(int frames)
     {
@@ -98,11 +111,12 @@ public class OpenAIRealtimeSttTests
             await s.ReceiveUntil(ws, _ => false);
         });
 
-        var started = DateTime.UtcNow;
-        var events = await Collect(Stt(server.BaseUrl).TranscribeAsync(Audio(2), new SttOptions("en"), TestContext.Current.CancellationToken));
+        // With a frozen clock the drain timeout can never fire, so the stream only ends if the empty-commit
+        // error ended it; the WaitAsync below is the test's own guard against a hang, not a timing assertion.
+        var events = await Collect(Stt(server.BaseUrl, new FrozenTime()).TranscribeAsync(Audio(2), new SttOptions("en"), TestContext.Current.CancellationToken))
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         Assert.Empty(events);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1.5), "should not wait for the drain timeout");
     }
 
     [Fact]
