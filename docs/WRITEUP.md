@@ -89,13 +89,20 @@ is recorded speech, checked references and Paawan's own rubric, scored with the 
 | Mode | Billing unit | Price | Per minute |
 |---|---|---|---|
 | Cascade | STT minutes + translator tokens + TTS characters | Claude translator $0.10 / $0.50 per M tokens in/out (checked 2026-10-14); STT and TTS **[VERIFY]** | not computed |
-| Realtime | audio and text tokens in and out | **[VERIFY]** | not computed |
+| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | **[VERIFY]** | not computed |
 | Realtime translate | session minutes | $0.034/min per the project guardrails **[VERIFY]** | $0.034 if confirmed |
 
 OpenAI's and ElevenLabs' pricing pages could not be reached from the cloud container, and
-`config/prices.json` never estimates, so these stay blank. Once Paawan fills the prices, re-run
+`config/prices.json` never estimates, so these stay blank. Once Paawan fills the prices (including
+`cachedInputPerMTok`, null today on both realtime entries), re-run
 `python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json` and the cost column fills
-from the logs' token and character counts. Cascade costs three vendors; the Realtime modes cost one.
+from the token, character and minute counts already in the logs; unpriced components stay listed.
+Realtime's cached input tokens are priced at the cached rate (one cached count covers text and
+audio, so it is taken off text input first, then audio), and its separately billed input
+transcription is not captured in these logs. The cascade logs carry no STT minutes (the browser
+emitted them only on End), so a cascade cost per minute needs a re-export or
+`--stt-minutes-from-session`, an explicitly labelled upper bound that charges the whole session at
+the STT per-minute price. Cascade costs three vendors; the Realtime modes cost one.
 
 ## 5. Controllability and compliance
 
