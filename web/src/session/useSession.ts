@@ -6,6 +6,9 @@ import { HISTORY_PAIRS } from '../transports/types'
 import type { Mode, SpeakerSide, Transport } from '../transports/types'
 import { initialState, recentPairs, sessionReducer } from './store'
 
+/** Replay: longest wait for the interpretation of a clip to start (cascade p95 was about 5 s). */
+const REPLY_WAIT_MS = 8000
+
 /**
  * Binds the mode-agnostic store to whichever transport is active. Components use this hook and
  * never touch a transport directly.
@@ -58,6 +61,8 @@ export function useSession() {
         await stopReplay()
         const r = createReplay(opts.replay, {
           gapMs: opts.replayGapMs,
+          // Realtime translate speaks over the speaker and has no gate, so nothing to wait for.
+          replyWaitMs: () => (stateRef.current.mode === 'translate' ? 0 : REPLY_WAIT_MS),
           // The capture gate disables the input track while the interpreter speaks.
           isBusy: () => r.stream.getAudioTracks().some((t) => !t.enabled),
           onClip: (clip) => {
