@@ -6,21 +6,28 @@ under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
 ## A. Setup and method
 
 - **Three modes, one UI.** *Cascade*: streaming STT → LLM translator → streaming TTS on our server.
-  *Realtime*: `gpt-realtime-2.1` speech-to-speech over WebRTC, instructed only to interpret, no tools.
-  *Realtime translate*: `gpt-realtime-translate`, a dedicated streaming translation model that takes
-  only a target language. The brief's `gpt-realtime` is deprecated (removal 2027-01-20 per OpenAI's
-  deprecations page); it stays selectable but is not the default, and it was never measured.
+  *Realtime*: OpenAI speech-to-speech over WebRTC (`gpt-realtime-2.1` by default), instructed only to
+  interpret, no tools. *Realtime translate*: `gpt-realtime-translate`, a dedicated streaming
+  translation model that takes only a target language. The brief's `gpt-realtime` is deprecated
+  (removal 2027-01-20 per OpenAI's deprecations page); it stays selectable but is not the default. It
+  was measured once, on 2026-10-16, with the same defaults as `gpt-realtime-2.1` (CI job 234887).
+- **Defaults (MR !37).** Client endpointing: the browser commits a turn 300 ms after its VAD reports
+  speech end. Cascade STT: `gpt-realtime-whisper`, streaming (`gpt-4o-transcribe` and server-side
+  endpointing stay one setting away). Cascade opens the TTS stream when translation starts.
 - **Audio.** 65 synthetic TTS clips of scripted English ↔ Spanish dialogue (both directions),
-  looped for 5 minutes per mode in headless Chromium (fake mic): Realtime and Realtime translate on
-  the CI runner, Cascade in the cloud container with each translator (OpenAI, Claude). The 28
-  red-team lines were voiced the same way (background-voice lines with a second, quieter voice) and
-  looped for 4 minutes per configuration. No recorded people, no real calls.
+  looped for 5 minutes per run in headless Chromium (fake mic), each clip waiting for the previous
+  interpretation (MR !33): Realtime on the CI runner, Cascade in the cloud container. The 2026-10-15
+  runs (Realtime translate, the Claude-translator cascade, the red-team suite) used the older replay,
+  which did not wait. The 28 red-team lines were voiced the same way (background-voice lines with a
+  second, quieter voice) and looped for 4 minutes per configuration. No recorded people, no real calls.
 - **Latency** is measured in the browser from the client VAD's speech end to the first audible
   output frame, with per-stage marks. Realtime translate talks while the speaker is still talking, so
   it uses a *text lag* (first source text → first translated text) instead.
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
-  of each translation against the script's reference. References were written by a model and are
-  unverified (the same **[VERIFY: I check references, then score blind]** as in the write-up).
+  of each translation against the script's reference and, since 2026-10-16, its `alternatives`
+  (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
+  single-reference numbers. References were written by a model and are unverified (the same
+  **[VERIFY: I check references, then score blind]** as in the write-up).
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
@@ -28,18 +35,21 @@ under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
 
 ## B. Where the time goes, and why the latency numbers are not one quantity
 
-Where the time goes in Cascade with the OpenAI translator (p50/p95): endpointing 726/2056, STT final
-1195/2451, translation first token 584/1038, TTS first byte 334/593. STT finalisation dominates; the
-two translators differ by less than the run-to-run spread (first token 584 vs 576 at p50). In
-Realtime, endpointing is 1266/1653 and the model's own time (opaque) is 910/2010.
+Where the time goes on the 2026-10-16 defaults (p50/p95 ms, `eval/results/latency-tuning-2026-10-16.md`
+and `python3 eval/summarize.py` on each log). Cascade (`gpt-realtime-whisper`, OpenAI translator,
+ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
+89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
+endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
+endpointing 546/629, response created 25/58, model + audio 560/901. Before the tuning (2026-10-15,
+server-side endpointing) cascade endpointing was 726/2056 and STT final 1195/2451, Realtime
+endpointing 1266/1653; the two translators differed by less than the run-to-run spread (first token
+584 vs 576 at p50).
 
 The modes' numbers are not the same quantity. Realtime translate speaks before the speaker stops, so
 its text lag says how far it trails, not how long a listener waits; start lag (speech start → first
-audio) got only 1 measurement in this run because the looped clips leave few pauses. Realtime merged
-clips into longer turns (29 turns from the loop), so its n is small and it misses the 50-turn soak
-criterion. Cascade's 46 and 45 total-latency samples come from 63 and 57 utterances: a turn the STT
-split without a client-VAD pause has no speech-end mark, so it has no total. Heap grew 8.5–20% from
-minute 1 across the four replay runs (criterion < 10%; only Realtime translate passed).
+audio) got only 1 measurement in this run because the looped clips leave few pauses. On 2026-10-15
+Realtime merged clips into longer turns (29 turns from the loop), and cascade's 46 and 45 totals came
+from 63 and 57 utterances (a turn the STT split without a client-VAD pause has no speech-end mark).
 
 ## C. Cascade's sentence-tail loss
 
@@ -55,17 +65,19 @@ reply to start (up to 8 s) and then to finish (MR !33). One cascade re-run with 
 (OpenAI STT, OpenAI translator, ElevenLabs, synthetic set, 5 minutes) gave 37 turns, STT WER 4.0%
 (was 33.9%), chrF 82.5 (was 58.0), 36 of 37 lines matched, total p50/p95 2540/4170 ms, heap +19.4%,
 10 drift skips, 0 disconnects (`eval/results/soak-2026-10-16-cascade-replay-openai-turntaking-synthetic.json`).
-Fewer turns fit in 5 minutes because each one now waits for its reply. The Claude-translator cascade,
-Realtime and Realtime translate were not re-run (OpenAI credit), so the quality table keeps the
-2026-10-15 set and its omission counts are inflated by the harness.
+Fewer turns fit in 5 minutes because each one now waits for its reply. The tuned runs of MR !37
+(cascade and both Realtime models) all used the fixed replay; the Claude-translator cascade, Realtime
+translate and the red-team suite were not re-run, so their 2026-10-15 numbers, and the red-team
+omission counts, are still inflated by the harness.
 A person who stops talking when the interpreter starts would not lose words this way, but one who
 keeps talking would, so the first-clause flush remains a secondary suspect. **[VERIFY with the fixed
 replay and a recorded run before quoting cascade quality.]** The Vietnamese onboarding run, with longer pauses, scored chrF 90.8
 (`eval/results/onboarding-vi.md`, "Summary of the two logs": 8 matched lines of 13 translated,
 Deepgram STT so latency withheld, references unchecked by a Vietnamese speaker).
 
-Realtime matched only 13 lines because it merges several clips into one turn, which the line matcher
-can't split. **The quality table is not a ranking.** It needs recorded speech, checked references and
+On 2026-10-15 Realtime matched only 13 lines because server-side endpointing merged several clips
+into one turn, which the line matcher can't split; with client endpointing and the fixed replay both
+Realtime models matched 36. **The quality table is not a ranking.** It needs recorded speech, checked references and
 my own rubric, scored with the mode hidden.
 
 ## D. Red-team failure examples
@@ -97,7 +109,9 @@ No BAA or zero-retention terms are in place for this project, and it is not HIPA
 code closes the routing gap instead: BAA mode (off by default, README "BAA mode") refuses any session
 whose route is not on its vendor's HIPAA-eligible list or whose vendor has no declared BAA. Realtime
 translate is always refused; Realtime runs; cascade runs on OpenAI speech-to-text, the Claude
-translator and an OpenAI text-to-speech adapter added for this (unit-tested, not yet run live).
+translator and an OpenAI text-to-speech adapter added for this (unit-tested; it passed a live test in
+CI job 234538, and a local run gave first audio about 0.8–0.9 s per phrase; its latency inside a
+session is unmeasured).
 Cascade sends the conversation to up to three vendors at once (two in the BAA profile: OpenAI and
 Anthropic), so a covered deployment needs two agreements instead of one. No audio is stored; transcripts are discarded at End unless exported.
 
