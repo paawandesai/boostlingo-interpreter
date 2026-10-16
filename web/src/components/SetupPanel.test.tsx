@@ -23,9 +23,9 @@ afterEach(() => {
 function render(state: SessionState, props: Partial<Parameters<typeof SetupPanel>[0]> = {}) {
   const onConfigure = vi.fn()
   const onStart = vi.fn()
-  const element = (
+  const element = (s: SessionState) => (
     <SetupPanel
-      state={state}
+      state={s}
       languages={null}
       models={models}
       cascadeProviders={null}
@@ -41,15 +41,21 @@ function render(state: SessionState, props: Partial<Parameters<typeof SetupPanel
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root.render(element))
-  return {
-    onConfigure,
-    onStart,
-    rerender: (next: SessionState) => act(() => root.render({ ...element, props: { ...element.props, state: next } })),
-  }
+  act(() => root.render(element(state)))
+  return { onConfigure, onStart, rerender: (next: SessionState) => act(() => root.render(element(next))) }
 }
 
 const modelSelect = () => container.querySelector<HTMLSelectElement>('#rt-model')
+const startButton = () =>
+  Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Start session')!
+
+/** Types into a controlled input the way a user would (React ignores a plain .value assignment). */
+function type(input: HTMLInputElement, value: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
 
 describe('SetupPanel model select', () => {
   it('lists the allowed models with the default and deprecation hints and reports the pick', () => {
@@ -79,5 +85,35 @@ describe('SetupPanel model select', () => {
     container.remove()
     render({ ...initialState, mode: 'realtime' }, { models: null })
     expect(modelSelect()).toBeNull()
+  })
+})
+
+describe('SetupPanel start gate', () => {
+  it('needs the access token and the consent box before Start is enabled', () => {
+    const { onStart } = render({ ...initialState, mode: 'realtime' })
+    const start = startButton()
+    expect(start.disabled).toBe(true)
+    expect(start.title).toBe('Enter the access token first')
+
+    type(container.querySelector<HTMLInputElement>('#access-token')!, 'invite-code')
+    expect(start.disabled).toBe(true)
+    expect(start.title).toBe('Confirm both parties agreed first')
+
+    const consent = Array.from(container.querySelectorAll('label')).find((l) =>
+      l.textContent?.startsWith('Both parties were told'),
+    )!
+    act(() => consent.querySelector('input')!.click())
+    expect(start.disabled).toBe(false)
+    expect(start.title).toBe('')
+
+    act(() => start.click())
+    expect(onStart).toHaveBeenCalledWith({ spokenNotice: true })
+  })
+
+  it('treats a blank token as missing', () => {
+    render({ ...initialState, mode: 'realtime' })
+    type(container.querySelector<HTMLInputElement>('#access-token')!, '   ')
+    expect(startButton().disabled).toBe(true)
+    expect(startButton().title).toBe('Enter the access token first')
   })
 })

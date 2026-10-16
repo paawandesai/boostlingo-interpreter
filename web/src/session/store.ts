@@ -201,9 +201,16 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
     case 'gated':
       return { ...state, gated: e.gated }
     case 'error': {
+      const error = { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs }
+      // The server refused the first connection of a session (wrong or missing access token, or a
+      // provider key): back to the setup screen, where the token field is, with the error kept for
+      // its banner. After a mode switch or a retry the timeline is not empty, and the live screen
+      // stays so the transcript can still be exported before End.
+      if (e.kind === 'auth' && state.status === 'connecting' && state.timeline.length === 0)
+        return { ...discardTranscript(state), status: 'ended', level: 0, gated: false, error }
       const next = {
         ...state,
-        error: { kind: e.kind, message: e.message, retryAfterMs: e.retryAfterMs },
+        error,
         incidents: [...state.incidents, { mode: state.mode, kind: e.kind, message: e.message }],
       }
       return e.kind === 'tts_failed' && e.utteranceId
