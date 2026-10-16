@@ -2,13 +2,16 @@
 
 > Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers await
 > Paawan: a vendor page, citation or figure to check, or an opinion to restate in their own words.
+> **†** marks a vendor or legal fact checked on 2026-10-16 only against search-engine excerpts of the
+> official page, because the page itself could not be fetched from the cloud container. Paawan opens
+> each † page and confirms it before submission.
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
 
 Three modes behind one UI: *Cascade* (streaming STT → LLM translator → streaming TTS on our server),
 *Realtime* (`gpt-realtime-2.1` speech-to-speech over WebRTC, instructed only to interpret, no tools)
-and *Realtime translate* (`gpt-realtime-translate`, which takes only a target language). The brief's `gpt-realtime` is deprecated (removal 2027-01-20 **[VERIFY]**); it is selectable
+and *Realtime translate* (`gpt-realtime-translate`, which takes only a target language). The brief's `gpt-realtime` is deprecated (removal 2027-01-20 per OpenAI's deprecations page †); it is selectable
 in the setup screen with no code change but is not the default, and all Realtime numbers here are for
 `gpt-realtime-2.1`: `gpt-realtime` minted sessions (2026-10-14) but was never measured, because OpenAI
 credit ran out on 2026-10-15 (`docs/ACCEPTANCE.md`). Stack: .NET 10 server, TypeScript SPA; the
@@ -94,13 +97,13 @@ is recorded speech, checked references and Paawan's own rubric, scored with the 
 
 | Mode | Billing unit | Price | Per minute |
 |---|---|---|---|
-| Cascade | STT minutes + translator tokens + TTS characters | Claude translator $0.10 / $0.50 per M tokens in/out (checked 2026-10-14); STT and TTS **[VERIFY]** | not computed |
-| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | **[VERIFY]** | not computed |
-| Realtime translate | session minutes | $0.034/min per the project guardrails **[VERIFY]** | $0.034 if confirmed |
+| Cascade | STT minutes + translator tokens + TTS characters | Claude translator $0.10 / $0.50 per M tokens in/out (checked 2026-10-14); OpenAI STT about $0.006/min by OpenAI's estimate †; Deepgram and ElevenLabs not priced (excerpts conflict; the ElevenLabs rate depends on the plan tier) | not computed |
+| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | `gpt-realtime-2.1` per M tokens: audio $32 in / $64 out, text $4 in / $24 out, cached input $0.40 † | not computed |
+| Realtime translate | session minutes | $0.034/min, OpenAI's estimate † | $0.034 † |
 
-OpenAI's and ElevenLabs' pricing pages could not be reached from the cloud container, and
-`config/prices.json` never estimates, so these stay blank. Once Paawan fills the prices (including
-`cachedInputPerMTok`, null today on both realtime entries), re-run
+`config/prices.json` now holds the OpenAI prices above (each entry says it came from search
+excerpts) and keeps Deepgram and ElevenLabs null, since it never estimates. Once Paawan confirms the
+prices and records the ElevenLabs tier rate, re-run
 `python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json` and the cost column fills
 from the token, character and minute counts already in the logs; unpriced components stay listed.
 Realtime's cached input tokens are priced at the cached rate (one cached count covers text and
@@ -149,10 +152,10 @@ opaque, no stage can be swapped, and leaving the vendor means a new transport, n
 
 | Vendor | Used in | Default retention | Zero retention | BAA |
 |---|---|---|---|---|
-| OpenAI | Realtime, Realtime translate, cascade STT | abuse logs up to 30 days **[VERIFY]** | by approval **[VERIFY]** | realtime/audio only with Healthcare Addendum and Modified Retention **[VERIFY]** |
-| Anthropic | cascade translator | **[VERIFY]** | **[VERIFY]** | **[VERIFY]** |
-| ElevenLabs | cascade TTS | **[VERIFY]** | enterprise only **[VERIFY]** | **[VERIFY]** |
-| Deepgram (adapter only) | cascade STT | **[VERIFY]**; `mip_opt_out=true` sent | **[VERIFY]** | **[VERIFY]** |
+| OpenAI | Realtime, Realtime translate, cascade STT | abuse-monitoring logs up to 30 days; API data not used for training by default † | Zero Data Retention or Modified Abuse Monitoring, by OpenAI's prior approval, per endpoint † | available; `/v1/realtime` and `/v1/audio/{transcriptions,translations,speech}` are eligible only with an executed BAA (Healthcare Addendum) and Modified Retention, unless OpenAI specifies otherwise † |
+| Anthropic | cascade translator | prompts and outputs not retained by default (Covered Models 30 days; flagged sessions up to 2 years); never used for training without permission (fetched 2026-10-16) | per organization, through Anthropic sales (fetched 2026-10-16) | available: executed in the Claude Console for HIPAA-enabled organizations, eligible API features only (fetched 2026-10-16) |
+| ElevenLabs | cascade TTS | no single API retention figure found †; non-enterprise data may be used for training unless the account opts out in settings † | Zero Retention Mode, select enterprise customers only † | enterprise only, with Zero Retention Mode enabled † |
+| Deepgram (adapter only) | cascade STT | no default figure found †; `mip_opt_out=true` sent, so audio is kept only as long as needed to process the request † | no policy page found † | on request from Deepgram † |
 
 No BAA or zero-retention terms are in place for this project, and it is not HIPAA-compliant.
 Cascade sends the conversation to three vendors at once, so a covered deployment needs three
@@ -165,7 +168,7 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 | Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. Latency comparable on synthetic audio. |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
-| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | AI here is not a "qualified interpreter" under ACA Section 1557 (45 CFR 92.4 and 92.201(c)) **[VERIFY]**, and the project guardrails read California AB 1242 as excluding unreviewed AI **[VERIFY: CA AB 1242]**; court and deposition work needs certified interpreters **[VERIFY: cite the federal (28 U.S.C. §1827) and state rule]**. Latency and cost are secondary. |
+| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation of critical content must be reviewed by a qualified human translator (45 CFR 92.201(c)(3), with the definitions in 92.4) †. California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law †. Federal courts use certified interpreters where available (28 U.S.C. §1827(d)(1)), and California courts require certified or registered interpreters (Gov. Code §68561; Cal. Rules of Court 2.893 for exceptions) †. Latency and cost are secondary. |
 
 ## 7. What this does not show
 
