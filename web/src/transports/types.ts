@@ -25,6 +25,11 @@ export interface SessionConfig {
   history?: () => HistoryPair[]
 }
 
+/** Source and target language for the side that is speaking. */
+export function direction(config: SessionConfig, side: SpeakerSide): [string, string] {
+  return side === 'A' ? [config.langA, config.langB] : [config.langB, config.langA]
+}
+
 export interface HistoryPair {
   source: string
   target: string

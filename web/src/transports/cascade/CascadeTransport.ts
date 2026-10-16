@@ -10,8 +10,8 @@ import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } fro
 import { createMicGate, type MicGate } from '../../audio/micGate'
 import { PlaybackScheduler } from '../../audio/playback'
 import { currentAccessToken } from '../../session/access'
-import { direction } from '../realtime/RealtimeTransport'
 import {
+  direction,
   HISTORY_PAIRS,
   TransportEmitter,
   type Mode,

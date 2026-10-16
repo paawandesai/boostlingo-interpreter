@@ -9,6 +9,7 @@
 import { MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
 import {
+  direction,
   HISTORY_PAIRS,
   TransportEmitter,
   type Mode,
@@ -257,11 +258,6 @@ function isActiveResponseError(err: { code?: string; message?: string } | undefi
     err?.code === 'conversation_already_has_active_response' ||
     /already has an active response/i.test(err?.message ?? '')
   )
-}
-
-/** Source and target language for the side that is speaking. */
-export function direction(config: SessionConfig, side: SpeakerSide): [string, string] {
-  return side === 'A' ? [config.langA, config.langB] : [config.langB, config.langA]
 }
 
 /** Speech can't close the tag and pose as something else (same rule as the cascade prompt). */

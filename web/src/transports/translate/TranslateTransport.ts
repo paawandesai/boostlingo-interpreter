@@ -10,10 +10,10 @@
  * were checked live; the audio path itself could not be tested from the cloud container.
  */
 import { MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
-import { direction } from '../realtime/RealtimeTransport'
 import { createTranslationSession, exchangeSdp, RealtimeApiError, type TranslationSessionInfo } from '../realtime/api'
 import { createFirstAudioProbe, type FirstAudioProbe } from '../realtime/firstAudioProbe'
 import {
+  direction,
   TransportEmitter,
   type Mode,
   type SessionConfig,
