@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -37,6 +38,20 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         {
             await Task.Yield();
             yield return "Hola.";
+        }
+    }
+
+    /// <summary>Fails at once, the way an adapter does when its key is missing on the server.</summary>
+    private sealed class FailingStt(ProviderException error) : IStreamingStt
+    {
+        public string Name => "failing-stt";
+
+        public async IAsyncEnumerable<SttEvent> TranscribeAsync(
+            IAsyncEnumerable<AudioFrame> audio, SttOptions options, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            if (error is not null) throw error;
+            yield break;
         }
     }
 
@@ -103,6 +118,29 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }).Server;
         var ws = await server.CreateWebSocketClient().ConnectAsync(new Uri(server.BaseAddress, "ws/cascade"), TestContext.Current.CancellationToken);
         return (ws, stt);
+    }
+
+    private static async Task Start(WebSocket ws, string source = "en", string target = "es")
+    {
+        await Send(ws, new { type = "start", token = Token, source, target });
+        var ready = Json(await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken));
+        Assert.Equal("ready", (string?)ready["type"]);
+    }
+
+    private static Task SendFrame(WebSocket ws) =>
+        ws.SendAsync(new byte[640], WebSocketMessageType.Binary, true, TestContext.Current.CancellationToken);
+
+    /// <summary>Reads text messages until one of the type arrives; a close first fails the test.</summary>
+    private static async Task<JsonNode> ReadUntil(WebSocket ws, string type)
+    {
+        while (true)
+        {
+            var m = await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken);
+            if (m.Close is not null) Assert.Fail($"The socket closed ({m.Close}) before a {type} message");
+            if (m.Type != WebSocketMessageType.Text) continue;
+            var json = Json(m);
+            if ((string?)json["type"] == type) return json;
+        }
     }
 
     private static Task Send(WebSocket ws, object message) =>
@@ -218,5 +256,22 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Contains("limit", (string?)error["message"]);
         Assert.NotNull(messages[^1].Close);
         Assert.Equal(1, stt.Frames);
+    }
+
+    [Fact]
+    public async Task An_stt_failure_tells_the_client_which_setting_is_missing()
+    {
+        var error = new ProviderException(ProviderErrorKind.Auth, "deepgram", "DEEPGRAM_API_KEY is not configured on the server");
+        var (ws, _) = await Connect(sttOverride: new FailingStt(error));
+        await Start(ws);
+
+        await SendFrame(ws);
+        var messages = await ReadAll(ws);
+
+        var frame = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Equal(("stt", "deepgram", "Auth"), ((string?)frame["stage"], (string?)frame["provider"], (string?)frame["kind"]));
+        Assert.Equal("DEEPGRAM_API_KEY is not configured on the server", (string?)frame["message"]);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
 }

@@ -50,11 +50,13 @@ public static class CascadeProtocol
         LatencyMark m => new { type = "latency.mark", u = m.Utterance, name = m.Name, t = m.AtMs },
         UtteranceDone d => new { type = "utterance.done", u = d.Utterance, t = d.AtMs },
         UtteranceUsage x => new { type = "usage", u = x.Utterance, inputTokens = x.InputTokens, outputTokens = x.OutputTokens, ttsCharacters = x.TtsCharacters, t = x.AtMs },
-        CascadeError err => Error(err.Utterance, err.Stage, err.Provider, err.Kind, err.AtMs, err.RetryAfterMs),
+        CascadeError err => Error(err.Utterance, err.Stage, err.Provider, err.Kind, err.Message, err.AtMs, err.RetryAfterMs),
         CascadeRetry r => new { type = "retry", u = r.Utterance, stage = r.Stage, provider = r.Provider, kind = r.Kind.ToString(), attempt = r.Attempt, delayMs = r.DelayMs, t = r.AtMs },
         _ => null,
     };
 
-    public static object Error(int? utterance, string stage, string provider, ProviderErrorKind kind, double t, double? retryAfterMs = null) =>
-        new { type = "error", u = utterance, stage, provider, kind = kind.ToString(), retryAfterMs, t };
+    /// <param name="message">What went wrong, in the adapter's fixed words (never a vendor payload or a key).</param>
+    public static object Error(
+        int? utterance, string stage, string provider, ProviderErrorKind kind, string message, double t, double? retryAfterMs = null) =>
+        new { type = "error", u = utterance, stage, provider, kind = kind.ToString(), message, retryAfterMs, t };
 }

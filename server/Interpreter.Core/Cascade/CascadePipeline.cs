@@ -63,8 +63,11 @@ public sealed record UtteranceUsage(int Utterance, int? InputTokens, int? Output
     : CascadeEvent(Utterance);
 
 /// <param name="Stage">"stt", "translation" or "tts".</param>
+/// <param name="Message">The adapter's own words (a fixed string per failure, never vendor payloads), so the
+/// UI can say which key is missing or what timed out.</param>
 /// <param name="RetryAfterMs">The provider's Retry-After, when it sent one.</param>
-public sealed record CascadeError(int Utterance, string Stage, string Provider, ProviderErrorKind Kind, double? RetryAfterMs = null)
+public sealed record CascadeError(
+    int Utterance, string Stage, string Provider, ProviderErrorKind Kind, string Message, double? RetryAfterMs = null)
     : CascadeEvent(Utterance);
 
 /// <summary>A failed call is being retried after <see cref="DelayMs"/>; attempt 1 is the first retry.</summary>
@@ -228,7 +231,7 @@ public sealed class CascadePipeline(
             }
             catch (ProviderException ex)
             {
-                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                await Emit(new CascadeError(current?.Id ?? nextId, "stt", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
             }
             finally
             {
@@ -309,7 +312,7 @@ public sealed class CascadePipeline(
                 }
                 catch (ProviderException ex)
                 {
-                    await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                    await Emit(new CascadeError(id, "translation", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
                     return false;
                 }
             }
@@ -432,7 +435,7 @@ public sealed class CascadePipeline(
                 {
                     _failed = true;
                     _text!.Writer.TryComplete();
-                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind, ex.RetryAfter?.TotalMilliseconds));
+                    await run.Emit(new CascadeError(id, "tts", ex.Provider, ex.Kind, ex.Message, ex.RetryAfter?.TotalMilliseconds));
                 }
             }
         }
