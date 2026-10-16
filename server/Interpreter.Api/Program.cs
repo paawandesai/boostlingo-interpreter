@@ -22,6 +22,8 @@ builder.Services.AddSingleton<ProviderActivity>();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
 builder.Services.AddAccessControl(builder.Configuration);
 builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
+// Without a Deepgram key the default STT adapter can't run; with an OpenAI key the openai one serves instead.
+builder.Services.ConfigureOptions<CascadeSttFallback>();
 builder.Services.AddDeepgramStt(builder.Configuration);
 builder.Services.AddOpenAIStt(builder.Configuration);
 builder.Services.AddOpenAITranslator(builder.Configuration);

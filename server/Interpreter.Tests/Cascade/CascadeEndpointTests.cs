@@ -371,4 +371,18 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Equal(1.0, (double?)pong["c"]);
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
+
+    [Fact]
+    public async Task Serves_with_the_openai_stt_adapter_when_only_an_openai_key_is_configured()
+    {
+        var (ws, _) = await Connect(sttKey: "openai", sttOverride: new FirstFrameStt(),
+            settings: [("Cascade:Stt", "deepgram"), ("DEEPGRAM_API_KEY", ""), ("OPENAI_API_KEY", "endpoint-test-placeholder-value")]);
+
+        await Send(ws, new { type = "start", token = Token, source = "en", target = "es" });
+        var ready = Json(await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken));
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        Assert.Equal(("ready", "first-frame-stt"), ((string?)ready["type"], (string?)ready["stt"]));
+    }
 }

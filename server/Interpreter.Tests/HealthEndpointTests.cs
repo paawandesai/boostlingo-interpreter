@@ -38,7 +38,8 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
         Assert.True(body.Config!.AccessTokenSet);
         Assert.True(body.Config.Keys["OPENAI_API_KEY"]);
         Assert.False(body.Config.Keys["DEEPGRAM_API_KEY"]);
-        Assert.Equal("deepgram", body.Config.CascadeStt);
+        // The default STT is deepgram, but with no Deepgram key and an OpenAI key the openai adapter serves.
+        Assert.Equal("openai", body.Config.CascadeStt);
     }
 
     [Fact]
