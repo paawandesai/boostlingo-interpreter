@@ -61,12 +61,14 @@ lag says how far it trails, not how long a listener waits (appendix B).
 | Realtime replay | 0 | 0 | 0 s | 18.9% | +0.298 MB/min |
 | Realtime translate replay | 0 | 0 | 0 s | 8.5% | −0.192 MB/min |
 | Cascade red-team, OpenAI / Claude translator | 0 / 0 | 6 / 11 | 12.4 s / 24.8 s | 10.1% / 21.2% | −0.002 / +0.619 MB/min |
+| Realtime red-team | 0 | 0 | 0 s | 13.5% | +0.332 MB/min |
+| Realtime translate red-team | 0 | 0 | 0 s | 15.5% | +0.319 MB/min |
 
 A drift skip is the playback scheduler dropping the oldest queued interpreter audio once more than
 3 s is queued ahead of the play cursor (`web/src/audio/playback.ts`), so latency cannot creep up; in
 cascade that cost 22–26 s of interpreter speech per 5-minute replay. Heap grew 8.5–20% from minute 1
-across the four replay runs (criterion < 10%; only Realtime translate passed), 21.2% in the
-Claude-translator red-team run.
+across the four replay runs (criterion < 10%; only Realtime translate passed), and 10.1–21.2% in
+the four red-team runs, Realtime translate's included (15.5%).
 
 ## 3. Quality (synthetic audio, model-written references)
 
@@ -184,7 +186,8 @@ Anthropic), so a covered deployment needs two agreements instead of one. No audi
 - No Deepgram numbers; one Realtime translate start-lag sample; no run reached 50 latency samples.
 - Cost per minute is a range for cascade (no STT minutes in the logs) and a floor for Realtime
   (input transcription not captured); STT is priced at OpenAI's own per-minute estimate.
-- Heap grew more than 10% from minute 1 in every mode but Realtime translate; cascade dropped
+- Heap grew more than 10% from minute 1 in every run but the Realtime translate replay (its
+  red-team run grew 15.5%); cascade dropped
   22–26 s of late interpreter audio per 5-minute replay to stay in sync.
 - Cascade's sentence-tail loss under replay (section 3) was the replay's turn-taking; only one
   cascade configuration has been re-run with the fixed replay, so the quality table is still the
