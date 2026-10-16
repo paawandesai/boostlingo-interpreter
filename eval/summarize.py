@@ -1,6 +1,9 @@
 """Builds eval/results/summary.md from exported session logs (T4.3).
 
 Usage: python3 eval/summarize.py LOG.json [LOG.json ...] [--out eval/results/summary.md]
+       [--prices config/prices.json] [--stt-minutes-from-session] [--allow-mixed]
+The committed eval/results/summary.md comes from the four 2026-10-15 replay logs:
+    python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json
 
 Per mode it reports latency p50/p95 per stage, quality against the scripted references, glossary
 accuracy, output-check flags and cost per minute. Rules it follows (docs/GUARDRAILS.md):
@@ -11,6 +14,11 @@ accuracy, output-check flags and cost per minute. Rules it follows (docs/GUARDRA
   checks the references, and comparing the two modes' outputs to each other is not a quality metric.
 - Utterances are matched to script lines by text similarity, so a cascade line split by clause
   flushing may go unmatched. The counts say how many matched.
+- Cost is repriced here: each log's cost lines (quantity in MTok, k chars or min, as the browser
+  exported them) times the matching price in config/prices.json, mapped exactly as
+  web/src/session/cost.ts does. Filling a price and re-running changes the cost column without
+  re-exporting. A null price leaves its component unpriced and the mode without a cost per minute;
+  nothing is ever estimated. The logs on disk are never modified.
 """
 
 from __future__ import annotations
@@ -18,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 import unicodedata
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -29,12 +38,68 @@ from sacrebleu.metrics import CHRF
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "eval" / "replay" / "scripts.jsonl"
 GLOSSARY = ROOT / "config" / "glossary.json"
+PRICES = ROOT / "config" / "prices.json"
+REPLAY_LOGS = "eval/results/logs/2026-10-15-*-replay-*.json"
 MATCH_MIN = 0.6
 MODE_NAMES = {
     "translate": "Realtime translate",
     "realtime": "Realtime",
     "cascade": "Cascade",
 }
+# Cost line component -> price entry key and field, the names web/src/session/cost.ts computeCost()
+# gives them. `name` is the provider and fills the key; `model` must equal the entry's model, since
+# Realtime has one entry per model (cost.ts find()).
+LINE_PRICES: list[tuple[re.Pattern[str], str, str]] = [
+    (
+        re.compile(r"^STT \((?P<name>[^)]+)\)(?: upper bound: session minutes)?$"),
+        "stt:{name}",
+        "perMinute",
+    ),
+    (
+        re.compile(r"^Translation input \((?P<name>[^)]+)\)$"),
+        "translator:{name}",
+        "inputPerMTok",
+    ),
+    (
+        re.compile(r"^Translation output \((?P<name>[^)]+)\)$"),
+        "translator:{name}",
+        "outputPerMTok",
+    ),
+    (re.compile(r"^TTS \((?P<name>[^)]+)\)$"), "tts:{name}", "perThousandCharacters"),
+    (
+        re.compile(r"^Realtime translate \(session time\)$"),
+        "realtime-translate:openai",
+        "perMinute",
+    ),
+    (
+        re.compile(r"^Realtime audio input \((?P<model>[^)]+)\)$"),
+        "realtime:openai",
+        "audioInputPerMTok",
+    ),
+    (
+        re.compile(r"^Realtime audio output \((?P<model>[^)]+)\)$"),
+        "realtime:openai",
+        "audioOutputPerMTok",
+    ),
+    (
+        re.compile(r"^Realtime text input \((?P<model>[^)]+)\)$"),
+        "realtime:openai",
+        "textInputPerMTok",
+    ),
+    (
+        re.compile(r"^Realtime text output \((?P<model>[^)]+)\)$"),
+        "realtime:openai",
+        "textOutputPerMTok",
+    ),
+    (
+        re.compile(r"^Realtime cached input \((?P<model>[^)]+)\)$"),
+        "realtime:openai",
+        "cachedInputPerMTok",
+    ),
+]
+# The unit each price field is quoted in; a line in any other unit stays unpriced, never rescaled.
+PRICE_UNITS = {"perMinute": "min", "perThousandCharacters": "k chars"}  # else MTok
+STT_UPPER_BOUND = "upper bound: session minutes"
 
 
 def normalize(text: str) -> str:
@@ -86,8 +151,103 @@ def glossary_targets() -> dict[str, dict[str, str]]:
     return out
 
 
-def summarize(logs: list[dict], scripts: list[dict]) -> dict:
-    """Pools every log's utterances per mode."""
+def load_prices(path: Path = PRICES) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def find_price(prices: dict, key: str, model: str | None = None) -> dict | None:
+    """The first entry with this key (and this model, when given): cost.ts find()."""
+    for entry in prices.get("entries", []):
+        if entry.get("key") == key and (model is None or entry.get("model") == model):
+            return entry
+    return None
+
+
+def unit_price(
+    component: str, unit: str, prices: dict
+) -> tuple[float | None, dict | None]:
+    """The price per `unit` of a cost line's component, or None when the component is unknown,
+    the entry is missing, the price is null, or the entry quotes another unit."""
+    for pattern, key, field in LINE_PRICES:
+        match = pattern.match(component)
+        if match is None:
+            continue
+        groups = match.groupdict()
+        entry = find_price(prices, key.format(**groups), groups.get("model"))
+        price = (entry or {}).get(field)
+        if price is None or unit != PRICE_UNITS.get(field, "MTok"):
+            return None, entry
+        return float(price), entry
+    return None, None
+
+
+def reprice(cost: dict, prices: dict, minutes: float) -> dict:
+    """A mode's cost block recomputed from its lines' quantities, the way cost.ts computeCost()
+    built it at export time but with `prices` as they are now. Returns a copy; `cost` is untouched."""
+    lines = []
+    for raw in cost.get("lines", []):
+        price, entry = unit_price(raw["component"], raw["unit"], prices)
+        source = (
+            f"{entry['source']} (checked {entry.get('checkedOn') or 'never'})"
+            if price is not None and entry is not None
+            else None
+        )
+        lines.append(
+            {
+                **raw,
+                "unitPrice": price,
+                "cost": None if price is None else raw["quantity"] * price,
+                "priceSource": source,
+            }
+        )
+    unpriced = [x["component"] for x in lines if x["cost"] is None]
+    total = sum(x["cost"] for x in lines if x["cost"] is not None)
+    return {
+        **cost,
+        "lines": lines,
+        "pricedTotal": total,
+        "unpriced": unpriced,
+        "perMinute": total / minutes
+        if minutes > 0 and lines and not unpriced
+        else None,
+    }
+
+
+def with_stt_upper_bound(cost: dict, provider: str | None, minutes: float) -> dict:
+    """Adds an STT line that charges the whole session when the export has no STT line (the browser
+    emitted STT seconds only on End, so exports taken before End have none). It is an explicit upper
+    bound, labelled as such in the component name, never a measurement. Returns a copy."""
+    lines = cost.get("lines", [])
+    if (
+        not provider
+        or minutes <= 0
+        or any(x["component"].startswith("STT (") for x in lines)
+    ):
+        return cost
+    line = {
+        "component": f"STT ({provider}) {STT_UPPER_BOUND}",
+        "quantity": minutes,
+        "unit": "min",
+        "unitPrice": None,
+        "cost": None,
+        "priceSource": None,
+    }
+    return {
+        **cost,
+        "lines": [line, *lines],
+        "unpriced": [line["component"], *cost.get("unpriced", [])],
+        "perMinute": None,
+    }
+
+
+def summarize(
+    logs: list[dict],
+    scripts: list[dict],
+    prices: dict | None = None,
+    stt_upper_bound: bool = False,
+) -> dict:
+    """Pools every log's utterances per mode. With `prices`, each mode's cost is repriced from its
+    lines; without, the export-time totals are used as they are."""
     gloss = glossary_targets()
     modes: dict[str, dict] = defaultdict(
         lambda: {
@@ -101,6 +261,7 @@ def summarize(logs: list[dict], scripts: list[dict]) -> dict:
             "minutes": 0.0,
             "cost": 0.0,
             "unpriced": set(),
+            "stt_upper_bound": False,
             "providers": set(),
         }
     )
@@ -116,10 +277,18 @@ def summarize(logs: list[dict], scripts: list[dict]) -> dict:
 
         for m in log.get("modes", []):
             agg = modes[key(m["mode"])]
-            agg["minutes"] += m.get("minutes", 0)
+            minutes = m.get("minutes", 0)
+            agg["minutes"] += minutes
             cost = m.get("cost") or {}
+            if stt_upper_bound and m["mode"] == "cascade":
+                cost = with_stt_upper_bound(cost, cascade.get("stt"), minutes)
+            if prices is not None and "lines" in cost:
+                cost = reprice(cost, prices, minutes)
             agg["cost"] += cost.get("pricedTotal", 0)
             agg["unpriced"].update(cost.get("unpriced", []))
+            agg["stt_upper_bound"] |= any(
+                STT_UPPER_BOUND in x["component"] for x in cost.get("lines", [])
+            )
         for u in log["utterances"]:
             mode = u["mode"]
             agg = modes[key(mode)]
@@ -269,6 +438,8 @@ def render(modes: dict, inputs: list[str]) -> str:
             cost = "unpriced: " + ", ".join(sorted(agg["unpriced"]))
         elif agg["minutes"] > 0 and agg["cost"] > 0:
             cost = f"${agg['cost'] / agg['minutes']:.4f}"
+            if agg["stt_upper_bound"]:
+                cost = f"≤ {cost} (upper bound: STT charged for the whole session)"
         else:
             cost = "–"
         lines.append(
@@ -283,15 +454,80 @@ def render(modes: dict, inputs: list[str]) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("logs", nargs="+", type=Path)
-    parser.add_argument(
-        "--out", type=Path, default=ROOT / "eval" / "results" / "summary.md"
+def mixed_inputs(paths: list[Path]) -> bool:
+    """True when red-team logs (file names containing `redteam`) are pooled with other logs."""
+    redteam = [p for p in paths if "redteam" in p.name]
+    return 0 < len(redteam) < len(paths)
+
+
+EPILOG = f"""\
+The committed eval/results/summary.md was built from the four 2026-10-15 replay logs:
+  python3 eval/summarize.py {REPLAY_LOGS}
+Red-team logs (file names containing 'redteam') are scored by eval/adversarial/score.py; pooling
+them with other logs is refused unless --allow-mixed is passed, because the pooled numbers then
+describe no single run.
+Cost: every cost line in a log is repriced as quantity x the matching price in --prices (the
+mapping of web/src/session/cost.ts), so a price filled in after the export counts. A null price
+leaves that line unpriced and the mode without a cost per minute; nothing is estimated.
+"""
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Pools exported session logs into one Markdown summary per mode.",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "logs",
+        nargs="+",
+        type=Path,
+        help="exported session logs (JSON); a shell glob works",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=ROOT / "eval" / "results" / "summary.md",
+        help="output file (default: eval/results/summary.md)",
+    )
+    parser.add_argument(
+        "--prices",
+        type=Path,
+        default=PRICES if PRICES.exists() else None,
+        help=(
+            "price list to reprice the cost lines with (default: config/prices.json when it exists;"
+            " without one the browser's export-time totals are reported as they are)"
+        ),
+    )
+    parser.add_argument(
+        "--stt-minutes-from-session",
+        action="store_true",
+        help=(
+            "for a cascade mode whose export has no 'STT (<provider>)' line, add one that charges"
+            " the whole session's minutes, labelled as an upper bound (off by default)"
+        ),
+    )
+    parser.add_argument(
+        "--allow-mixed",
+        action="store_true",
+        help="pool red-team logs (file names containing 'redteam') with other logs",
+    )
+    args = parser.parse_args(argv)
+    if mixed_inputs(args.logs) and not args.allow_mixed:
+        print(
+            "summarize: red-team logs mixed with other logs; the committed summary.md uses"
+            f" {REPLAY_LOGS} only. Pass --allow-mixed to pool them anyway.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.prices is not None and not args.prices.is_file():
+        print(f"summarize: price list not found: {args.prices}", file=sys.stderr)
+        return 2
+    prices = load_prices(args.prices) if args.prices is not None else None
     logs = [json.loads(p.read_text(encoding="utf-8")) for p in args.logs]
-    modes = summarize(logs, load_scripts())
+    modes = summarize(
+        logs, load_scripts(), prices, stt_upper_bound=args.stt_minutes_from_session
+    )
     inputs = [
         str(p.resolve().relative_to(ROOT))
         if p.resolve().is_relative_to(ROOT)
