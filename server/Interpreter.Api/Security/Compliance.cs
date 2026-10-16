@@ -41,7 +41,7 @@ public static class BaaRoutes
         // The transcription session runs on /v1/realtime (intent=transcription).
         "openai" => new("cascade speech-to-text (openai)", "openai", "/v1/realtime", true, OpenAIList),
         "deepgram" => new("cascade speech-to-text (deepgram)", "deepgram", "/v1/listen", true,
-            "Deepgram's data privacy compliance page (BAA on request), read 2026-10-16"),
+            "Deepgram's pricing page (BAA listed for Enterprise; its docs say on request for covered entities), read 2026-10-16"),
         _ => Unknown("speech-to-text", adapter),
     };
 
