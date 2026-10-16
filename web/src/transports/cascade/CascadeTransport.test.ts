@@ -207,6 +207,21 @@ describe('CascadeTransport', () => {
     await t.stop()
     expect(reported()).toEqual([5, 2])
   })
+
+  it('reports a denied microphone, opens no socket and can still be stopped', async () => {
+    const { MicDeniedError, startCapture } = await import('../../audio/capture')
+    vi.mocked(startCapture).mockRejectedValueOnce(new MicDeniedError('Microphone access was denied'))
+    const { t, events } = await fresh()
+
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'mic_denied', message: 'Microphone access was denied' })
+    expect(FakeSocket.all).toHaveLength(0)
+    expect(capture.stop).not.toHaveBeenCalled()
+    await t.stop()
+    expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+  })
+
   it('stop closes the socket and the mic', async () => {
     const { t, ws, events } = await started()
     await t.stop()

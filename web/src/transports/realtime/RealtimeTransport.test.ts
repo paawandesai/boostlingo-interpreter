@@ -163,6 +163,37 @@ describe('RealtimeTransport', () => {
     await t.stop() // idempotent
   })
 
+  it('reports a denied microphone, opens no peer connection and can still be stopped', async () => {
+    const { MicDeniedError, startCapture } = await import('../../audio/capture')
+    vi.mocked(startCapture).mockRejectedValueOnce(new MicDeniedError('Microphone access was denied'))
+    const peerBefore = FakePeer.last
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'mic_denied', message: 'Microphone access was denied' })
+    expect(FakePeer.last).toBe(peerBefore)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // the secret was minted, no SDP exchange followed
+    await t.stop()
+    expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+  })
+
+  it('reports a failed or disconnected peer connection as webrtc_dropped', async () => {
+    const { pc, events } = await started()
+    pc.dc.open()
+
+    pc.connectionState = 'failed'
+    pc.onconnectionstatechange?.()
+
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'webrtc_dropped', message: 'WebRTC connection failed' })
+    pc.connectionState = 'disconnected'
+    pc.onconnectionstatechange?.()
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'webrtc_dropped', message: 'WebRTC connection disconnected' })
+  })
+
   it('surfaces a backend rate limit as a typed error and releases resources', async () => {
     fetchMock.mockReset()
     fetchMock.mockResolvedValueOnce(
