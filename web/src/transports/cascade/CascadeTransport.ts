@@ -22,6 +22,7 @@ import {
   type SpeakerSide,
   type Transport,
 } from '../types'
+import { ClientEndpointer } from '../endpointing'
 import { ClockSync } from './clock'
 import { CascadeEventParser } from './events'
 
@@ -52,6 +53,8 @@ export class CascadeTransport implements Transport {
   private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
+  /** Tells the server the speaker stopped; an STT adapter with client endpointing ends the turn on it. */
+  private endpointer: ClientEndpointer | null = null
 
   /** Where the socket lives; tests and the replay harness can point it elsewhere. */
   static url = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/cascade`
@@ -62,6 +65,9 @@ export class CascadeTransport implements Transport {
     this.config = config
     this.stopped = false
     this.emitter.emit({ type: 'state', state: 'connecting' })
+    this.endpointer = new ClientEndpointer(() => {
+      if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: 'commit' }))
+    })
     try {
       this.capture = await startCapture({
         stream: config.inputStream,
@@ -73,11 +79,15 @@ export class CascadeTransport implements Transport {
             if (this.samplesSent >= USAGE_REPORT_SECONDS * STT_RATE) this.reportSttUsage()
           }
         },
-        onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
+        onVad: (kind, t) => {
+          this.emitter.emit({ type: 'mark', name: kind, t })
+          this.endpointer?.onVad(kind)
+        },
         onLevel: (rms) => this.emitter.emit({ type: 'level', rms }),
       })
       if (this.stopped) return void (await this.release())
       this.gate = createMicGate((gated) => {
+        this.endpointer?.onGated(gated)
         this.capture?.setGated(gated)
         this.emitter.emit({ type: 'gated', gated })
       })
@@ -248,6 +258,8 @@ export class CascadeTransport implements Transport {
   }
 
   private async release(): Promise<void> {
+    this.endpointer?.dispose()
+    this.endpointer = null
     this.closeSocket()
     if (this.resyncTimer !== null) clearInterval(this.resyncTimer)
     this.resyncTimer = null

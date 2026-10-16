@@ -17,6 +17,7 @@ import {
   type SpeakerSide,
   type Transport,
 } from '../types'
+import { ClientEndpointer } from '../endpointing'
 import { createRealtimeSession, exchangeSdp, RealtimeApiError, type RealtimeSessionInfo } from './api'
 import { RealtimeEventParser } from './events'
 import { createFirstAudioProbe, type FirstAudioProbe } from './firstAudioProbe'
@@ -42,6 +43,8 @@ export class RealtimeTransport implements Transport {
   private turnInFlight = false
   /** The session.update of a speaker flip made during a turn in flight; sent once that turn's response is done. */
   private pendingUpdate: string | null = null
+  /** Set when the session has no turn detection: the browser's VAD commits each turn (client endpointing). */
+  private endpointer: ClientEndpointer | null = null
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -60,13 +63,18 @@ export class RealtimeTransport implements Transport {
       const [source, target] = direction(config, config.speaker)
       this.info = await createRealtimeSession(source, target, config.realtimeModel, undefined, config.glossary)
       if (this.stopped) return
+      if (this.info.endpointing === 'client') this.endpointer = new ClientEndpointer(() => this.commitTurn())
 
       this.capture = await startCapture({
         stream: config.inputStream,
-        onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
+        onVad: (kind, t) => {
+          this.emitter.emit({ type: 'mark', name: kind, t })
+          this.endpointer?.onVad(kind)
+        },
         onLevel: (rms) => this.emitter.emit({ type: 'level', rms }),
       })
       this.gate = createMicGate((gated) => {
+        this.endpointer?.onGated(gated)
         this.capture?.setGated(gated)
         this.emitter.emit({ type: 'gated', gated })
       })
@@ -165,6 +173,17 @@ export class RealtimeTransport implements Transport {
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
   }
 
+  /**
+   * Client endpointing: ends the turn and asks for its interpretation. A response still playing makes the
+   * response.create fail with an active-response error, which queues this turn (onServerEvent).
+   */
+  private commitTurn(): void {
+    if (this.dc?.readyState !== 'open') return
+    this.turnInFlight = true
+    this.dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' }))
+    this.dc.send(JSON.stringify({ type: 'response.create' }))
+  }
+
   private onServerEvent(raw: string): void {
     const json = JSON.parse(raw) as { type: string; error?: { code?: string; message?: string } }
     // A turn that ends while the previous interpretation is still playing can't start its own response
@@ -241,6 +260,8 @@ export class RealtimeTransport implements Transport {
   }
 
   private async release(): Promise<void> {
+    this.endpointer?.dispose()
+    this.endpointer = null
     this.clearConnectTimer()
     if (this.limitTimer !== null) clearTimeout(this.limitTimer)
     this.limitTimer = null

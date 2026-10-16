@@ -15,6 +15,8 @@ export class RealtimeEventParser {
   private targetText = new Map<string, string>()
   private lastInputItem: string | null = null
   private responseToItem = new Map<string, string>()
+  /** Input items whose endpoint mark was emitted (server VAD sends speech_stopped before committed). */
+  private endpointed = new Set<string>()
   private readonly now: () => number
 
   constructor(now: () => number = () => performance.now()) {
@@ -33,11 +35,16 @@ export class RealtimeEventParser {
       case 'input_audio_buffer.speech_stopped': {
         const id = e.item_id as string
         this.lastInputItem = id
+        this.endpointed.add(id)
         return [{ type: 'mark', name: 'endpoint', t, utteranceId: id }]
       }
-      case 'input_audio_buffer.committed':
-        this.lastInputItem = e.item_id as string
-        return []
+      case 'input_audio_buffer.committed': {
+        // With client endpointing there is no speech_stopped: the commit the browser sent is the endpoint.
+        const id = e.item_id as string
+        this.lastInputItem = id
+        if (this.endpointed.delete(id)) return []
+        return [{ type: 'mark', name: 'endpoint', t, utteranceId: id }]
+      }
       case 'conversation.item.input_audio_transcription.delta': {
         const id = e.item_id as string
         const text = (this.sourceText.get(id) ?? '') + ((e.delta as string | undefined) ?? '')

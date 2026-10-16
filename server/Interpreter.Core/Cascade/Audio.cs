@@ -3,7 +3,14 @@ using System.Runtime.InteropServices;
 namespace Interpreter.Core.Cascade;
 
 /// <summary>Mono PCM16 little-endian audio from the client mic (16 kHz in cascade mode, D6).</summary>
-public readonly record struct AudioFrame(ReadOnlyMemory<byte> Pcm16, int SampleRate);
+/// <param name="EndOfSpeech">
+/// No audio: the client's VAD says the speaker stopped. An adapter with client endpointing ends the turn here
+/// instead of waiting for its own VAD; every other adapter skips the frame.
+/// </param>
+public readonly record struct AudioFrame(ReadOnlyMemory<byte> Pcm16, int SampleRate, bool EndOfSpeech = false)
+{
+    public static AudioFrame SpeechEnded(int sampleRate) => new(ReadOnlyMemory<byte>.Empty, sampleRate, true);
+}
 
 /// <summary>Mono PCM16 little-endian audio from a TTS provider (24 kHz requested, D6).</summary>
 public readonly record struct AudioChunk(ReadOnlyMemory<byte> Pcm16, int SampleRate);

@@ -112,6 +112,8 @@ public sealed class DeepgramStt(IOptions<DeepgramOptions> options) : IStreamingS
         {
             await foreach (var frame in audio.WithCancellation(ct))
             {
+                // Deepgram endpoints on its own (utterance_end); a client end-of-speech marker carries no audio.
+                if (frame.Pcm16.IsEmpty) continue;
                 await Locked(() => ws.SendAsync(frame.Pcm16, WebSocketMessageType.Binary, true, ct).AsTask());
                 lastSend = Environment.TickCount64;
             }

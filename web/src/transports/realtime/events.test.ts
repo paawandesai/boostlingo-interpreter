@@ -20,6 +20,17 @@ describe('RealtimeEventParser', () => {
     ])
   })
 
+  it('takes the commit as the endpoint when there is no speech_stopped (client endpointing)', () => {
+    const marks = runFixture([
+      { type: 'input_audio_buffer.committed', item_id: 'item_C1' },
+      { type: 'response.created', response: { id: 'resp_C1' } },
+    ]).filter((e) => e.type === 'mark')
+    expect(marks).toEqual([
+      { type: 'mark', name: 'endpoint', t: 1010, utteranceId: 'item_C1' },
+      { type: 'mark', name: 'response.created', t: 1020, utteranceId: 'item_C1' },
+    ])
+  })
+
   it('accumulates source partials and replaces them with the final', () => {
     const source = out.filter((e) => e.type === 'transcript' && e.role === 'source')
     expect(source.map((e) => e.type === 'transcript' && [e.text, e.final])).toEqual([

@@ -51,6 +51,20 @@ public class OpenAIRealtimeSessionMinterTests
     }
 
     [Fact]
+    public async Task Client_endpointing_mints_a_session_without_turn_detection()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, """{"value":"ek_abc","expires_at":1760000000,"session":{}}""");
+        var minter = new OpenAIRealtimeSessionMinter(new HttpClient(handler),
+            Options.Create(new OpenAIRealtimeOptions { ApiKey = "test-key", Endpointing = "client" }));
+
+        await minter.CreateAsync(Request, CancellationToken.None);
+
+        var input = JsonDocument.Parse(Assert.Single(handler.Requests).Body).RootElement
+            .GetProperty("session").GetProperty("audio").GetProperty("input");
+        Assert.Equal(JsonValueKind.Null, input.GetProperty("turn_detection").ValueKind);
+    }
+
+    [Fact]
     public async Task Rate_limit_maps_to_RateLimited_with_retry_after()
     {
         var handler = new StubHttpHandler(_ =>
