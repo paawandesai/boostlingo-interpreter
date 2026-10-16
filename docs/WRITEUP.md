@@ -46,8 +46,9 @@ model's opaque time (560–675 ms). Stage breakdown: appendix B.
 
 **Caveats.** One synthetic run per configuration; n is 36–38, below the 50 the guardrails ask for,
 because each turn waits for its reply. Realtime translate and the Claude-translator cascade were not
-re-run with the new defaults. Heap grew 8–22% from minute 1 (criterion < 10%) and there were
-0 disconnects; the stability table is in appendix B.
+re-run with the new defaults. Heap grew 8–22% from minute 1 (criterion < 10%); one 6-minute local
+cascade probe levelled off at about 10.8 MB once the transcript view hit its 80-row cap, which points
+at the view filling rather than a leak, but it is one run. 0 disconnects; stability: appendix B.
 
 ## 3. Quality (synthetic audio, model-written references)
 
@@ -57,8 +58,8 @@ re-run with the new defaults. Heap grew 8–22% from minute 1 (criterion < 10%) 
 | Realtime, `gpt-realtime-2.1` | 48 of 48 | 36 | 82.9 | n/a | 7 of 9 | none |
 | Realtime, `gpt-realtime` | 43 of 44 | 36 | 83.3 | n/a | 7 of 10 | wrong language 1 |
 
-`gpt-realtime`'s 44th turn was cut by the end of the run, and its wrong-language flag looks like a
-false positive: the output was correct Spanish. chrF now also counts model-drafted alternative
+`gpt-realtime`'s 44th turn was cut by the end of the run, and its wrong-language flag was a false
+positive on correct Spanish (a marker counted twice; fixed in e6c712f). chrF now also counts model-drafted alternative
 references (on 59 of the 70 script lines), so it is **not comparable** with the single-reference
 numbers of earlier drafts. Realtime translate was last scored on 2026-10-15 with the old replay and
 one reference (chrF 69.4, 11 of 15 glossary hits). `gpt-realtime-whisper` takes no prompt, so

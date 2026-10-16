@@ -18,7 +18,7 @@ Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job
 
 Against the brief:
 - Realtime under 1.5 s is met at p50 (1271 ms) but not at p95 (1602 ms).
-- `gpt-realtime` (the brief's model) meets it at p50 (1150 ms) and, in this one run, at p95 (1490 ms, just under the line). Its 44th turn was cut by the end of the run, and its one `wrong_language` flag was on a correct Spanish line. Its heap grew 18.0%.
+- `gpt-realtime` (the brief's model) meets it at p50 (1150 ms) and, in this one run, at p95 (1490 ms, just under the line). Its 44th turn was cut by the end of the run, and its one `wrong_language` flag was a false positive on a correct Spanish line ("a" counted twice as an English marker; fixed in e6c712f). Its heap grew 18.0%.
 - Cascade under 3 s is met at p50 and p95. The 2 s target is met at p50 (1940 ms) but not at p95 (2319 ms).
 
 What changed:

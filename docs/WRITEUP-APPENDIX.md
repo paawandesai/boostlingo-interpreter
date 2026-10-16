@@ -78,6 +78,10 @@ A drift skip is the playback scheduler dropping the oldest queued interpreter au
 cascade that cost 16–26 s of interpreter speech per 5-minute run. Heap grew 8.2–21.7% from minute 1
 across all eight 2026-10-16 tuning runs (criterion < 10%; only one run passed); on 2026-10-15 it grew
 8.5–20% in the replay runs (only Realtime translate passed) and 10.1–21.2% in the red-team runs.
+One 6-minute local cascade probe (after 8c9eebd removed per-clip abort listeners from the replay
+harness) showed the heap levelling off at about 10.8 MB once the transcript view reached its 80-row
+cap (40 lines in each column), so the growth from minute 1 looks like the view filling, not a leak.
+That is one local probe run, not a proven result.
 
 **Cost: what each figure leaves out.** Costs are `eval/summarize.py` priced from
 `config/prices.json`. The cascade figures in the write-up ($0.0149 Claude / $0.0193 OpenAI
