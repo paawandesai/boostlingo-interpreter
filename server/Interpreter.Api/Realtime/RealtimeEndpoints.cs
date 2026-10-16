@@ -58,8 +58,10 @@ public static class RealtimeEndpoints
 
     private static async Task<IResult> CreateSession(
         CreateRealtimeSessionRequest req, LanguageCatalog catalog, Glossary glossary, IRealtimeSessionMinter minter, ProviderActivity activity,
-        IOptions<OpenAIRealtimeOptions> realtime, ILoggerFactory logs, CancellationToken ct)
+        IOptions<OpenAIRealtimeOptions> realtime, IOptions<ComplianceOptions> compliance, ILoggerFactory logs, CancellationToken ct)
     {
+        if (compliance.Value.Refusal(BaaRoutes.Realtime) is { } refused)
+            return Results.Problem(refused, statusCode: StatusCodes.Status403Forbidden);
         var source = catalog.Find(req.Source);
         var target = catalog.Find(req.Target);
         if (source is null || target is null || !catalog.IsSupportedDirection(source.Code, target.Code))
@@ -94,8 +96,10 @@ public static class RealtimeEndpoints
 
     private static async Task<IResult> CreateTranslationSession(
         CreateTranslationSessionRequest req, LanguageCatalog catalog, IRealtimeSessionMinter minter, ProviderActivity activity,
-        IOptions<OpenAIRealtimeOptions> realtime, ILoggerFactory logs, CancellationToken ct)
+        IOptions<OpenAIRealtimeOptions> realtime, IOptions<ComplianceOptions> compliance, ILoggerFactory logs, CancellationToken ct)
     {
+        if (compliance.Value.Refusal(BaaRoutes.RealtimeTranslate) is { } refused)
+            return Results.Problem(refused, statusCode: StatusCodes.Status403Forbidden);
         if (catalog.Find(req.Target ?? "") is not { RealtimeTranslate: true } target)
             return Results.Problem($"{minter.TranslateModel} does not output {req.Target} here", statusCode: StatusCodes.Status400BadRequest);
         try

@@ -117,3 +117,26 @@ describe('SetupPanel start gate', () => {
     expect(startButton().title).toBe('Enter the access token first')
   })
 })
+
+describe('SetupPanel in BAA mode', () => {
+  it('disables a mode the server blocks and shows its reason', () => {
+    const reason = 'BAA mode is on: Realtime translate is off'
+    const languages = {
+      languages: [
+        { code: 'en', name: 'English', realtimeTranslate: true },
+        { code: 'es', name: 'Spanish', realtimeTranslate: true },
+      ],
+      pairs: [['en', 'es']] as [string, string][],
+      blockedModes: { translate: reason },
+    }
+    render({ ...initialState, mode: 'realtime' }, { languages })
+    const button = (label: string) =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((b) =>
+        b.textContent?.startsWith(label),
+      )!
+
+    expect(button('Realtime translate').disabled).toBe(true)
+    expect(button('Realtime translate').title).toBe(reason)
+    expect(button('Cascade').disabled).toBe(false)
+  })
+})

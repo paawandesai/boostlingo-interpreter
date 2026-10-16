@@ -479,4 +479,37 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
 
         Assert.Equal(("ready", "first-frame-stt"), ((string?)ready["type"], (string?)ready["stt"]));
     }
+
+    [Fact]
+    public async Task Refuses_an_uncovered_route_in_baa_mode_before_any_adapter_runs()
+    {
+        var (ws, stt) = await Connect(settings: [("Compliance:RequireBaa", "true"), ("Compliance:BaaSigned:0", "openai")]);
+
+        await Send(ws, new { type = "start", token = Token, source = "en", target = "es" });
+        var messages = await ReadAll(ws);
+
+        var error = Json(messages[0]);
+        Assert.Equal("error", (string?)error["type"]);
+        Assert.Contains("BAA mode is on", (string?)error["message"]);
+        Assert.Contains("deepgram", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, messages[^1].Close);
+        Assert.Equal(0, stt.Frames);
+    }
+
+    [Fact]
+    public async Task Runs_openai_stt_anthropic_translator_and_openai_tts_in_baa_mode()
+    {
+        var (ws, _) = await Connect(sttKey: "openai", sttOverride: new FirstFrameStt(), settings:
+        [
+            ("Compliance:RequireBaa", "true"), ("Compliance:BaaSigned:0", "openai"), ("Compliance:BaaSigned:1", "anthropic"),
+            ("Cascade:Stt", "openai"), ("Cascade:Translator", "anthropic"), ("Cascade:Tts", "openai"),
+        ]);
+
+        await Send(ws, new { type = "start", token = Token, source = "en", target = "es" });
+        var ready = Json(await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken));
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        Assert.Equal(("ready", "first-frame-stt", "openai-tts"), ((string?)ready["type"], (string?)ready["stt"], (string?)ready["tts"]));
+    }
 }

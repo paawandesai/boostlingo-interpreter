@@ -15,6 +15,7 @@ export function ModeToggle({
   onChange,
   disabled,
   translateAvailable = true,
+  blocked = {},
   described = false,
 }: {
   value: Mode
@@ -22,13 +23,16 @@ export function ModeToggle({
   disabled?: boolean
   /** gpt-realtime-translate can't speak one of the pair's languages (config/languages.json). */
   translateAvailable?: boolean
+  /** Modes the server refuses in BAA mode, with the reason shown as the button's title. */
+  blocked?: Partial<Record<Mode, string>>
   /** Show a description under each mode (setup screen); the accessible name stays the mode's name. */
   described?: boolean
 }) {
   return (
     <div role="radiogroup" aria-label="Mode" className={described ? 'segmented described' : 'segmented'}>
       {modes.map((m) => {
-        const available = m !== 'translate' || translateAvailable
+        const reason = blocked[m]
+        const available = !reason && (m !== 'translate' || translateAvailable)
         return (
           <button
             key={m}
@@ -36,7 +40,7 @@ export function ModeToggle({
             role="radio"
             aria-checked={value === m}
             disabled={disabled || !available}
-            title={available ? undefined : 'gpt-realtime-translate does not support this language pair'}
+            title={available ? undefined : (reason ?? 'gpt-realtime-translate does not support this language pair')}
             onClick={() => onChange(m)}
             aria-label={described ? MODE_LABEL[m] : undefined}
           >

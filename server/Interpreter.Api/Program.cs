@@ -9,6 +9,7 @@ using Interpreter.Providers.Anthropic;
 using Interpreter.Providers.Deepgram;
 using Interpreter.Providers.ElevenLabs;
 using Interpreter.Providers.OpenAI;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,9 @@ builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<ProviderActivity>();
 builder.Services.AddOpenAIRealtime(builder.Configuration);
 builder.Services.AddAccessControl(builder.Configuration);
+// BAA mode (off by default): refuses any session whose route isn't covered by a declared BAA.
+builder.Services.AddCompliance(builder.Configuration);
+builder.Services.AddHostedService<ComplianceStartupCheck>();
 builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
 // Without a Deepgram key the default STT adapter can't run; with an OpenAI key the openai one serves instead.
 builder.Services.ConfigureOptions<CascadeSttFallback>();
@@ -29,6 +33,7 @@ builder.Services.AddOpenAIStt(builder.Configuration);
 builder.Services.AddOpenAITranslator(builder.Configuration);
 builder.Services.AddAnthropicTranslator(builder.Configuration);
 builder.Services.AddElevenLabsTts(builder.Configuration);
+builder.Services.AddOpenAITts(builder.Configuration);
 
 var app = builder.Build();
 
@@ -41,12 +46,14 @@ app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSecond
 app.UseRateLimiter();
 
 app.MapHealthEndpoints();
-app.MapGet("/api/languages", (LanguageCatalog catalog) => Results.Ok(new
+app.MapGet("/api/languages", (LanguageCatalog catalog, IOptions<ComplianceOptions> compliance, IOptions<CascadeOptions> cascade) => Results.Ok(new
 {
     languages = catalog.Languages.Select(l => new { l.Code, l.Name, l.Disclosure, l.OutputChecks, l.RealtimeTranslate }),
     pairs = catalog.Pairs.Select(p => new[] { p.A, p.B }),
     // The prompt-leak canary is not a secret: it only has to never appear in an output (G15).
     canary = InterpreterInstructions.Canary,
+    // Modes BAA mode refuses, with the reason the setup screen shows; empty when BAA mode is off.
+    blockedModes = compliance.Value.BlockedModes(cascade.Value.Stt, cascade.Value.Translator, cascade.Value.Tts),
 }));
 // List prices for the session export's cost table (T3.5). Served as-is; null means unchecked.
 var pricesPath = Path.Combine(Path.GetDirectoryName(languagesPath)!, "prices.json");

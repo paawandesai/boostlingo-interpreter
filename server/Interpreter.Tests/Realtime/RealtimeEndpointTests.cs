@@ -222,4 +222,45 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
         Assert.Equal("https://api.openai.com/v1/realtime/translations/calls", json.GetProperty("callsUrl").GetString());
         Assert.Equal(["es"], minter.TranslationTargets);
     }
+
+    private HttpClient BaaClient(IRealtimeSessionMinter minter, params string[] signed)
+    {
+        var client = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Access:Token", Token);
+            b.UseSetting("Compliance:RequireBaa", "true");
+            for (var i = 0; i < signed.Length; i++) b.UseSetting($"Compliance:BaaSigned:{i}", signed[i]);
+            b.ConfigureServices(s => s.AddSingleton(minter));
+        }).CreateClient();
+        client.DefaultRequestHeaders.Add("X-Access-Token", Token);
+        return client;
+    }
+
+    [Fact]
+    public async Task Baa_mode_never_mints_a_realtime_translate_session()
+    {
+        // /v1/realtime/translations is not on OpenAI's HIPAA-eligible list, so a signed BAA doesn't help.
+        var minter = OkMinter();
+
+        var res = await BaaClient(minter, "openai").PostAsJsonAsync("/api/realtime/translation-session", new { target = "es" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+        Assert.Contains("/v1/realtime/translations", await res.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Empty(minter.TranslationTargets);
+    }
+
+    [Fact]
+    public async Task Baa_mode_mints_realtime_only_with_an_openai_baa_declared()
+    {
+        var refused = OkMinter();
+        var allowed = OkMinter();
+
+        var without = await BaaClient(refused, "anthropic").PostAsJsonAsync("/api/realtime/session", EnEs, TestContext.Current.CancellationToken);
+        var with = await BaaClient(allowed, "openai").PostAsJsonAsync("/api/realtime/session", EnEs, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, without.StatusCode);
+        Assert.Empty(refused.Calls);
+        Assert.Equal(HttpStatusCode.OK, with.StatusCode);
+        Assert.Single(allowed.Calls);
+    }
 }

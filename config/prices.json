@@ -59,6 +59,15 @@
       "checkedBy": "Paawan (official page read 2026-10-16)"
     },
     {
+      "key": "tts:openai",
+      "model": "gpt-4o-mini-tts",
+      "perThousandCharacters": null,
+      "note": "BAA-mode cascade TTS. Not checked yet; OpenAI may bill this model per token rather than per character.",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checkedOn": null,
+      "checkedBy": null
+    },
+    {
       "key": "realtime:openai",
       "model": "gpt-realtime-2.1",
       "audioInputPerMTok": 32.00,

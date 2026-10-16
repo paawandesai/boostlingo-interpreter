@@ -45,4 +45,32 @@ public class LanguagesEndpointTests(WebApplicationFactory<Program> factory) : IC
         });
         Assert.Equal(Interpreter.Core.Interpretation.InterpreterInstructions.Canary, json.GetProperty("canary").GetString());
     }
+
+    [Fact]
+    public async Task No_mode_is_blocked_when_baa_mode_is_off()
+    {
+        var json = JsonDocument.Parse(await factory.CreateClient().GetStringAsync("/api/languages", TestContext.Current.CancellationToken)).RootElement;
+
+        Assert.Empty(json.GetProperty("blockedModes").EnumerateObject());
+    }
+
+    [Fact]
+    public async Task Baa_mode_blocks_realtime_translate_and_says_why()
+    {
+        var client = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Compliance:RequireBaa", "true");
+            b.UseSetting("Compliance:BaaSigned:0", "openai");
+            b.UseSetting("Compliance:BaaSigned:1", "anthropic");
+            b.UseSetting("Cascade:Stt", "openai");
+            b.UseSetting("Cascade:Translator", "anthropic");
+            b.UseSetting("Cascade:Tts", "openai");
+        }).CreateClient();
+
+        var json = JsonDocument.Parse(await client.GetStringAsync("/api/languages", TestContext.Current.CancellationToken)).RootElement;
+
+        var blocked = json.GetProperty("blockedModes").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString());
+        Assert.Equal(["translate"], blocked.Keys);
+        Assert.Contains("BAA mode", blocked["translate"]);
+    }
 }

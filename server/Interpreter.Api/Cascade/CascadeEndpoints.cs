@@ -87,6 +87,7 @@ public static class CascadeEndpoints
         IServiceProvider services,
         IOptions<CascadeOptions> cascade,
         IOptions<AccessOptions> access,
+        IOptions<ComplianceOptions> compliance,
         LanguageCatalog languages,
         Glossary glossary,
         ProviderActivity activity,
@@ -163,6 +164,12 @@ public static class CascadeEndpoints
 
         var opts = cascade.Value;
         var translatorName = start.Translator ?? opts.Translator;
+        // BAA mode: checked before any adapter is resolved, so no audio or text reaches an uncovered route.
+        if (compliance.Value.CascadeRefusal(opts.Stt, translatorName, opts.Tts) is { } refused)
+        {
+            await Refuse(refused, ProviderErrorKind.Unavailable);
+            return;
+        }
         var stt = services.GetKeyedService<IStreamingStt>(opts.Stt);
         var translator = services.GetKeyedService<IStreamingTranslator>(translatorName);
         var tts = services.GetKeyedService<IStreamingTts>(opts.Tts);
