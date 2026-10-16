@@ -108,7 +108,7 @@ separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the l
 price entry, so its figure is a floor; its cached input tokens are priced at the cached rate (one
 cached count covers text and audio, so it is taken off text input first, then audio). On these
 runs Realtime costs about ten times either cascade, and Realtime translate about twice. Cascade
-costs three vendors; the Realtime modes cost one.
+bills up to three vendors (two in the BAA profile); the Realtime modes bill one.
 
 ## 5. Controllability and compliance
 
@@ -139,7 +139,7 @@ sentence-tail loss (section 3) shows up as omitted or mangled lines (examples in
 are subjective counts from synthetic voices and one labeller, with small n (Realtime merged clips
 into 17 turns): failure shapes, not benchmark rates.
 
-**Lock-in and observability.** Cascade spreads the session over three vendors, but each stage is a
+**Lock-in and observability.** Cascade spreads the session over up to three vendors (two in the BAA profile), but each stage is a
 config entry behind one interface: the STT swap (Deepgram to OpenAI transcription) and the translator
 swap (OpenAI to Claude) were config-only, and every stage reports its own marks, so a slow or failing
 vendor is visible per stage. Realtime and Realtime translate are one vendor each: the model's time is
@@ -162,15 +162,15 @@ code closes the routing gap instead: BAA mode (off by default, README "BAA mode"
 whose route is not on its vendor's HIPAA-eligible list or whose vendor has no declared BAA. Realtime
 translate is always refused; Realtime runs; cascade runs on OpenAI speech-to-text, the Claude
 translator and an OpenAI text-to-speech adapter added for this (unit-tested, not yet run live).
-Cascade sends the conversation to three vendors at once, so a covered deployment needs three
-agreements instead of one. No audio is stored; transcripts are discarded at End unless exported.
+Cascade sends the conversation to up to three vendors at once (two in the BAA profile: OpenAI and
+Anthropic), so a covered deployment needs two agreements instead of one. No audio is stored; transcripts are discarded at End unless exported.
 
 ## 6. Recommendation by scenario **[REPHRASE]**
 
 | Scenario | Recommendation | Why |
 |---|---|---|
 | Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. |
-| Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime, or cascade on OpenAI STT + Claude + OpenAI TTS, with BAA mode on and each vendor's BAA and retention terms signed; never Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. Cascade needs three agreements, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
+| Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime, or cascade on OpenAI STT + Claude + OpenAI TTS (not yet run live; latency and cost unmeasured), with BAA mode on and each vendor's BAA and retention terms signed; never Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. That cascade needs two agreements (OpenAI and Anthropic); the default ElevenLabs TTS would add a third, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
 | Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation must be reviewed by a qualified human translator when the text is critical to rights, benefits or meaningful access, when accuracy is essential, or when the source is complex or technical (45 CFR 92.201(c)(3)); 92.4 defines machine translation as text-based, and spoken interpretation falls under the separate qualified-interpreter requirement in (c)(1). California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law. In proceedings instituted by the United States, federal courts use the most available certified interpreter, or an otherwise qualified one (28 U.S.C. §1827(d)(1)); California courts require certified or registered interpreters (Gov. Code §68561), with narrow provisional and temporary exceptions (Cal. Rules of Court 2.893). Latency and cost are secondary. |
