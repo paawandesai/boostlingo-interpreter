@@ -33,7 +33,7 @@ under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
   TypeScript" and in `docs/DECISIONS.md` D1–D2.
 
-## B. Where the time goes, and why the latency numbers are not one quantity
+## B. Latency detail, sample sizes, stability and cost caveats
 
 Where the time goes on the 2026-10-16 defaults (p50/p95 ms, `eval/results/latency-tuning-2026-10-16.md`
 and `python3 eval/summarize.py` on each log). Cascade (`gpt-realtime-whisper`, OpenAI translator,
@@ -50,6 +50,52 @@ its text lag says how far it trails, not how long a listener waits; start lag (s
 audio) got only 1 measurement in this run because the looped clips leave few pauses. On 2026-10-15
 Realtime merged clips into longer turns (29 turns from the loop), and cascade's 46 and 45 totals came
 from 63 and 57 utterances (a turn the STT split without a client-VAD pause has no speech-end mark).
+
+**Sample sizes.** No run reached the 50 samples the guardrails ask for: on 2026-10-16 cascade 36 of
+37 turns, `gpt-realtime-2.1` 38 of 48 and `gpt-realtime` 36 of 44 carried a complete mark set. Fewer
+turns fit in 5 minutes because each one waits for its reply. There is one synthetic run per
+configuration. Realtime translate and the Claude-translator cascade were not re-run with the new
+defaults. `gpt-realtime`'s run ended mid-turn (43 of 44 interpreted).
+
+**Stability**, 2026-10-16 runs on the defaults and the 2026-10-15 runs (5 minutes unless noted;
+`eval/results/soak-*.json`, late audio summed from the logs' "Dropped N s" notices):
+
+| Run | Disconnects | Drift skips | Late audio dropped | Heap growth from minute 1 | Last-two-minute slope |
+|---|---|---|---|---|---|
+| Cascade | 0 | 6 | 16.0 s | 21.7% | +0.532 MB/min |
+| Realtime, `gpt-realtime-2.1` | 0 | 0 | 0 s | 21.2% | +0.203 MB/min |
+| Realtime, `gpt-realtime` | 0 | 0 | 0 s | 18.0% | +0.377 MB/min |
+| *2026-10-15 (older replay):* Cascade replay, OpenAI translator | 0 | 12 | 22.0 s | 14.3% | +0.195 MB/min |
+| Cascade replay, Claude translator | 0 | 15 | 25.6 s | 20.0% | +0.249 MB/min |
+| Realtime replay (`gpt-realtime-2.1`) | 0 | 0 | 0 s | 18.9% | +0.298 MB/min |
+| Realtime translate replay | 0 | 0 | 0 s | 8.5% | −0.192 MB/min |
+| Cascade red-team, OpenAI / Claude translator (4 min) | 0 / 0 | 6 / 11 | 12.4 s / 24.8 s | 10.1% / 21.2% | −0.002 / +0.619 MB/min |
+| Realtime red-team (4 min) | 0 | 0 | 0 s | 13.5% | +0.332 MB/min |
+| Realtime translate red-team (4 min) | 0 | 0 | 0 s | 15.5% | +0.319 MB/min |
+
+A drift skip is the playback scheduler dropping the oldest queued interpreter audio once more than
+3 s is queued ahead of the play cursor (`web/src/audio/playback.ts`), so latency cannot creep up; in
+cascade that cost 16–26 s of interpreter speech per 5-minute run. Heap grew 8.2–21.7% from minute 1
+across all eight 2026-10-16 tuning runs (criterion < 10%; only one run passed); on 2026-10-15 it grew
+8.5–20% in the replay runs (only Realtime translate passed) and 10.1–21.2% in the red-team runs.
+
+**Cost: what each figure leaves out.** Costs are `eval/summarize.py` priced from
+`config/prices.json`. The cascade figures in the write-up ($0.0149 Claude / $0.0193 OpenAI
+translator) are `eval/results/summary.md`, built from the 2026-10-15 replay logs, which carry no STT
+minutes (the browser emitted them only on End), so they leave STT out. Charging STT for the whole
+session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate) gives an
+upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
+the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes,
+but it prices them at that same `gpt-4o-transcribe` rate because `gpt-realtime-whisper` has no entry
+in `config/prices.json` yet, giving $0.0215/min: not the real cost **[VERIFY: price]**. Deepgram
+Nova-3 streaming lists $0.0077/min ($0.0048 under a current promotion), but it has no numbers here.
+Realtime's separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and
+has no price entry, so the Realtime figures ($0.1145 `gpt-realtime-2.1`, $0.2104 `gpt-realtime`) are
+floors. Cached input tokens are priced at the cached rate; one cached count covers text and audio,
+so it is taken off text input first, then audio. Both Realtime models have the same audio-input
+price, but `gpt-realtime` got far less prompt caching in its run, so it cost almost twice as much.
+On the 2026-10-15 runs `gpt-realtime-2.1` cost $0.2023/min, about ten times either cascade, and
+Realtime translate ($0.034) about twice.
 
 ## C. Cascade's sentence-tail loss
 

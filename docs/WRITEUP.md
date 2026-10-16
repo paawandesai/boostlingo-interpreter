@@ -44,32 +44,10 @@ Endpointing is now 490–550 ms at p50 in every mode; in cascade the next larges
 finalisation (1005 ms at p50 from speech end, about 0.5 s after the commit), and in Realtime the
 model's opaque time (560–675 ms). Stage breakdown: appendix B.
 
-**Sample sizes.** No run reached the 50 samples the guardrails ask for: cascade 36 of 37 turns,
-`gpt-realtime-2.1` 38 of 48 and `gpt-realtime` 36 of 44 carried a complete mark set. Fewer turns fit
-in 5 minutes because each one waits for its reply. One synthetic run per configuration. Realtime
-translate and the Claude-translator cascade were not re-run with the new defaults; Realtime
-translate's 70-sample text lag says how far it trails, not how long a listener waits (appendix B).
-
-**Stability**, 2026-10-16 runs on the defaults and the 2026-10-15 runs (5 minutes unless noted):
-
-| Run | Disconnects | Drift skips | Late audio dropped | Heap growth from minute 1 | Last-two-minute slope |
-|---|---|---|---|---|---|
-| Cascade | 0 | 6 | 16.0 s | 21.7% | +0.532 MB/min |
-| Realtime, `gpt-realtime-2.1` | 0 | 0 | 0 s | 21.2% | +0.203 MB/min |
-| Realtime, `gpt-realtime` | 0 | 0 | 0 s | 18.0% | +0.377 MB/min |
-| *2026-10-15 (older replay):* Cascade replay, OpenAI translator | 0 | 12 | 22.0 s | 14.3% | +0.195 MB/min |
-| Cascade replay, Claude translator | 0 | 15 | 25.6 s | 20.0% | +0.249 MB/min |
-| Realtime replay (`gpt-realtime-2.1`) | 0 | 0 | 0 s | 18.9% | +0.298 MB/min |
-| Realtime translate replay | 0 | 0 | 0 s | 8.5% | −0.192 MB/min |
-| Cascade red-team, OpenAI / Claude translator (4 min) | 0 / 0 | 6 / 11 | 12.4 s / 24.8 s | 10.1% / 21.2% | −0.002 / +0.619 MB/min |
-| Realtime red-team (4 min) | 0 | 0 | 0 s | 13.5% | +0.332 MB/min |
-| Realtime translate red-team (4 min) | 0 | 0 | 0 s | 15.5% | +0.319 MB/min |
-
-A drift skip is the playback scheduler dropping the oldest queued interpreter audio once more than
-3 s is queued ahead of the play cursor (`web/src/audio/playback.ts`), so latency cannot creep up.
-Heap grew 8.2–21.7% from minute 1 across all eight 2026-10-16 tuning runs (criterion < 10%; only one
-run passed); on 2026-10-15 it grew 8.5–20% in the replay runs (only Realtime translate passed) and
-10.1–21.2% in the red-team runs.
+**Caveats.** One synthetic run per configuration; n is 36–38, below the 50 the guardrails ask for,
+because each turn waits for its reply. Realtime translate and the Claude-translator cascade were not
+re-run with the new defaults. Heap grew 8–22% from minute 1 (criterion < 10%) and there were
+0 disconnects; the stability table is in appendix B.
 
 ## 3. Quality (synthetic audio, model-written references)
 
@@ -85,10 +63,7 @@ references (on 59 of the 70 script lines), so it is **not comparable** with the 
 numbers of earlier drafts. Realtime translate was last scored on 2026-10-15 with the old replay and
 one reference (chrF 69.4, 11 of 15 glossary hits). `gpt-realtime-whisper` takes no prompt, so
 glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
-("Do you accept" for "Do you accept credit cards?") because the replay started the next clip once the
-interpreter had been idle for 600 ms, and the half-duplex mic gate then cut the clip; with the replay
-fixed to wait for each interpretation (MR !33), the first cascade re-run gave STT WER 4.0% (was 33.9%)
-and 36 of 37 lines matched (appendix C). The
+because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
 Vietnamese onboarding run scored chrF 90.8 on 8 of 13 lines against references no Vietnamese
 speaker has checked (`eval/results/onboarding-vi.md`). **This table is not a ranking** until there
 is recorded speech, checked references and my own rubric, scored with the mode hidden.
@@ -105,14 +80,7 @@ Cascade and Realtime translate are from `eval/results/summary.md` (2026-10-15 lo
 from the 2026-10-16 logs, priced from `config/prices.json`. Same audio-input price, but
 `gpt-realtime` got far less prompt caching than `gpt-realtime-2.1`, so it cost almost twice as much.
 Realtime costs about six to fourteen times cascade. Cascade bills up to three vendors (two in the
-BAA profile); the Realtime modes bill one.
-
-Neither figure is complete. The 2026-10-15 cascade logs carry no STT minutes (the browser emitted
-them only on End), so the cascade figure leaves STT out; the 2026-10-16 default run does carry STT
-minutes, but its log prices them at `gpt-4o-transcribe`'s $0.006/min because `gpt-realtime-whisper`
-has no entry in `config/prices.json`, which gives $0.0215/min, not its real cost. Realtime's
-separately billed input transcription is not in the logs and has no price entry, so its figures are
-floors; cached input tokens are priced at the cached rate.
+BAA profile); the Realtime modes bill one. What each figure leaves out: appendix B.
 
 ## 5. Controllability and compliance
 
@@ -170,9 +138,6 @@ and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
 
 - No recorded human speech, and one synthetic run per configuration; no run reached 50 latency
   samples, and only `gpt-realtime-2.1` went through the red-team suite.
-- No Deepgram numbers; one Realtime translate start-lag sample.
-- Cost per minute leaves out cascade STT (`gpt-realtime-whisper` has no price yet) and Realtime
-  input transcription (not captured), so both are floors.
-- Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%); cascade dropped
-  16 s of late interpreter audio in its 5-minute default run to stay in sync.
+- No Deepgram numbers, and no cascade cost with `gpt-realtime-whisper` priced.
+- Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%).
 - Quality references are model-written and unchecked, and the red-team labels have one labeller.
