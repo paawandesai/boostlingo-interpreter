@@ -136,6 +136,10 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             b.UseSetting("Access:Token", serverToken ?? "");
             b.UseSetting("Access:PermitLimit", permitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
             if (maxSessionSeconds is { } max) b.UseSetting("Cascade:MaxSessionSeconds", max.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // The fake STT is registered under the default "deepgram" key. Without a Deepgram key in the
+            // environment (CI has only OPENAI_API_KEY) the STT fallback would switch the session to the real
+            // openai adapter, so pin a placeholder here; a test about the fallback overrides it via settings.
+            b.UseSetting("DEEPGRAM_API_KEY", "test-placeholder-not-a-key");
             foreach (var (key, value) in settings) b.UseSetting(key, value);
             b.ConfigureServices(s =>
             {
