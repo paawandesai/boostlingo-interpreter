@@ -127,7 +127,7 @@ describe('CascadeTransport', () => {
     expect(firstOut).toEqual([{ type: 'mark', name: 'audio.first_out', t: 6500, utteranceId: 'c1-1' }])
   })
 
-  it('switches direction over the open socket instead of opening a second one', async () => {
+  it('switches direction over the open socket and keeps playing the turn in flight', async () => {
     const { t, ws, events } = await started()
     ws.server({ type: 'ready', t: 0 })
 
@@ -135,13 +135,19 @@ describe('CascadeTransport', () => {
 
     expect(FakeSocket.all).toHaveLength(1)
     expect(ws.close).not.toHaveBeenCalled()
-    expect(ws.json().at(-1)).toEqual({ type: 'direction', source: 'es', target: 'en' })
-    expect(playbackStop).toHaveBeenCalled()
-    // The old direction's utterance in flight is dropped (D12) until the server confirms the switch.
+    expect(ws.json().filter((m) => m.type === 'direction')).toEqual([{ type: 'direction', source: 'es', target: 'en' }])
+    expect(playbackStop).not.toHaveBeenCalled()
+    // The server finishes the old direction's turn first: what arrives before its ack is shown and played.
     ws.server({ type: 'transcript.final', u: 1, text: 'late', t: 5 })
+    ws.server({ type: 'latency.mark', u: 1, name: 'tts.first_byte', t: 6 })
     ws.onmessage!({ data: new Int16Array([1]).buffer })
-    expect(events.some((e) => e.type === 'transcript')).toBe(false)
-    expect(enqueue).not.toHaveBeenCalled()
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'transcript', role: 'source', utteranceId: 'c1-1', text: 'late', final: true }),
+    )
+    expect(enqueue).toHaveBeenCalledTimes(1)
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'mark', name: 'audio.first_out', utteranceId: 'c1-1' }),
+    )
     // Audio keeps flowing: the server queues it for the new direction.
     onFrame!(new Int16Array(320))
     expect(ws.sent.at(-1)).toBeInstanceOf(Int16Array)
@@ -153,6 +159,7 @@ describe('CascadeTransport', () => {
     for (let i = 0; i < 10; i++) t.setSpeaker(i % 2 ? 'B' : 'A')
     expect(FakeSocket.all).toHaveLength(1)
     expect(ws.json().filter((m) => m.type === 'direction')).toHaveLength(11)
+    expect(playbackStop).not.toHaveBeenCalled()
   })
 
   it('reopens the socket on a speaker switch only after it dropped, with a fresh clock', async () => {

@@ -4,8 +4,10 @@
  *
  * Owns: mic capture (frames, client VAD marks), the socket, clock sync, the playback scheduler and the
  * half-duplex mic gate. stop() releases all of them. A speaker switch sends a direction message over the
- * open socket and keeps capture and playback; an utterance in flight is dropped (D12). The socket is only
- * reopened when it dropped, because every upgrade spends one of the server's per-client rate-limit permits.
+ * open socket and keeps capture and playback: the server finishes the turn in flight first, and everything
+ * it sends before its direction ack is the old direction's, shown and played as usual (only a mode switch
+ * drops an utterance, D12). The socket is only reopened when it dropped, because every upgrade spends one
+ * of the server's per-client rate-limit permits.
  */
 import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
@@ -42,8 +44,6 @@ export class CascadeTransport implements Transport {
   private ready = false
   /** The server explained its refusal on this socket, so the close that follows adds nothing. */
   private serverError = false
-  /** A direction change was sent; what the old direction still produces is dropped until the server confirms it. */
-  private switching = false
   private stopped = false
   private sockets = 0
   private firstOut = new Set<string>()
@@ -103,12 +103,11 @@ export class CascadeTransport implements Transport {
   setSpeaker(side: SpeakerSide): void {
     if (!this.config || this.stopped) return
     this.config = { ...this.config, speaker: side }
-    this.playback?.stop()
     const ws = this.ws
     if (ws?.readyState === WebSocket.OPEN) {
-      // The server restarts its pipeline for the new direction on this socket; no new upgrade.
+      // The server finishes the turn in flight, then runs the new direction on this socket; no new upgrade.
+      // Playback goes on: the old direction's speech still plays, gating the mic like any interpreter speech.
       const [source, target] = direction(this.config, side)
-      this.switching = true
       ws.send(JSON.stringify({ type: 'direction', source, target }))
     } else if (ws?.readyState !== WebSocket.CONNECTING) {
       // No socket, or it dropped: reconnect. A socket still connecting reads the direction when it opens.
@@ -131,7 +130,6 @@ export class CascadeTransport implements Transport {
     this.ws = ws
     this.ready = false
     this.serverError = false
-    this.switching = false
     // Each socket has its own server clock (it starts at the connection), so the offset is re-measured.
     // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
     this.clock = new ClockSync()
@@ -182,18 +180,15 @@ export class CascadeTransport implements Transport {
       this.syncClock()
     }
     if (json.type === 'direction') {
-      // The old direction's pipeline is gone; whatever follows belongs to the new one.
-      this.switching = false
+      // The old direction's pipeline has delivered its last turn; whatever follows belongs to the new one.
       if (this.parser) this.parser.speaking = null
       return
     }
-    // The utterance in flight at a speaker switch is dropped (D12); session messages still get through.
-    if (this.switching && json.type !== 'error' && json.type !== 'ready') return
     for (const ev of this.parser?.parse(json) ?? []) this.emitter.emit(ev)
   }
 
   private onAudio(data: ArrayBuffer): void {
-    if (!this.playback || !this.capture || this.switching) return
+    if (!this.playback || !this.capture) return
     const receivedAt = performance.now()
     const speaking = this.parser?.speaking
     // Network stage (D9): first audio frame of the utterance received on the client.
@@ -245,7 +240,6 @@ export class CascadeTransport implements Transport {
     const ws = this.ws
     this.ws = null
     this.ready = false
-    this.switching = false
     if (!ws) return
     ws.onopen = null
     ws.onmessage = null

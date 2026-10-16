@@ -144,6 +144,7 @@ As built (2026-10-16): the explicit toggle only (Option A); auto-detect was not 
 
 The session store (client) owns transcript history, language pair, speaker side and latency history. A transport is `{ start(config), stop(): Promise<void>, events }`. On toggle: `await current.stop()` (closes peer/WS, disconnects nodes, stops worklet), then `next.start()`. Insert a "switched to X" marker in the transcript.
 **Trade-off:** a ~0.5–1 s gap during switch, and an utterance mid-flight is dropped. Acceptable; say so in the UI.
+**Amended 2026-10-16:** a speaker flip within cascade now drains the turn in flight: the server finishes STT, translation and TTS for what was captured and delivers it before the new direction starts; only a MODE switch drops the utterance in flight.
 
 ### D13. Echo: half-duplex mic gating + echoCancellation + headphones — Locked
 

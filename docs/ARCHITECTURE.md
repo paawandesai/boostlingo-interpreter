@@ -176,7 +176,7 @@ sequenceDiagram
   participant FP as FlushPolicy
   participant TTS as IStreamingTts (ElevenLabs)
   B->>P: WS /ws/cascade, start {token, source, target, translator?, history}; ping/pong (clock offset)
-  Note over B,P: speaker flip: B sends direction {source, target}; P restarts the pipeline for it, carries finished turns, acks direction {source, target, t}. Error frames carry kind, provider, message.
+  Note over B,P: speaker flip: B sends direction {source, target}; P finishes the turn in flight, then runs the new direction, carries finished turns, acks direction {source, target, t}. Error frames carry kind, provider, message.
   Mic->>B: PCM16 16 kHz frames
   B->>P: binary audio frames
   P->>STT: audio stream

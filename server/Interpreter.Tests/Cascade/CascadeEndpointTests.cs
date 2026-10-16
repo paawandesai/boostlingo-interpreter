@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
+using Interpreter.Api.Cascade;
 using Interpreter.Core.Cascade;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
@@ -84,10 +85,14 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    /// <summary>Emits a final as soon as the first audio frame arrives, then keeps listening. Records each run's language.</summary>
+    /// <summary>
+    /// Emits a final as soon as the first audio frame arrives, then keeps listening. Records each run's language
+    /// and counts every frame it was given.
+    /// </summary>
     private sealed class FirstFrameStt : IStreamingStt
     {
         public readonly List<string> Languages = [];
+        public int Frames;
         public string Name => "first-frame-stt";
 
         public async IAsyncEnumerable<SttEvent> TranscribeAsync(
@@ -97,10 +102,26 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             var first = true;
             await foreach (var _ in audio.WithCancellation(ct))
             {
+                Interlocked.Increment(ref Frames);
                 if (!first) continue;
                 first = false;
                 yield return new SttFinal("Hello.", true, 0.9);
             }
+        }
+    }
+
+    /// <summary>Holds every translation until the test releases it, so a direction change can arrive mid-turn.</summary>
+    private sealed class GatedTranslator : IStreamingTranslator
+    {
+        public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string Name => "gated-translator";
+
+        public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(ct);
+            yield return request.SourceLanguage == "English" ? "Hola." : "Hello.";
         }
     }
 
@@ -147,6 +168,19 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             if (m.Type != WebSocketMessageType.Text) continue;
             var json = Json(m);
             if ((string?)json["type"] == type) return json;
+        }
+    }
+
+    /// <summary>Reads every message up to and including the first text message of the type; a close first fails the test.</summary>
+    private static async Task<List<WebSocketText.Message>> ReadThrough(WebSocket ws, string type)
+    {
+        var all = new List<WebSocketText.Message>();
+        while (true)
+        {
+            var m = await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken);
+            if (m.Close is not null) Assert.Fail($"The socket closed ({m.Close}) before a {type} message");
+            all.Add(m with { Data = m.Data.ToArray() });
+            if (m.Type == WebSocketMessageType.Text && (string?)Json(m)["type"] == type) return all;
         }
     }
 
@@ -334,24 +368,80 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
     }
 
     [Fact]
-    public async Task A_direction_change_drops_the_utterance_in_flight_and_keeps_the_socket()
+    public async Task A_direction_change_finishes_the_turn_in_flight_before_the_new_direction_starts()
     {
-        // D12: the interpreter stops speaking the old direction's turn; the socket stays up for the new one.
-        var tts = new HangingTts();
-        var (ws, _) = await Connect(tts: tts, sttOverride: new FirstFrameStt());
+        // A listener taps the other speaker a couple of seconds after a sentence, while it is still being
+        // interpreted. The turn is delivered in full before the direction ack and the new leg's output, the
+        // socket keeps answering while it drains, and nothing the new speaker says meanwhile is lost.
+        var stt = new FirstFrameStt();
+        var translator = new GatedTranslator();
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator);
         var ct = TestContext.Current.CancellationToken;
         await Start(ws);
+
         await SendFrame(ws);
-        while ((await WebSocketText.ReceiveAsync(ws, ct)).Type != WebSocketMessageType.Binary) { }
-
+        await translator.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
         await Send(ws, new { type = "direction", source = "es", target = "en" });
-
-        await tts.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-        await ReadUntil(ws, "direction");
+        // The switch was taken while the turn still waits on the translator, and the socket still answers.
         await Send(ws, new { type = "ping", c = 7.0 });
-        Assert.Equal(7.0, (double?)(await ReadUntil(ws, "pong"))["c"]);
+        var untilPong = await ReadThrough(ws, "pong");
+        // The new speaker talks while the old direction finishes: more than the old 5 s queue held.
+        for (var i = 0; i < 300; i++) await SendFrame(ws);
+        translator.Release.SetResult();
+        var untilAck = await ReadThrough(ws, "direction");
+        var second = await ReadUntil(ws, "utterance.done");
         await Send(ws, new { type = "stop" });
-        Assert.Equal(WebSocketCloseStatus.NormalClosure, (await ReadAll(ws))[^1].Close);
+        var rest = await ReadAll(ws);
+
+        var drained = untilPong.Concat(untilAck).ToList();
+        var json = drained.Where(m => m.Type == WebSocketMessageType.Text).Select(Json).ToList();
+        Assert.Equal(7.0, (double?)json.Single(j => (string?)j["type"] == "pong")["c"]);
+        var final = json.Single(j => (string?)j["type"] == "transcript.final");
+        Assert.Equal(("Hello.", 1), ((string?)final["text"], (int?)final["u"]));
+        var translated = json.Single(j => (string?)j["type"] == "translation.final");
+        Assert.Equal(("Hola.", 1), ((string?)translated["text"], (int?)translated["u"]));
+        Assert.Equal("Hola.", Encoding.UTF8.GetString(drained.Single(m => m.Type == WebSocketMessageType.Binary).Data.Span));
+        Assert.Equal(1, (int?)json.Single(j => (string?)j["type"] == "utterance.done")["u"]);
+        Assert.Equal(("direction", "es", "en"), ((string?)json[^1]["type"], (string?)json[^1]["source"], (string?)json[^1]["target"]));
+        // The new direction's turn follows the ack, on every frame the new speaker sent during the drain.
+        Assert.Equal(2, (int?)second["u"]);
+        Assert.Equal(["en", "es"], stt.Languages);
+        Assert.Equal(301, stt.Frames);
+        Assert.DoesNotContain(
+            drained.Concat(rest).Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json),
+            j => (string?)j["type"] == "error");
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, rest[^1].Close);
+    }
+
+    [Fact]
+    public async Task Audio_dropped_while_the_previous_direction_finished_is_reported()
+    {
+        // The next leg's queue holds about 30 s. A drain longer than that (a stalled provider) loses the oldest
+        // of the new speaker's audio, and the client is told how much when the new direction starts.
+        var stt = new FirstFrameStt();
+        var translator = new GatedTranslator();
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator);
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+
+        await SendFrame(ws);
+        await translator.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        const int extra = 100; // 100 frames of 320 samples: 2 s
+        for (var i = 0; i < CascadeEndpoints.AudioQueueFrames + extra; i++) await SendFrame(ws);
+        // The pong proves every frame is queued (and the overflow dropped) before the old direction can finish.
+        await Send(ws, new { type = "ping", c = 8.0 });
+        await ReadUntil(ws, "pong");
+        translator.Release.SetResult();
+        await ReadUntil(ws, "direction");
+        var error = await ReadUntil(ws, "error");
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        Assert.Equal(("session", "Unavailable"), ((string?)error["stage"], (string?)error["kind"]));
+        Assert.Contains("the first 2 s of this speaker's audio", (string?)error["message"]);
+        Assert.Equal(1 + CascadeEndpoints.AudioQueueFrames, stt.Frames);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
 
     [Fact]

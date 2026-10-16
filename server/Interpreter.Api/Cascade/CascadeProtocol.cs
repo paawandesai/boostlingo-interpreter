@@ -40,8 +40,9 @@ public static class CascadeProtocol
 
     /// <summary>
     /// A control message after start: <c>ping</c> (with <c>c</c>, the client clock), <c>stop</c>, or
-    /// <c>direction</c> with <c>source</c> and <c>target</c>, which restarts the pipeline for the other speaker
-    /// on this socket. A new socket would spend one of the per-client rate-limit permits (G2) on every flip.
+    /// <c>direction</c> with <c>source</c> and <c>target</c>, which finishes the turn in flight and then runs the
+    /// pipeline for the other speaker on this socket. A new socket would spend one of the per-client rate-limit
+    /// permits (G2) on every flip.
     /// </summary>
     public sealed record ClientMessage(string Type, double? C = null, string? Source = null, string? Target = null);
 
