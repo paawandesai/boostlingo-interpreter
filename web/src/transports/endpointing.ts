@@ -10,8 +10,12 @@
  * never report its end.
  */
 
-/** Extra wait after the VAD's speech.end before committing; `?commitDelay=` overrides it for tuning runs. */
-export const DEFAULT_COMMIT_DELAY_MS = 150
+/**
+ * Extra wait after the VAD's speech.end before committing; `?commitDelay=` overrides it for tuning runs.
+ * 300 ms (500 ms after the last voiced frame) beat 150 ms in the 2026-10-16 soaks: 150 split sentences at
+ * short pauses (cascade WER 19.2% vs 7.7%) for no gain in total latency.
+ */
+export const DEFAULT_COMMIT_DELAY_MS = 300
 
 export function commitDelayMs(search = typeof location === 'undefined' ? '' : location.search): number {
   const params = new URLSearchParams(search)

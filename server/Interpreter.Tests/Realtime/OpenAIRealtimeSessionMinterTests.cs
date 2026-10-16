@@ -12,7 +12,7 @@ public class OpenAIRealtimeSessionMinterTests
     private static readonly RealtimeSessionRequest Request = new("en", "es", "INSTRUCTIONS");
 
     private static OpenAIRealtimeSessionMinter Minter(StubHttpHandler handler, string? apiKey = "test-key") =>
-        new(new HttpClient(handler), Options.Create(new OpenAIRealtimeOptions { ApiKey = apiKey }));
+        new(new HttpClient(handler), Options.Create(new OpenAIRealtimeOptions { ApiKey = apiKey, Endpointing = "server" }));
 
     [Fact]
     public async Task Posts_session_config_to_client_secrets_with_server_key()

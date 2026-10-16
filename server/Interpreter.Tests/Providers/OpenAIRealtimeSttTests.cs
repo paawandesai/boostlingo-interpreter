@@ -18,6 +18,10 @@ public class OpenAIRealtimeSttTests
             ApiKey = "test-key",
             BaseUrl = baseUrl ?? new Uri("wss://api.openai.com/v1/"),
             DrainTimeoutMs = 2000,
+            // The production default is gpt-realtime-whisper with client endpointing; most tests here pin
+            // the server-VAD path and override per test.
+            Model = "gpt-4o-transcribe",
+            Endpointing = "server",
         };
         configure?.Invoke(opts);
         return new(Options.Create(opts), time);
