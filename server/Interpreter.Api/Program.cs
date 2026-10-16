@@ -32,7 +32,8 @@ builder.Services.AddElevenLabsTts(builder.Configuration);
 
 var app = builder.Build();
 
-// Public demo only (T5, G14): proxy headers, noindex and the built SPA. All off unless configured.
+// Public demo only (T5, G14): proxy headers, noindex and the built SPA. All off unless configured,
+// except the security response headers, which every run sends.
 app.UseDemoHosting(builder.Configuration);
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(15) });
 app.UseRateLimiter();
