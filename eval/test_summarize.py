@@ -138,6 +138,41 @@ class SummarizeTests(unittest.TestCase):
         self.assertAlmostEqual(q["wer"], 0.25)
         self.assertGreater(q["chrf"], 99)
 
+    def test_chrf_accepts_an_alternative_rendering(self) -> None:
+        scripts = [
+            {**SCRIPTS[0], "alternatives": ["¿Dónde queda la farmacia?"]},
+        ]
+        modes = summarize.summarize(
+            [
+                log(
+                    "openai",
+                    utterance(
+                        "cascade", "where is the pharmacy", "¿Dónde queda la farmacia?"
+                    ),
+                )
+            ],
+            scripts,
+        )
+        with_alt = summarize.quality(
+            modes["cascade:openai"]["matched"], "cascade:openai"
+        )
+        modes = summarize.summarize(
+            [
+                log(
+                    "openai",
+                    utterance(
+                        "cascade", "where is the pharmacy", "¿Dónde queda la farmacia?"
+                    ),
+                )
+            ],
+            SCRIPTS,
+        )
+        without = summarize.quality(
+            modes["cascade:openai"]["matched"], "cascade:openai"
+        )
+        self.assertGreater(with_alt["chrf"], 99)
+        self.assertLess(without["chrf"], 90)
+
     def test_withholds_deepgram_latency_and_wer(self) -> None:
         modes = summarize.summarize(
             [

@@ -369,10 +369,14 @@ def score_line(
 def quality(matched: list[tuple[dict, dict]], mode: str) -> dict:
     mode = mode.split(":")[0]
     hyps = [u["target"]["text"] for u, _ in matched]
-    refs = [row["reference"] for _, row in matched]
+    # Every acceptable rendering counts (the reference plus its alternatives), so a correct paraphrase or
+    # the other register is not scored as an error. sacrebleu pads a line with fewer references with None.
+    per_line = [[row["reference"], *row.get("alternatives", [])] for _, row in matched]
+    width = max((len(r) for r in per_line), default=1)
+    streams = [[r[i] if i < len(r) else None for r in per_line] for i in range(width)]
     out: dict = {"n": len(matched)}
     if matched:
-        out["chrf"] = CHRF().corpus_score(hyps, [refs]).score
+        out["chrf"] = CHRF().corpus_score(hyps, streams).score
     stt = [(u, row) for u, row in matched if not u.get("_deepgram")]
     out["wer_withheld"] = len(matched) - len(stt)
     if mode == "cascade" and stt:
@@ -463,7 +467,7 @@ def render(modes: dict, inputs: list[str]) -> str:
     lines += [
         "",
         "WER compares cascade STT text with the script line (normalised: lower case, no punctuation).",
-        "chrF compares the translation with the script's reference. Neither is computed between modes.",
+        "chrF compares the translation with the script's reference and its alternatives. Neither is computed between modes.",
         "",
     ]
     return "\n".join(lines)
