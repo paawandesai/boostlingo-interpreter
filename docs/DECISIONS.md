@@ -1,13 +1,13 @@
 # Decisions log: AI Interpreter Workbench
 
-Status key: **Locked** (agreed with Paawan 2026-10-14), **Proposed** (default we proceed on unless changed), **Verify** (depends on current vendor docs/pricing, check before coding against it).
+Status key: **Locked** (agreed by me 2026-10-14), **Proposed** (default we proceed on unless changed), **Verify** (depends on current vendor docs/pricing, check before coding against it).
 Imported from the planning notes on 2026-10-14 and maintained here from now on. The write-up, AGENTS.md and interview answers all draw from it.
 
 ---
 
 ## Part 1: Stack
 
-### D1. Backend: .NET 10 (ASP.NET Core minimal API + WebSockets) — Locked 2026-10-14 (Paawan: "do whatever makes sense")
+### D1. Backend: .NET 10 (ASP.NET Core minimal API + WebSockets) — Locked 2026-10-14 (I said: "do whatever makes sense")
 
 **Why**
 - The brief names .NET/C# as preferred and says to explain the choice. Picking it is a signal: "I built it in your stack."
@@ -19,7 +19,7 @@ Imported from the planning notes on 2026-10-14 and maintained here from now on. 
 - Vendor SDKs are Python/JS-first. Some .NET SDKs are community-maintained or lag behind (verify Deepgram and ElevenLabs .NET SDK status). Mitigation: talk to vendor WebSocket/HTTP APIs directly inside adapters. More code, but the adapters are the only place that knows vendor details anyway, and raw protocol code is easier to explain in an interview than SDK magic.
 - Evaluation tooling (WER, chrF/BLEU) is much better in Python (`jiwer`, `sacrebleu`). Decision: offline eval scripts live in `/eval` in Python. They are not part of the product, so this does not undermine the .NET choice. Say so in the README.
 
-**Version: .NET 10, not .NET 8 (Locked 2026-10-14, see "Open items" below).** .NET 8 LTS support ends November 2026, which is next month. .NET 10 is the current LTS (released Nov 2025). Starting a new project on a runtime about to go out of support is a weak signal to a .NET shop. The APIs we need are the same. This deviated from Paawan's first instruction (not the brief) and was confirmed.
+**Version: .NET 10, not .NET 8 (Locked 2026-10-14, see "Open items" below).** .NET 8 LTS support ends November 2026, which is next month. .NET 10 is the current LTS (released Nov 2025). Starting a new project on a runtime about to go out of support is a weak signal to a .NET shop. The APIs we need are the same. This deviated from my first instruction (not the brief) and was confirmed.
 
 ### D2. Frontend: TypeScript + React + Vite, AudioWorklet — Locked
 
@@ -188,13 +188,13 @@ The guardrails (docs/GUARDRAILS.md, "Adversarial speech") prefer the purpose-bui
 - The model speaks while the speaker is still talking, so the half-duplex mic gate (D13) cannot apply: the mic stays open, the setup screen says headphones are required, and browser echo cancellation is the only defence against re-translating its own voice (README "Known constraints").
 - It has no context input, so a mid-session switch into it carries none of the earlier turns (G9); the switch marker says it starts with no memory of the conversation.
 - Latency (D9) is often negative for a simultaneous interpreter, so this mode reports text lag (first source text → first translated text) on every line and start lag (speech start → first audio) on lines that start after a pause, plus speech end → first audio where it exists. Lines are cut client-side by pairing each translated sentence with the source sentence that had started when it began (both streams carry the model's `elapsed_ms`); the segmenter was tuned twice on recorded streams (db7c1ef, 95256a4) and its boundaries stay approximate, which the UI and the export say.
-- Price: the guardrails quote $0.034/min; `config/prices.json` keeps it null until Paawan checks OpenAI's page, so the cost table shows it as unpriced.
+- Price: the guardrails quote $0.034/min; `config/prices.json` keeps it null until I check OpenAI's page, so the cost table shows it as unpriced.
 
 **Why:** the structural defence above, plus one vendor and one billing unit, which is what the recommendation for consumer and low-stakes use rests on (docs/WRITEUP.md §6). **Trade-offs:** no glossary or register control (there are no instructions to put them in), no confidence signal, coverage limited to the languages the model can output, and a measurement that is not the same quantity as the other two modes' speech end → first audio.
 
-### D18. BAA mode: route enforcement instead of a documented gap — Locked 2026-10-16 (Paawan)
+### D18. BAA mode: route enforcement instead of a documented gap — Locked 2026-10-16 (my decision)
 
-Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpoint (`/v1/realtime/translations`) is not on OpenAI's HIPAA-eligible list and that ElevenLabs offers a BAA only on Enterprise and lists HIPAA eligibility (Enterprise with Zero Retention Mode) for its speech-to-text, while no page checked covers the text-to-speech socket the cascade uses. Paawan chose to fix this in code rather than only document it. Decision: a server setting, `Compliance:RequireBaa`, plus `Compliance:BaaSigned` (vendors the operator declares a BAA with). With it on, the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's eligible list or whose vendor is not declared, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. An OpenAI text-to-speech adapter (`/v1/audio/speech`, `gpt-4o-mini-tts`, stock voice `alloy`) lets cascade run as OpenAI STT + Claude translator + OpenAI TTS under two BAAs instead of three.
+Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpoint (`/v1/realtime/translations`) is not on OpenAI's HIPAA-eligible list and that ElevenLabs offers a BAA only on Enterprise and lists HIPAA eligibility (Enterprise with Zero Retention Mode) for its speech-to-text, while no page checked covers the text-to-speech socket the cascade uses. I chose to fix this in code rather than only document it. Decision: a server setting, `Compliance:RequireBaa`, plus `Compliance:BaaSigned` (vendors the operator declares a BAA with). With it on, the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's eligible list or whose vendor is not declared, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. An OpenAI text-to-speech adapter (`/v1/audio/speech`, `gpt-4o-mini-tts`, stock voice `alloy`) lets cascade run as OpenAI STT + Claude translator + OpenAI TTS under two BAAs instead of three.
 
 **Why:** a refusal in code is a control a reviewer can test; a paragraph is not. **Trade-offs:** eligibility is a table in code, read from vendor pages on one date, so it must be re-checked when they change; the OpenAI Chat Completions translator and ElevenLabs TTS are refused only because nothing checked lists them as eligible; the OpenAI TTS adapter has no live run yet; signing BAAs and Modified Retention remain outside the code.
 
@@ -217,10 +217,10 @@ Two modes working, a latency number, and a write-up with impressions. Matching t
 ### How we ensure it's good
 - **Definition of done per must-have** in `ACCEPTANCE.md`, each with a manual check and, where possible, a test. Nothing counts as done until it works end to end in the browser.
 - **Vertical slices first.** Realtime end to end on Day 1, cascade end to end (ugly) on Day 2, then instrument. No layer gets polished before the path through it works.
-- **Review gate on every commit.** You paste the diff; I review blocking / should-fix / nit against the brief. Workers get self-contained briefs with explicit "do not" lists so they don't wander.
+- **Review gate on every commit.** I paste the diff; the reviewer agent reviews it as blocking / should-fix / nit against the brief. Workers get self-contained briefs with explicit "do not" lists so they don't wander.
 - **Benchmarks are tested, not assumed.** Run a 5-minute soak per mode (replay harness looping), check the heap snapshot before and after, count drift skips, and log any disconnects. Record results in the repo.
 - **Every write-up claim cites a number** from the exported logs. Anything inferred is labelled as inferred.
-- **You can explain every line.** After each day, a 10-minute walkthrough where I quiz you on that day's decisions from this log. That is interview prep built into the process.
+- **I can explain every line.** After each day, a 10-minute walkthrough where the reviewer agent quizzes me on that day's decisions from this log. That is interview prep built into the process.
 
 ---
 
@@ -232,7 +232,7 @@ Each metric has a defined measurement, a source of data, and a place in the writ
 |---|---|---|---|
 | **End-to-end latency (ms)** | Client VAD speech end → first audio out (D9). ≥30 replayed utterances per mode, EN→ES and ES→EN. | Exported session logs (replay harness) | p50/p95 table per mode and direction. Cascade stage breakdown. Flush-policy variants (finals vs stable partials). Pass/fail vs the 1.5 s / 3 s / 2 s targets. |
 | **Cost per minute** | Realtime: token counts from `response.done` usage (audio/text, in/out) × list price. Cascade: STT audio seconds, LLM in/out tokens, TTS characters × list price. All prices looked up and dated (verify). | Usage captured in session logs; live cost meter in UI | $/min of conversation per mode, with arithmetic shown. Projection at 100k and 1M minutes/month. Cost per stage for cascade (shows where to optimise). |
-| **Quality, subjective** | Rubric 1–5 for accuracy, fluency, register, names/numbers, on 20 replayed utterances per mode. Plus a fidelity scorecard (questions, "ignore instructions", addressing the AI) and glossary term accuracy (10 medical-term utterances). chrF vs reference translations if time allows. | Paawan scores blind (mode labels hidden); native-speaker spot check if available | Rubric means per mode. "Answered instead of interpreted: X/15 vs Y/15." "Glossary term accuracy: X% vs Y%." Note scorer bias. |
+| **Quality, subjective** | Rubric 1–5 for accuracy, fluency, register, names/numbers, on 20 replayed utterances per mode. Plus a fidelity scorecard (questions, "ignore instructions", addressing the AI) and glossary term accuracy (10 medical-term utterances). chrF vs reference translations if time allows. | I score blind (mode labels hidden); native-speaker spot check if available | Rubric means per mode. "Answered instead of interpreted: X/15 vs Y/15." "Glossary term accuracy: X% vs Y%." Note scorer bias. |
 | **Quality, WER** | WER on source transcripts against reference text, per mode and language (EN, ES, VI). Caveat that Realtime's transcript comes from a separate transcription model. | Python `jiwer` on exported transcripts | WER table plus the caveat |
 | **Provider flexibility** | (a) The second translator adapter: hours to build (from git timestamps), files and lines touched outside the adapter (target: config only). (b) Same contract tests pass for both adapters. (c) Swap translators on the same replay set and compare latency, quality and cost. | Git history, test run, replay logs | "Swapping the translator touched 1 config line; adding a new vendor took N hours, 0 pipeline changes." Side-by-side table. Realtime column: no stage swap possible (lock-in). |
 | **Time-to-onboard a new language pair** | Stopwatch adding EN↔VI: config lines changed, minutes to first working utterance in each mode, and what broke. Haitian Creole probe for coverage gaps. | Git diff and a timed log | "EN↔VI: N minutes, M config lines, 0 code changes in cascade; instructions edit only in Realtime." Coverage note for rare pairs. |
@@ -262,7 +262,7 @@ Ordering principle: working end-to-end slices first, then measurement, then evid
 
 ---
 
-## Open items for Paawan
+## My open items
 1. ~~.NET 10 vs 8~~ Locked .NET 10 (2026-10-14).
 2. Replay harness on Day 3 (recommended; it is now the backbone of the metrics plan).
 

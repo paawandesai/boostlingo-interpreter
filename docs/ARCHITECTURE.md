@@ -137,7 +137,7 @@ sequenceDiagram
   B->>O: session.update (other direction's instructions) on a speaker flip
 ```
 
-Verified on 2026-10-14 (T1.5, [DECISIONS.md](DECISIONS.md) D4): `POST /v1/realtime/client_secrets` returned `{ value: "ek_…", expires_at, session }`, and the SDP offer to `POST /v1/realtime/calls` with `Authorization: Bearer ek_…` returned `201` with the answer and a `Location: /v1/realtime/calls/rtc_…` header, from headless Chromium. ICE never connected from the cloud container (media ports blocked), so the audio path was checked by Paawan by ear on a local run and, later, by the soaks on the GitLab runner. Event and session field names were checked against the `openai` npm package's type definitions (v7.32.0 on 2026-10-14; `web/src/transports/realtime/events.ts`); the package is consulted for its types only and is not a dependency of the app.
+Verified on 2026-10-14 (T1.5, [DECISIONS.md](DECISIONS.md) D4): `POST /v1/realtime/client_secrets` returned `{ value: "ek_…", expires_at, session }`, and the SDP offer to `POST /v1/realtime/calls` with `Authorization: Bearer ek_…` returned `201` with the answer and a `Location: /v1/realtime/calls/rtc_…` header, from headless Chromium. ICE never connected from the cloud container (media ports blocked), so I checked the audio path by ear on a local run and, later, by the soaks on the GitLab runner. Event and session field names were checked against the `openai` npm package's type definitions (v7.32.0 on 2026-10-14; `web/src/transports/realtime/events.ts`); the package is consulted for its types only and is not a dependency of the app.
 
 ## Realtime translate data path
 
