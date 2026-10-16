@@ -102,6 +102,27 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     }
 
     [Fact]
+    public async Task Refuses_a_mint_body_over_the_limit_before_reading_it()
+    {
+        var minter = OkMinter();
+        var ct = TestContext.Current.CancellationToken;
+        // StringContent declares its length, which is the path the in-process server can enforce; an undeclared
+        // (chunked) body is capped by Kestrel through IHttpMaxRequestBodySizeFeature, which TestServer lacks.
+        static StringContent Body(object o) => new(JsonSerializer.Serialize(o), System.Text.Encoding.UTF8, "application/json");
+        var padding = new string('x', 5 * 1024);
+
+        var session = await Client(minter).PostAsync("/api/realtime/session", Body(new { source = "en", target = "es", model = padding }), ct);
+        var translation = await Client(minter).PostAsync("/api/realtime/translation-session", Body(new { target = padding }), ct);
+        var small = await Client(minter).PostAsync("/api/realtime/session", Body(EnEs), ct);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, session.StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, translation.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, small.StatusCode);
+        Assert.Single(minter.Calls);
+        Assert.Empty(minter.TranslationTargets);
+    }
+
+    [Fact]
     public async Task Glossary_goes_into_both_directions_only_when_asked()
     {
         var minter = OkMinter();
