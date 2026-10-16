@@ -298,6 +298,7 @@ public sealed class CascadePipeline(
             var full = new StringBuilder();
             var started = new StrongBox<bool>(false);
             var retry = _s.Retry ?? new RetryOptions();
+            speech.Warm();
 
             for (var attempt = 0; ; attempt++)
             {
@@ -385,25 +386,37 @@ public sealed class CascadePipeline(
             while (_context.Count > _s.ContextPairs) _context.Dequeue();
         }
 
-        /// <summary>The utterance's TTS stream: opened on the first flushed chunk, closed when the utterance ends.</summary>
+        /// <summary>
+        /// The utterance's TTS stream, closed when the utterance ends. It is opened by <see cref="Warm"/> when
+        /// translation starts, so the vendor connection is set up while the translator thinks instead of after
+        /// the first flush (the TTS first-byte stage used to include the connect).
+        /// </summary>
         private sealed class Speech(Run run, int id, UsageTotals usage)
         {
             private Channel<string>? _text;
             private Task? _speaking;
             private bool _failed;
+            private bool _flushed;
+
+            public void Warm()
+            {
+                if (_text is not null || _failed) return;
+                _text = Channel.CreateBounded<string>(QueueCapacity);
+                _speaking = SpeakAsync(_text.Reader);
+            }
 
             public async ValueTask SayAsync(string chunk)
             {
                 if (_failed) return;
-                if (_text is null)
+                Warm();
+                if (!_flushed)
                 {
+                    _flushed = true;
                     await run.Emit(new LatencyMark(id, "tts.first_flush"));
-                    _text = Channel.CreateBounded<string>(QueueCapacity);
-                    _speaking = SpeakAsync(_text.Reader);
                 }
                 try
                 {
-                    await _text.Writer.WriteAsync(chunk, run._ct);
+                    await _text!.Writer.WriteAsync(chunk, run._ct);
                     usage.TtsCharacters += chunk.Length;
                 }
                 catch (ChannelClosedException)
