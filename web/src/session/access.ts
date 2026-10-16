@@ -7,13 +7,15 @@ const KEY = 'workbench.accessToken'
 
 export function getAccessToken(): string {
   try {
-    return localStorage.getItem(KEY) ?? ''
+    return (localStorage.getItem(KEY) ?? '').trim()
   } catch {
     return ''
   }
 }
 
-export function setAccessToken(token: string): void {
+export function setAccessToken(raw: string): void {
+  // Pasted invite codes often carry a trailing space or newline, which the server would reject.
+  const token = raw.trim()
   try {
     if (token) localStorage.setItem(KEY, token)
     else localStorage.removeItem(KEY)
