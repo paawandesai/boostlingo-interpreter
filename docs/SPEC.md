@@ -1,15 +1,15 @@
 # SPEC: AI Interpreter Workbench (Realtime API vs. Cascade Pipeline)
 
-Source of truth: the Boostlingo Week 4 brief. If anything in this repo conflicts with the brief, the brief wins and the conflict is recorded in [DECISIONS.md](DECISIONS.md).
+This page restates the Boostlingo Week 4 brief in the repo's own words; the brief itself is confidential and is not quoted here. Precedence: [GUARDRAILS.md](GUARDRAILS.md) outranks the brief, and the brief outranks everything else in this repo. A conflict between the guardrails and the brief is resolved in the guardrails' favour and recorded in the README under "Known constraints"; any other conflict with the brief is resolved in the brief's favour and recorded in [DECISIONS.md](DECISIONS.md).
 
 ## Problem
 
-Boostlingo connects people who need interpretation with professional human interpreters. AI now offers two architectures for live interpretation:
+Boostlingo's business is matching people who need an interpreter with qualified humans. For live spoken interpretation there are now two ways to build an AI alternative:
 
-- **Realtime**: a direct voice-to-voice model (OpenAI Realtime API, `gpt-realtime`).
+- **Realtime**: one speech-to-speech model does everything (the OpenAI Realtime API; the brief names `gpt-realtime`, the configured default is `gpt-realtime-2.1`, see the M2 row).
 - **Cascade**: a composed pipeline, streaming STT → translation → TTS, with swappable providers per stage.
 
-The trade-offs (latency, quality, cost, operational control) are not obvious until both are built. This project builds both in one browser workbench, instruments them identically, and produces a defensible recommendation of which mode fits which scenario.
+Which one wins on latency, quality, cost and how much control an operator keeps can only be settled by building both and measuring them the same way. That is what this project does: one browser workbench, both paths behind the same UI and the same instruments, and a recommendation per scenario that rests on the numbers in `eval/results/`.
 
 ## Impact metrics (judged)
 
@@ -24,7 +24,7 @@ The trade-offs (latency, quality, cost, operational control) are not obvious unt
 | # | Requirement |
 |---|---|
 | M1 | Browser SPA with microphone capture and audio playback |
-| M2 | Realtime mode using the OpenAI Realtime API (`gpt-realtime`), voice in, voice out |
+| M2 | Realtime mode on the OpenAI Realtime API: speech goes in, interpreted speech comes out. The brief names `gpt-realtime`; the model id is configuration (`OpenAI:Realtime:Model`), default `gpt-realtime-2.1` because `gpt-realtime` is deprecated, with `gpt-realtime` still selectable (README "Known constraints", G1) |
 | M3 | Cascade mode: STT → Translation → TTS, streaming at every stage (no full-utterance blocking) |
 | M4 | UI toggle between modes, pre-session and mid-session |
 | M5 | Language pair selection, at least English ↔ Spanish in both directions |
@@ -35,8 +35,8 @@ The trade-offs (latency, quality, cost, operational control) are not obvious unt
 ## Other hard requirements
 
 - Provider abstractions in cascade mode; swapping a provider is a contained change.
-- Clean separation between mode-specific transport and mode-agnostic UI.
-- Targeted tests on the cascade pipeline and provider boundaries.
+- The UI never knows which mode it is talking to: each mode lives behind one `Transport` interface, and components see only that interface and the session store.
+- Tests aimed where the risk is: the cascade pipeline itself (ordering, streaming, cancellation, back-pressure) and the seam between the pipeline and each vendor adapter.
 - Error handling for rate limits, timeouts, empty results, mic permission denied (plus TTS mid-stream failure and WebRTC drop).
 - README with setup, run and architecture; it explains the language choice (.NET + TypeScript).
 - AGENTS.md / CLAUDE.md describing how the coding agent was directed.
@@ -54,9 +54,9 @@ The trade-offs (latency, quality, cost, operational control) are not obvious unt
 
 ## Scope
 
-**In:** two modes, EN↔ES (plus EN↔VI added by config only, to measure onboarding time), per-stage latency waterfall, replay harness, session log export, error states, tests, write-up.
+**In:** three modes (Realtime, Cascade, and Realtime translate on `gpt-realtime-translate`, added under guardrail task G17 as the default for EN↔ES), EN↔ES (plus EN↔VI added by config only, to measure onboarding time), per-stage latency waterfall, replay harness, session log export, error states, consent step, red-team suite, tests, write-up, and the optional AWS demo (T5, deployed 2026-10-15).
 
-**Out:** auth, multi-user, visual polish, a third mode, more than one extra language pair, deployment (optional AWS only after every acceptance box is ticked).
+**Out:** auth, multi-user, visual polish, further modes beyond the three above, more than one extra language pair. The plan had put deployment after every acceptance box was ticked; the demo went up on 2026-10-15 before that, which [ACCEPTANCE.md](ACCEPTANCE.md) records as a deviation.
 
 ## Stack (locked, see D1/D2)
 
