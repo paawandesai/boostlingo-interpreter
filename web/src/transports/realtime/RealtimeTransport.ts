@@ -38,6 +38,10 @@ export class RealtimeTransport implements Transport {
   private limitTimer: ReturnType<typeof setTimeout> | null = null
   /** A turn ended while a response was active; its response starts when that one is done. */
   private responseQueued = false
+  /** A turn whose response is not done: speech_stopped or response.created seen, no response.done since. */
+  private turnInFlight = false
+  /** The session.update of a speaker flip made during a turn in flight; sent once that turn's response is done. */
+  private pendingUpdate: string | null = null
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -48,6 +52,8 @@ export class RealtimeTransport implements Transport {
     this.config = config
     this.stopped = false
     this.responseQueued = false
+    this.turnInFlight = false
+    this.pendingUpdate = null
     this.parser = new RealtimeEventParser()
     this.emitter.emit({ type: 'state', state: 'connecting' })
     try {
@@ -80,16 +86,18 @@ export class RealtimeTransport implements Transport {
     const instructions = this.info.instructions[`${source}>${target}`]
     if (!instructions || this.dc?.readyState !== 'open') return
     // Partial update: only instructions and the transcription language change.
-    this.dc.send(
-      JSON.stringify({
-        type: 'session.update',
-        session: {
-          type: 'realtime',
-          instructions,
-          audio: { input: { transcription: { model: this.info.transcriptionModel, language: source } } },
-        },
-      }),
-    )
+    const update = JSON.stringify({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        instructions,
+        audio: { input: { transcription: { model: this.info.transcriptionModel, language: source } } },
+      },
+    })
+    // A turn whose response is still to come or still playing was spoken in the old direction: updating now
+    // would interpret it the wrong way round. The update waits for its response.done; the last flip wins.
+    if (this.turnInFlight) this.pendingUpdate = update
+    else this.dc.send(update)
   }
 
   async stop(): Promise<void> {
@@ -163,15 +171,24 @@ export class RealtimeTransport implements Transport {
     // (seen in the 2026-10-14 runner soak: 7 of 26 turns dropped). It is queued, not dropped.
     if (json.type === 'error' && isActiveResponseError(json.error)) {
       this.responseQueued = true
+      this.turnInFlight = true
       this.emitter.emit({
         type: 'notice',
         message: 'A turn ended while the interpreter was speaking; it is interpreted next.',
       })
       return
     }
-    if (json.type === 'response.done' && this.responseQueued && this.dc?.readyState === 'open') {
-      this.responseQueued = false
-      this.dc.send(JSON.stringify({ type: 'response.create' }))
+    if (json.type === 'input_audio_buffer.speech_stopped' || json.type === 'response.created') this.turnInFlight = true
+    if (json.type === 'response.done') {
+      if (this.responseQueued && this.dc?.readyState === 'open') {
+        // The queued turn was spoken before any flip, so it stays in flight with the current instructions.
+        this.responseQueued = false
+        this.dc.send(JSON.stringify({ type: 'response.create' }))
+      } else {
+        this.turnInFlight = false
+        if (this.pendingUpdate && this.dc?.readyState === 'open') this.dc.send(this.pendingUpdate)
+        this.pendingUpdate = null
+      }
     }
     // Playback state drives half-duplex gating; these events only exist on WebRTC sessions.
     if (json.type === 'output_audio_buffer.started') this.gate?.setPlaybackActive(true)

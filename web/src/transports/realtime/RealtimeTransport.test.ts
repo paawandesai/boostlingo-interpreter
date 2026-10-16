@@ -133,8 +133,33 @@ describe('RealtimeTransport', () => {
     expect(update.session.audio.input.transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'es' })
   })
 
+  it('defers a speaker flip made during a turn in flight until its response is done', async () => {
+    const { t, pc } = await started()
+    pc.dc.open()
+    pc.dc.onmessage?.({
+      data: JSON.stringify({ type: 'input_audio_buffer.speech_stopped', item_id: 'u1', audio_end_ms: 1 }),
+    })
+
+    t.setSpeaker('B')
+
+    // The turn that just ended is interpreted in its own direction, not the new one.
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.onmessage?.({
+      data: JSON.stringify({ type: 'response.done', response: { id: 'resp_1', status: 'completed' } }),
+    })
+    const sent = pc.dc.sent.map((m) => JSON.parse(m))
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ type: 'session.update', session: { instructions: 'ES to EN' } })
+    // Nothing in flight now: the next flip goes out at once.
+    t.setSpeaker('A')
+    expect(pc.dc.sent).toHaveLength(2)
+    expect(JSON.parse(pc.dc.sent[1]).session.instructions).toBe('EN to ES')
+  })
+
   it('queues a turn that ended during an active response instead of dropping it', async () => {
-    const { pc, events } = await started()
+    const { t, pc, events } = await started()
     pc.dc.open()
     const busy = {
       code: 'conversation_already_has_active_response',
@@ -147,10 +172,16 @@ describe('RealtimeTransport', () => {
       data: JSON.stringify({ type: 'response.done', response: { id: 'resp_1', status: 'completed' } }),
     })
     expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([{ type: 'response.create' }])
+    // The queued turn was spoken before this flip, so the flip waits for its response too.
+    t.setSpeaker('B')
+    expect(pc.dc.sent).toHaveLength(1)
     pc.dc.onmessage?.({
       data: JSON.stringify({ type: 'response.done', response: { id: 'resp_2', status: 'completed' } }),
     })
-    expect(pc.dc.sent).toHaveLength(1)
+    expect(pc.dc.sent.map((m) => (JSON.parse(m) as { type: string }).type)).toEqual([
+      'response.create',
+      'session.update',
+    ])
   })
 
   it('stop() closes the data channel, peer and capture', async () => {
