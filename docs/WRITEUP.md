@@ -3,8 +3,6 @@
 > Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers await
 > Paawan: a vendor page, citation or figure to check, or an opinion to restate in their own words.
 > Vendor prices, data terms and legal citations were read on the official pages on 2026-10-16.
-> **†** marks the two California citations whose official page (leginfo) could not be read that day;
-> Paawan checks them in a browser before submission.
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
@@ -146,6 +144,9 @@ config entry behind one interface: the STT swap (Deepgram to OpenAI transcriptio
 swap (OpenAI to Claude) were config-only, and every stage reports its own marks, so a slow or failing
 vendor is visible per stage. Realtime and Realtime translate are one vendor each: the model's time is
 opaque, no stage can be swapped, and leaving the vendor means a new transport, not a setting.
+Model lifecycle is part of the same risk: the brief's `gpt-realtime` is already deprecated, and the
+cascade's OpenAI STT fallback (`gpt-4o-transcribe`) is listed for shutdown on 2027-02-26. Both are
+config entries here, but a replacement must be re-tested and re-measured before it is trusted.
 
 **Data flows.**
 
@@ -165,9 +166,10 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 | Scenario | Recommendation | Why |
 |---|---|---|
 | Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. Latency comparable on synthetic audio. |
+| Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime or cascade, only with each vendor's BAA and zero- or modified-retention terms signed; not Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. Cascade needs three agreements, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
-| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation must be reviewed by a qualified human translator when the text is critical to rights, benefits or meaningful access, when accuracy is essential, or when the source is complex or technical (45 CFR 92.201(c)(3)); 92.4 defines machine translation as text-based, and spoken interpretation falls under the separate qualified-interpreter requirement in (c)(1). California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law †. In proceedings instituted by the United States, federal courts use the most available certified interpreter, or an otherwise qualified one (28 U.S.C. §1827(d)(1)); California courts require certified or registered interpreters (Gov. Code §68561 †), with narrow provisional and temporary exceptions (Cal. Rules of Court 2.893). Latency and cost are secondary. |
+| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | Under ACA Section 1557, machine translation must be reviewed by a qualified human translator when the text is critical to rights, benefits or meaningful access, when accuracy is essential, or when the source is complex or technical (45 CFR 92.201(c)(3)); 92.4 defines machine translation as text-based, and spoken interpretation falls under the separate qualified-interpreter requirement in (c)(1). California AB 1242 (2025–26) is a CalHHS language-access bill, not a court or healthcare-interpreting rule; it would exclude unreviewed machine translation, but it was held in committee and may not become law. In proceedings instituted by the United States, federal courts use the most available certified interpreter, or an otherwise qualified one (28 U.S.C. §1827(d)(1)); California courts require certified or registered interpreters (Gov. Code §68561), with narrow provisional and temporary exceptions (Cal. Rules of Court 2.893). Latency and cost are secondary. |
 
 ## 7. What this does not show
 
