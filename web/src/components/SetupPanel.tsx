@@ -4,7 +4,7 @@ import { getAccessToken, setAccessToken } from '../session/access'
 import { translateSupported, type LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
 import { vendorsFor } from '../session/providers'
-import type { RealtimeModels } from '../session/models'
+import { realtimeModelLabel, type RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
 import { ConsentNotice } from './ConsentNotice'
@@ -109,7 +109,7 @@ export function SetupPanel({
           >
             {models.allowed.map((m) => (
               <option key={m} value={m}>
-                {m === models.default ? `${m} (default)` : m}
+                {realtimeModelLabel(m, models)}
               </option>
             ))}
           </select>
