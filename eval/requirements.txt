@@ -1,3 +1,4 @@
+# Python 3.12+ (numpy 2.5.3 requires >= 3.12); CI uses python:3.12-slim
 # eval/summarize.py and its tests (T4.3). Every package pinned, transitive included; licences in LICENSES.md.
 jiwer==4.0.0
 sacrebleu==2.5.1
