@@ -35,14 +35,16 @@ PERMISSIVE = {
 }
 
 # Hand-maintained: third-party services the app calls. Plan tiers are what the
-# project uses; "confirm" means Paawan has not yet confirmed the tier.
+# project uses; "confirm" means Paawan has not yet confirmed the tier. The
+# retention column mirrors the data-flow table in docs/WRITEUP.md (G4); each
+# [VERIFY] is a term Paawan replaces with the checked wording and date.
 PROVIDERS = """\
-| Provider | Used for | Terms that matter here | Plan tier |
-|---|---|---|---|
-| OpenAI | Realtime (`gpt-realtime-2.1`, `gpt-realtime` selectable), input transcription (`gpt-4o-mini-transcribe`); cascade STT fallback (`gpt-4o-transcribe`); cascade translator (`gpt-5.4-mini`); TTS for synthetic test speech in live tests | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) |
-| Deepgram | Cascade STT (Nova-3), `mip_opt_out=true` on every connection | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) |
-| Anthropic | Cascade translator (Claude Haiku tier; live fidelity smoke tests pass 2026-10-14) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) |
-| ElevenLabs | Cascade TTS (Flash v2.5, stream-input WebSocket); stock voices only, enforced by an allow-list (G5) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Paid plan (Paawan upgraded 2026-10-14; tier name to record) |
+| Provider | Used for | Terms that matter here | Plan tier | Default retention / zero retention / BAA |
+|---|---|---|---|---|
+| OpenAI | Realtime (`gpt-realtime-2.1`, `gpt-realtime` selectable), input transcription (`gpt-4o-mini-transcribe`); cascade STT fallback (`gpt-4o-transcribe`); cascade translator (`gpt-5.4-mini`); TTS for synthetic test speech in live tests | Usage policies; Services Agreement 3.3 (no competing models from output, no transferring keys); AI-voice disclosure to listeners | Pay-as-you-go API (confirm) | abuse logs up to 30 days **[VERIFY]** / by approval **[VERIFY]** / realtime/audio only with Healthcare Addendum and Modified Retention **[VERIFY]** |
+| Deepgram | Cascade STT (Nova-3), `mip_opt_out=true` on every connection | ToS clause (i): no use "for competitive purposes, including ... benchmarking" without written consent; clause (n): no implied endorsement. Consent being requested (2026-10-14); see README "Known constraints" | Pay-as-you-go API (confirm) | **[VERIFY]**; `mip_opt_out=true` sent / **[VERIFY]** / **[VERIFY]** |
+| Anthropic | Cascade translator (Claude Haiku tier; live fidelity smoke tests pass 2026-10-14) | Usage Policy (AI disclosure; human review for high-risk medical and legal use); Commercial Terms D.3 and D.4 | API (confirm) | **[VERIFY]** / **[VERIFY]** / **[VERIFY]** |
+| ElevenLabs | Cascade TTS (Flash v2.5, stream-input WebSocket); stock voices only, enforced by an allow-list (G5) | Free plan is non-commercial and requires attribution: **a paid plan is required** (docs/GUARDRAILS.md) | Paid plan (Paawan upgraded 2026-10-14; tier name to record) | **[VERIFY]** / enterprise only **[VERIFY]** / **[VERIFY]** |
 """
 
 
