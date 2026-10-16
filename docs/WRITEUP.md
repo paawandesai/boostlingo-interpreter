@@ -103,7 +103,8 @@ is recorded speech, checked references and Paawan's own rubric, scored with the 
 Costs are `eval/summarize.py` on the four 2026-10-15 replay logs, priced from `config/prices.json`
 (`eval/results/summary.md`). Neither range is complete. The cascade logs carry no STT minutes (the
 browser emitted them only on End), so the low end leaves STT out and the high end
-(`--stt-minutes-from-session`) charges STT for the whole session, an upper bound. Realtime's
+(`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so the committed summary is not
+overwritten) charges STT for the whole session, an upper bound. Realtime's
 separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and has no
 price entry, so its figure is a floor; its cached input tokens are priced at the cached rate (one
 cached count covers text and audio, so it is taken off text input first, then audio). On these

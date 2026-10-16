@@ -34,10 +34,10 @@ The two session logs are summarised separately from `eval/results/summary.md`, w
 four English ↔ Spanish replay runs:
 
 ```bash
-python3 eval/summarize.py eval/results/logs/2026-10-15-cascade-en-vi-synthetic.json eval/results/logs/2026-10-15-cascade-vi-en-synthetic.json
+python3 eval/summarize.py --out /tmp/onboarding-vi-summary.md eval/results/logs/2026-10-15-cascade-en-vi-synthetic.json eval/results/logs/2026-10-15-cascade-vi-en-synthetic.json
 ```
 
-prints (2026-10-16):
+`--out` keeps it from overwriting the committed `eval/results/summary.md`. It wrote (2026-10-16):
 
 **Cascade (anthropic translator):** latency withheld for 13 utterances run on Deepgram STT (its terms bar benchmarking).
 
