@@ -32,7 +32,8 @@ public static class HealthEndpoints
         app.MapGet("/health", (IConfiguration config, IOptions<CascadeOptions> cascade, IOptions<AccessOptions> access,
             ProviderActivity activity) =>
         {
-            static bool Set(string? v) => !string.IsNullOrWhiteSpace(v);
+            // "replace-me" is the .env.example placeholder, not a key.
+            static bool Set(string? v) => !string.IsNullOrWhiteSpace(v) && v != "replace-me";
             var keys = new SortedDictionary<string, bool>
             {
                 ["OPENAI_API_KEY"] = Set(config["OPENAI_API_KEY"]),

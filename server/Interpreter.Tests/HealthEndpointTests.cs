@@ -46,6 +46,22 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
     }
 
     [Fact]
+    public async Task The_env_example_placeholder_counts_as_no_deepgram_key()
+    {
+        var client = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("OPENAI_API_KEY", "health-test-placeholder-value");
+            b.UseSetting("DEEPGRAM_API_KEY", "replace-me");
+            b.UseSetting("Cascade:Stt", "deepgram");
+        }).CreateClient();
+
+        var body = await client.GetFromJsonAsync<HealthResponse>("/health", TestContext.Current.CancellationToken);
+
+        Assert.False(body!.Config!.Keys["DEEPGRAM_API_KEY"]);
+        Assert.Equal("openai", body.Config.CascadeStt);
+    }
+
+    [Fact]
     public async Task Health_lists_only_the_unset_keys_the_configured_adapters_need()
     {
         var client = factory.WithWebHostBuilder(b =>
