@@ -88,7 +88,7 @@ Notes on reading the evidence lines:
 
 - [x] **Provider abstractions**  
   Enforcement: `IStreamingStt`, `IStreamingTranslator`, `IStreamingTts` in `server/Interpreter.Core`; vendor SDK/HTTP code only in `server/Interpreter.Providers.*`. An architecture test (NetArchTest or reflection) fails if Core references a Providers assembly  
-  Evidence: `server/Interpreter.Tests/Architecture/DependencyRulesTests.cs` (reflection, no extra package) (`Core_does_not_reference_any_provider_assembly`, `Providers_do_not_reference_each_other`); `Cascade_interfaces_expose_no_vendor_types` checks the interfaces themselves. The interfaces are in `server/Interpreter.Core/Cascade/` (DECISIONS.md D8).
+  Evidence: `server/Interpreter.Tests/Architecture/DependencyRulesTests.cs` (reflection, no extra package) (`Core_references_no_provider_or_api_assembly`, line 22; `Providers_do_not_reference_each_other_or_the_api`, line 31); `Cascade_interfaces_expose_no_vendor_types` checks the interfaces themselves. The interfaces are in `server/Interpreter.Core/Cascade/` (DECISIONS.md D8).
 
 - [x] **Targeted tests on pipeline + provider boundaries**  
   Enforcement: T2.2 pipeline tests (fakes), T2.3–T2.5 contract tests per adapter, T3.4 error-path tests  
@@ -158,7 +158,7 @@ Notes on reading the evidence lines:
 - [ ] **Provider flexibility**  
   Evidence produced: Hours to add the 2nd translator (git timestamps); lines changed outside the adapter (target: config only); both pass the same contract tests; side-by-side latency/quality/cost  
   Task: T2.4, T4.3  
-  Evidence: (a) Both translators landed in one commit, 1fb16c9 (2026-10-14 18:56 UTC, 7 s after the shared prompt commit 5e1f7bc; branch merged 19:41), so git timestamps bound the pair (under the 1 h T2.4 budget), not the second adapter alone. (b) Lines outside the adapters: 0 in Core or Api (the commit touched `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, tests, LICENSES.md); the swap is the `Cascade__Translator` setting. (c) `TranslatorContractTests` pass for both. (d) Side by side in `eval/results/summary.md`: p50 2440 vs 2521 ms, chrF 58.0 vs 59.1, output-check flags none vs 5. Waits on Paawan: the prices, so the cost column of the side-by-side can be filled.
+  Evidence: (a) Both translators landed in one commit, 1fb16c9 (2026-10-14 18:56 UTC, 7 s after the shared prompt commit 5e1f7bc; branch merged 19:41), so git timestamps bound the pair (under the 1 h T2.4 budget), not the second adapter alone. (b) Lines outside the adapters: 0 in Core or Api (the commit touched `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, tests, LICENSES.md); the swap is the `Cascade__Translator` setting. (c) `TranslatorContractTests` pass for both. (d) Side by side in `eval/results/summary.md`: p50 2440 vs 2521 ms, chrF 58.0 vs 59.1, output-check flags none vs 5, cost per minute $0.0193 vs $0.0149 (prices filled 2026-10-16; both exclude STT, which has no quantity in the logs).
 
 - [x] **Time to onboard a new pair**  
   Evidence produced: Timed EN↔VI onboarding: minutes, config lines, code changes (target 0); Haitian Creole Realtime probe for coverage  
