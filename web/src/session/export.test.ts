@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSessionLog, EXPORT_SCHEMA } from './export'
+import { browserSummary, buildSessionLog, EXPORT_SCHEMA } from './export'
 import { initialState, sessionReducer, type SessionState } from './store'
 
 function sessionWithOneCascadeTurn(): SessionState {
@@ -69,5 +69,23 @@ describe('buildSessionLog', () => {
       userAgent: 'test',
     })
     expect(log.modes[0].cost).toBeNull()
+  })
+})
+
+describe('browserSummary', () => {
+  it('keeps the browser name and version, not the whole user-agent string', () => {
+    const chrome =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.7390.37 Safari/537.36'
+    expect(browserSummary(chrome)).toBe('Chrome/142.0')
+    expect(browserSummary(`${chrome} Edg/142.0.3595.53`)).toBe('Edge/142.0')
+    expect(
+      browserSummary(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      ),
+    ).toBe('Safari/17.4')
+    expect(browserSummary('Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0')).toBe(
+      'Firefox/128.0',
+    )
+    expect(browserSummary('curl/8.4.0')).toBe('unknown')
   })
 })

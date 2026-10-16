@@ -9,7 +9,7 @@ import { SetupPanel } from './components/SetupPanel'
 import { fetchLanguages, translateSupported, type LanguagesResponse } from './session/languages'
 import { initialState } from './session/store'
 import { fetchRealtimeModels, type RealtimeModels } from './session/models'
-import { buildSessionLog, download } from './session/export'
+import { browserSummary, buildSessionLog, download } from './session/export'
 import { fetchHealth } from './session/health'
 import { MODE_LABEL } from './session/modes'
 import {
@@ -64,7 +64,8 @@ export default function App() {
         cascadeProviders,
         defaultRealtimeModel: models?.default ?? null,
         prices,
-        userAgent: navigator.userAgent,
+        // Browser name and version only; the full string is a fingerprint the log does not need.
+        userAgent: browserSummary(navigator.userAgent),
         languages,
       }),
     )

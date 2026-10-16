@@ -19,6 +19,7 @@ export interface ExportContext {
   cascadeProviders: CascadeProviders | null
   defaultRealtimeModel: string | null
   prices: PriceList | null
+  /** Browser name and version only (browserSummary), never the full user-agent string. */
   userAgent: string
   /** Output-check lists and canary (G15); flags are omitted when absent. */
   languages?: LanguagesResponse | null
@@ -28,6 +29,7 @@ export interface SessionLog {
   schema: string
   exportedAt: string
   appVersion: string | null
+  /** Browser name and version, e.g. "Chrome/142.0". */
   userAgent: string
   languages: { a: string; b: string }
   glossary: boolean
@@ -56,6 +58,26 @@ export interface SessionLog {
   /** Errors and notices (retries, dropped late audio, disconnects), app text only. */
   incidents: SessionState['incidents']
   notes: string[]
+}
+
+/**
+ * Browser name and major.minor version from a user-agent string, for the log's userAgent field.
+ * The full string is a device fingerprint and says nothing the eval scripts need; which engine
+ * and version ran the session is what a reader of the log wants to know.
+ */
+export function browserSummary(userAgent: string): string {
+  const browsers: Array<[string, RegExp]> = [
+    ['Edge', /\bEdg\/(\d+\.\d+)/],
+    ['Opera', /\bOPR\/(\d+\.\d+)/],
+    ['Firefox', /\bFirefox\/(\d+\.\d+)/],
+    ['Chrome', /\bChrome\/(\d+\.\d+)/],
+    ['Safari', /\bVersion\/(\d+\.\d+).*\bSafari\//],
+  ]
+  for (const [name, re] of browsers) {
+    const m = re.exec(userAgent)
+    if (m) return `${name}/${m[1]}`
+  }
+  return 'unknown'
 }
 
 function minutesIn(state: SessionState, mode: Mode, now: number): number {
