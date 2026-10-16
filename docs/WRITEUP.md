@@ -2,7 +2,8 @@
 
 > Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers await
 > Paawan: a vendor page, citation or figure to check, or an opinion to restate in their own words.
-> Vendor prices, data terms and legal citations were read on the official pages on 2026-10-16.
+> Vendor prices, data terms and legal citations were read on the official pages on 2026-10-16 (the
+> Claude Haiku price on 2026-10-14).
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
@@ -95,20 +96,19 @@ is recorded speech, checked references and Paawan's own rubric, scored with the 
 
 | Mode | Billing unit | Price | Per minute |
 |---|---|---|---|
-| Cascade | STT minutes + translator tokens + TTS characters | Claude translator $0.10 / $0.50 per M tokens in/out (checked 2026-10-14); OpenAI STT about $0.006/min (OpenAI's estimate); ElevenLabs Flash $0.04 per 1,000 characters (Starter plan); Deepgram Nova-3 streaming $0.0077/min list ($0.0048 under a current promotion) | not computed |
-| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | `gpt-realtime-2.1` per M tokens: audio $32 in / $64 out, text $4 in / $24 out, cached input $0.40 | not computed |
+| Cascade | STT minutes + translator tokens + TTS characters | Translator per M tokens in/out: Claude Haiku $0.10 / $0.50, `gpt-5.4-mini` $0.75 / $4.50; OpenAI STT about $0.006/min (OpenAI's estimate); ElevenLabs Flash $0.04 per 1,000 characters; Deepgram Nova-3 streaming $0.0077/min list ($0.0048 under a current promotion) | Claude $0.0149–0.0209; OpenAI translator $0.0193–0.0253 |
+| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | `gpt-realtime-2.1` per M tokens: audio $32 in / $64 out, text $4 in / $24 out, cached input $0.40 | $0.2023 plus input transcription |
 | Realtime translate | minutes of audio | $0.034/min | $0.034 |
 
-`config/prices.json` holds these prices, each with its source page and the date it was read
-(2026-10-16). To fill the cost column, re-run
-`python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json` and the cost column fills
-from the token, character and minute counts already in the logs; unpriced components stay listed.
-Realtime's cached input tokens are priced at the cached rate (one cached count covers text and
-audio, so it is taken off text input first, then audio), and its separately billed input
-transcription is not captured in these logs. The cascade logs carry no STT minutes (the browser
-emitted them only on End), so a cascade cost per minute needs a re-export or
-`--stt-minutes-from-session`, an explicitly labelled upper bound that charges the whole session at
-the STT per-minute price. Cascade costs three vendors; the Realtime modes cost one.
+Costs are `eval/summarize.py` on the four 2026-10-15 replay logs, priced from `config/prices.json`
+(`eval/results/summary.md`). Neither range is complete. The cascade logs carry no STT minutes (the
+browser emitted them only on End), so the low end leaves STT out and the high end
+(`--stt-minutes-from-session`) charges STT for the whole session, an upper bound. Realtime's
+separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and has no
+price entry, so its figure is a floor; its cached input tokens are priced at the cached rate (one
+cached count covers text and audio, so it is taken off text input first, then audio). On these
+runs Realtime costs about ten times either cascade, and Realtime translate about twice. Cascade
+costs three vendors; the Realtime modes cost one.
 
 ## 5. Controllability and compliance
 
@@ -165,7 +165,7 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 
 | Scenario | Recommendation | Why |
 |---|---|---|
-| Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. Latency comparable on synthetic audio. |
+| Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. |
 | Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime or cascade, only with each vendor's BAA and zero- or modified-retention terms signed; not Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. Cascade needs three agreements, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
 | Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by the agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
 | The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
@@ -177,7 +177,8 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
   (154 of 158 drafted by Claude, approved by Paawan), no second rater.
 - All Realtime numbers are for `gpt-realtime-2.1`; the brief's `gpt-realtime` was never measured.
 - No Deepgram numbers; one Realtime translate start-lag sample; no run reached 50 latency samples.
-- No prices for STT, TTS or OpenAI models, so no cost per minute.
+- Cost per minute is a range for cascade (no STT minutes in the logs) and a floor for Realtime
+  (input transcription not captured); STT is priced at OpenAI's own per-minute estimate.
 - Heap grew more than 10% from minute 1 in every mode but Realtime translate; cascade dropped
   22–26 s of late interpreter audio per 5-minute replay to stay in sync.
 - Cascade's sentence-tail loss under replay (section 3) was the replay's turn-taking; only one
