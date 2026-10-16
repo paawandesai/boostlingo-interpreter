@@ -44,7 +44,7 @@ cd web && npm ci && npm run dev
 
 Open http://localhost:5173. The page shows "Backend: ok" when the round trip works, and names any key the configured adapters still need (`OPENAI_API_KEY` and `DEMO_ACCESS_TOKEN` always; `DEEPGRAM_API_KEY` only with `Cascade__Stt=deepgram`, `CLAUDE_TRANSLATOR_API_KEY` only with `Cascade__Translator=anthropic`, `ELEVENLABS_API_KEY` only with `Cascade__Tts=elevenlabs`). Enter the access token, pick a mode and a language pair, tick the consent box (both parties must be told an AI interprets them), then **Start session**. The button stays disabled until the token is typed and the box is ticked; if the server refuses the token, the app returns to the setup screen with the error shown above the form.
 
-Put keys in a `.env` at the repo root (copy `.env.example`; it is git-ignored) and load it with `set -a; source .env; set +a`, since a plain `source` does not export them. The non-secret switches (`Cascade__Stt`, `Cascade__Translator`, `OpenAI__Realtime__Model`) are listed, commented out, at the bottom of `.env.example`.
+Put keys in a `.env` at the repo root (copy `.env.example`; it is git-ignored) and load it with `set -a; source .env; set +a`, since a plain `source` does not export them. The non-secret switches (`Cascade__Stt`, `Cascade__Translator`, `Cascade__Tts`, `OpenAI__Realtime__Model`, and the BAA mode settings `Compliance__RequireBaa` and `Compliance__BaaSigned__N`) are listed, commented out, at the bottom of `.env.example`.
 
 ### Keys
 
@@ -52,10 +52,10 @@ Every key stays on the server. The browser gets only a 60-second ephemeral secre
 
 | Variable | Needed for | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | Realtime, Realtime translate, OpenAI transcription | No free tier for Realtime models; set a spend cap in the OpenAI dashboard |
+| `OPENAI_API_KEY` | Realtime, Realtime translate, OpenAI transcription, the OpenAI translator (cascade default) and OpenAI TTS (`Cascade__Tts=openai`) | No free tier for Realtime models; set a spend cap in the OpenAI dashboard |
 | `DEMO_ACCESS_TOKEN` | Every session | Any long random string; typed into the setup screen |
 | `DEEPGRAM_API_KEY` | Cascade with Deepgram STT | Or `Cascade__Stt=openai` |
-| `ELEVENLABS_API_KEY` | Cascade TTS | Paid plan required; stock voices only |
+| `ELEVENLABS_API_KEY` | Cascade with ElevenLabs TTS (`Cascade__Tts=elevenlabs`, the default) | Paid plan required; stock voices only. Not needed with `Cascade__Tts=openai` |
 | `CLAUDE_TRANSLATOR_API_KEY` | Cascade with `Cascade__Translator=anthropic` | |
 
 ### BAA mode
@@ -63,12 +63,12 @@ Every key stays on the server. The browser gets only a 60-second ephemeral secre
 The workbench runs on synthetic data and has no BAA, so BAA mode is off by default. A deployment that has signed BAAs turns it on and declares which vendors they cover; the server then refuses any session whose route is not on that vendor's HIPAA-eligible list (`server/Interpreter.Api/Security/Compliance.cs` records the list and where each entry was read):
 
 ```bash
-Compliance__RequireBaa=true
-Compliance__BaaSigned__0=openai      # executed BAA plus Modified Retention on the OpenAI org
-Compliance__BaaSigned__1=anthropic   # BAA executed in the Claude Console
-Cascade__Stt=openai
-Cascade__Translator=anthropic
-Cascade__Tts=openai                  # OpenAI /v1/audio/speech instead of ElevenLabs
+export Compliance__RequireBaa=true
+export Compliance__BaaSigned__0=openai      # executed BAA plus Modified Retention on the OpenAI org
+export Compliance__BaaSigned__1=anthropic   # BAA executed in the Claude Console
+export Cascade__Stt=openai
+export Cascade__Translator=anthropic
+export Cascade__Tts=openai                  # OpenAI /v1/audio/speech instead of ElevenLabs
 ```
 
 | Mode | In BAA mode |
