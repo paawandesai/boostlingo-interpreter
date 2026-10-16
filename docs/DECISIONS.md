@@ -264,5 +264,13 @@ Execution runbook with CI folded in: docs/TASKS.md (supersedes the Part 7 hour t
 
 Sources for D16: [AMN healthcare language study](https://www.businesswire.com/news/home/20210830005075/en/New-AMN-Study-Shows-Growing-Diversity-of-Languages-Spoken-in-Healthcare-Encounters) · [Deepgram models & languages](https://developers.deepgram.com/docs/models-languages-overview) · [ElevenLabs models](https://elevenlabs.io/docs/overview/models)
 
+### D18. BAA mode: route enforcement instead of a documented gap — Locked 2026-10-16 (Paawan)
+
+Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpoint (`/v1/realtime/translations`) is not on OpenAI's HIPAA-eligible list and that ElevenLabs offers a BAA only on Enterprise. Paawan chose to fix this in code rather than only document it. Decision: a server setting, `Compliance:RequireBaa`, plus `Compliance:BaaSigned` (vendors the operator declares a BAA with). With it on, the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's eligible list or whose vendor is not declared, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. An OpenAI text-to-speech adapter (`/v1/audio/speech`, `gpt-4o-mini-tts`, stock voice `alloy`) lets cascade run as OpenAI STT + Claude translator + OpenAI TTS under two BAAs instead of three.
+
+**Why:** a refusal in code is a control a reviewer can test; a paragraph is not. **Trade-offs:** eligibility is a table in code, read from vendor pages on one date, so it must be re-checked when they change; the OpenAI Chat Completions translator is refused only because nobody checked it; the OpenAI TTS adapter has no live run yet; signing BAAs and Modified Retention remain outside the code.
+
+---
+
 ### D1 addendum: why not Python (asked 2026-10-14)
 Python's real advantages: every vendor ships a first-class Python SDK; voice-pipeline frameworks (Pipecat, LiveKit Agents) would give a working cascade in hours; eval tooling is in the same language; agents write idiomatic Python fluently. Why .NET still wins here: the brief states a .NET preference and asks for the choice to be explained, so it's a hiring signal; using a pipeline framework would hide exactly what is being judged (streaming, flush policy, back-pressure, provider interfaces); .NET Channels + CancellationToken make back-pressure and teardown explicit and testable, whereas asyncio cancellation is easier to get subtly wrong. Cost of the choice: roughly 1–2 h extra writing raw WS adapters. Python stays in /eval only.

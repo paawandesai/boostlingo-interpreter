@@ -58,6 +58,27 @@ Every key stays on the server. The browser gets only a 60-second ephemeral secre
 | `ELEVENLABS_API_KEY` | Cascade TTS | Paid plan required; stock voices only |
 | `CLAUDE_TRANSLATOR_API_KEY` | Cascade with `Cascade__Translator=anthropic` | |
 
+### BAA mode
+
+The workbench runs on synthetic data and has no BAA, so BAA mode is off by default. A deployment that has signed BAAs turns it on and declares which vendors they cover; the server then refuses any session whose route is not on that vendor's HIPAA-eligible list (`server/Interpreter.Api/Security/Compliance.cs` records the list and where each entry was read):
+
+```bash
+Compliance__RequireBaa=true
+Compliance__BaaSigned__0=openai      # executed BAA plus Modified Retention on the OpenAI org
+Compliance__BaaSigned__1=anthropic   # BAA executed in the Claude Console
+Cascade__Stt=openai
+Cascade__Translator=anthropic
+Cascade__Tts=openai                  # OpenAI /v1/audio/speech instead of ElevenLabs
+```
+
+| Mode | In BAA mode |
+|---|---|
+| Realtime translate | Always refused: `/v1/realtime/translations` is not on OpenAI's eligible list |
+| Realtime | Runs with an OpenAI BAA declared |
+| Cascade | Runs when all three stages are eligible and declared; OpenAI's Chat Completions translator and ElevenLabs TTS are refused (not on a checked eligible list) |
+
+The code can't sign an agreement or switch on a vendor's retention terms; declaring a vendor in `BaaSigned` is the operator's statement that both are done. The server logs which modes are off at startup.
+
 ## Test
 
 ```bash
@@ -190,7 +211,7 @@ Conflicts between [docs/GUARDRAILS.md](docs/GUARDRAILS.md) and the brief or plan
 | Realtime translate speaks while the speaker is still talking, so the half-duplex mic gate can't apply. | The mic stays open in that mode and the setup screen says headphones are required. Browser echo cancellation is the only defence against re-translating its own voice; the red-team "TTS echo" lines in `eval/adversarial/` are the test. The suite ran on 2026-10-15 with synthetic voices (docs/WRITEUP.md section 5), but the two TTS-echo lines need speakers in a real room and were not run. | Open: the echo lines need a live check |
 | Speech end to first audio (D9) is often negative for a simultaneous interpreter. | The same total is still reported where it can be measured, plus a start lag (client speech start to first audible output) on lines that start after a pause, and a text lag (first source text to first translated text as they reach the browser) on every line. Lines are cut client-side by pairing each translated sentence with the source sentence that had started when it began (both streams carry the model's `elapsed_ms`); a recorded live stream pairs all ten sentences this way, but boundaries stay approximate and the UI and export say so. | Reported as defined |
 | Realtime translate has no context input, so a mode switch into it can't carry the last turns (G9). | The switch marker says it starts with no memory of the conversation. | Accepted |
-| The guardrails make HIPAA coverage a per-vendor question (BAA, retention). OpenAI's HIPAA-eligible list (read 2026-10-16) includes `/v1/realtime` and `/v1/audio/*` but not `/v1/realtime/translations`, which Realtime translate uses. | Realtime translate, the default mode, cannot be covered by a BAA today. The app is synthetic-data only and shows the "not for clinical or legal decisions" banner, and the write-up recommends a human interpreter for medical and legal work, so nothing changes in code; a covered deployment would use Realtime or cascade with BAAs in place. | Documented |
+| The guardrails make HIPAA coverage a per-vendor question (BAA, retention). OpenAI's HIPAA-eligible list (read 2026-10-16) includes `/v1/realtime` and `/v1/audio/*` but not `/v1/realtime/translations`, which Realtime translate uses; ElevenLabs offers a BAA on Enterprise only. | Fixed in code with BAA mode (see "BAA mode" under Run locally): with `Compliance__RequireBaa=true` the server refuses any session whose route is not on its vendor's eligible list or whose vendor has no BAA declared, and the setup screen disables those modes with the reason. Realtime translate is always off in BAA mode; Realtime runs; cascade runs as OpenAI speech-to-text, Claude translator and the new OpenAI text-to-speech adapter. Signing the BAAs and turning on OpenAI's Modified Retention stay outside the code. The OpenAI text-to-speech adapter is unit-tested only; no live run yet (OpenAI credit). | Fixed in code; live check of OpenAI TTS open |
 | The guardrails make model ids configuration and require checking deprecations. OpenAI lists `gpt-4o-transcribe` (the cascade STT fallback) for shutdown on 2027-02-26, replaced by `gpt-transcribe` or `gpt-live-transcribe`. | The id is configuration (`OpenAI:Transcription:Model`, env `OpenAI__Transcription__Model`), so moving is a config change, but the replacement has not been tested against this adapter's events. The default stays until a live test passes on the replacement. | Open: before 2027-02-26 |
 | Vendor prices and terms. | The vendors' pages are blocked from the cloud container, so Paawan had them read on the official pages on 2026-10-16; `config/prices.json` records each source. The California Legislature pages (Gov. Code §68561, AB 1242) block automated reads, so Paawan checked them in a browser. | Done; Paawan confirmed §68561 and AB 1242 in a browser on 2026-10-16 |
 | The checklist's soak memory criterion is < 10% heap growth from minute 1 to 5. | Measured in the final runs (2026-10-15): cascade +14.3% (OpenAI translator) and +20.0% (Claude translator), still rising at +0.20 to +0.25 MB/min over the last two minutes; Realtime +18.9%; Realtime translate +8.5% (the only pass; last two minutes −0.19 MB/min). The cascade growth is the on-screen transcript window filling and the store keeping every turn for export. Reported as measured, not re-tuned (docs/WRITEUP.md section 2, stability table). | Reported |
