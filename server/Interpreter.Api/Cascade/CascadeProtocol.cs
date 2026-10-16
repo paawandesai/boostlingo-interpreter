@@ -38,7 +38,12 @@ public static class CascadeProtocol
 
     private static string Cut(string s) => s.Length <= MaxHistoryChars ? s : s[..MaxHistoryChars];
 
-    public sealed record ClientMessage(string Type, double? C);
+    /// <summary>
+    /// A control message after start: <c>ping</c> (with <c>c</c>, the client clock), <c>stop</c>, or
+    /// <c>direction</c> with <c>source</c> and <c>target</c>, which restarts the pipeline for the other speaker
+    /// on this socket. A new socket would spend one of the per-client rate-limit permits (G2) on every flip.
+    /// </summary>
+    public sealed record ClientMessage(string Type, double? C = null, string? Source = null, string? Target = null);
 
     /// <summary>Maps a pipeline event to its wire message, or null for audio (sent as a binary frame).</summary>
     public static object? ToWire(CascadeEvent e) => e switch

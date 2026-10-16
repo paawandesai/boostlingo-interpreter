@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using System.Text.Json;
+using System.Threading.Channels;
 using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Cascade;
@@ -13,7 +14,9 @@ namespace Interpreter.Api.Cascade;
 /// <summary>
 /// The cascade WebSocket (D5): browser audio in, transcripts, translation, latency marks and TTS audio out,
 /// with every provider key on the server. Guarded like Realtime session minting (G2): the per-client rate
-/// limit applies to the upgrade, and the demo token must arrive in the first message.
+/// limit applies to the upgrade, and the demo token must arrive in the first message. A speaker switch is a
+/// <c>direction</c> message on the same socket, not a new upgrade: the pipeline restarts for the new languages
+/// (the utterance in flight is dropped, D12) and the finished turns stay as context (G9).
 /// Transcripts, translations and audio are never logged.
 /// </summary>
 public static class CascadeEndpoints
@@ -27,6 +30,41 @@ public static class CascadeEndpoints
         app.MapGet("/api/cascade/providers", (IOptions<CascadeOptions> o) =>
             Results.Ok(new { stt = o.Value.Stt, translator = o.Value.Translator, tts = o.Value.Tts }));
         return app;
+    }
+
+    /// <summary>
+    /// One direction's pipeline run. It has its own audio queue and cancellation, so a switch drops the old
+    /// direction's queued audio with its pipeline instead of feeding it to the new STT language.
+    /// </summary>
+    private sealed class Leg : IDisposable
+    {
+        private readonly CancellationTokenRegistration _onLimit;
+
+        public Leg(string source, string target, CancellationToken session, CancellationToken limit)
+        {
+            Source = source;
+            Target = target;
+            Stop = CancellationTokenSource.CreateLinkedTokenSource(session);
+            // G19: at the limit, end the audio (the pipeline finishes queued turns) and the session closes.
+            _onLimit = limit.Register(() => Audio.Writer.TryComplete());
+        }
+
+        public string Source { get; }
+        public string Target { get; }
+
+        // About 5 s of 20 ms frames. If STT falls that far behind, the oldest audio is dropped rather than
+        // stalling this socket (and its pings); a stalled STT is already reported as an error.
+        public Channel<AudioFrame> Audio { get; } = Channel.CreateBounded<AudioFrame>(
+            new BoundedChannelOptions(256) { FullMode = BoundedChannelFullMode.DropOldest });
+
+        /// <summary>Cancelled when the client switches direction (or the session ends).</summary>
+        public CancellationTokenSource Stop { get; }
+
+        public void Dispose()
+        {
+            _onLimit.Dispose();
+            Stop.Dispose();
+        }
     }
 
     private static async Task Handle(
@@ -60,9 +98,12 @@ public static class CascadeEndpoints
             finally { send.Release(); }
         }
 
+        Task SendSessionError(string reason, ProviderErrorKind kind) =>
+            SendJson(CascadeProtocol.Error(null, "session", "workbench", kind, reason, Now()));
+
         async Task Refuse(string reason, ProviderErrorKind kind)
         {
-            await SendJson(new { type = "error", stage = "session", provider = "workbench", kind = kind.ToString(), message = reason, t = Now() });
+            await SendSessionError(reason, kind);
             await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, reason, CancellationToken.None);
         }
 
@@ -116,60 +157,41 @@ public static class CascadeEndpoints
             return;
         }
 
-        var terms = start.Glossary ? glossary.For(source, target) : null;
-        var settings = new CascadeSettings(
-            source, languages.Find(source)!.Name, target, languages.Find(target)!.Name,
-            Voice: opts.Voices.GetValueOrDefault(target),
-            Keyterms: terms?.Keys.ToList(),
-            Glossary: terms,
-            History: CascadeProtocol.History(start));
         await SendJson(new { type = "ready", stt = stt.Name, translator = translator.Name, tts = tts.Name, t = Now() });
         log.LogInformation("Cascade session started: {Source}>{Target} stt={Stt} translator={Translator} tts={Tts}",
             source, target, stt.Name, translator.Name, tts.Name);
 
-        // 2. Audio and control in, pipeline events out.
-        // About 5 s of 20 ms frames. If STT falls that far behind, the oldest audio is dropped rather than
-        // stalling this socket (and its pings); a stalled STT is already reported as an error.
-        var audio = System.Threading.Channels.Channel.CreateBounded<AudioFrame>(
-            new System.Threading.Channels.BoundedChannelOptions(256) { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
+        // 2. Audio and control in, pipeline events out. One leg per direction: a direction message ends the
+        // current leg and queues the next one on this same socket.
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        // G19: at the limit, end the audio (the pipeline finishes queued turns) and tell the client why.
         using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(opts.MaxSessionSeconds), time);
-        using var onLimit = limit.Token.Register(() => audio.Writer.TryComplete());
-        var receive = ReceiveAsync();
+        var legs = Channel.CreateUnbounded<Leg>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+        var firstLeg = new Leg(source, target, stop.Token, limit.Token);
+        var all = new List<Leg> { firstLeg };
+        legs.Writer.TryWrite(firstLeg);
+        // Finished turns on this socket (after the ones the client carried over), context for the next leg (G9).
+        var history = new List<(string Source, string Target)>(CascadeProtocol.History(start));
+        // Utterance ids keep counting across legs, so the client never sees one twice.
+        var nextUtterance = 1;
+        var receive = ReceiveAsync(firstLeg);
         var pipeline = new CascadePipeline(stt, translator, tts, time);
         try
         {
-            await foreach (var e in pipeline.RunAsync(audio.Reader.ReadAllAsync(stop.Token), settings, stop.Token, clock))
+            await foreach (var leg in legs.Reader.ReadAllAsync(stop.Token))
             {
-                switch (e)
+                if (leg != firstLeg)
                 {
-                    case SourceFinal: activity.Success($"stt:{stt.Name}"); break;
-                    case TranslationFinal: activity.Success($"translator:{translator.Name}"); break;
-                    case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;
+                    // Sent once the old pipeline is gone: everything after this belongs to the new direction.
+                    await SendJson(new { type = "direction", source = leg.Source, target = leg.Target, t = Now() });
+                    log.LogInformation("Cascade direction changed: {Source}>{Target}", leg.Source, leg.Target);
                 }
-                if (e is TtsAudio a)
-                {
-                    await send.WaitAsync(ct);
-                    try { await ws.SendAsync(a.Audio.Pcm16, WebSocketMessageType.Binary, true, ct); }
-                    finally { send.Release(); }
-                }
-                else if (CascadeProtocol.ToWire(e) is { } message)
-                {
-                    await SendJson(message);
-                }
+                if (!await RunLegAsync(leg)) break;
             }
             if (limit.IsCancellationRequested)
             {
-                await SendJson(new
-                {
-                    type = "error",
-                    stage = "session",
-                    provider = "workbench",
-                    kind = nameof(ProviderErrorKind.Unavailable),
-                    message = $"This session reached the {opts.MaxSessionSeconds / 60.0:0.#}-minute limit. Start a new session to continue.",
-                    t = Now(),
-                });
+                await SendSessionError(
+                    $"This session reached the {opts.MaxSessionSeconds / 60.0:0.#}-minute limit. Start a new session to continue.",
+                    ProviderErrorKind.Unavailable);
                 log.LogInformation("Cascade session ended: duration limit");
             }
             else log.LogInformation("Cascade session ended normally");
@@ -186,10 +208,60 @@ public static class CascadeEndpoints
         {
             await stop.CancelAsync();
             await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            foreach (var leg in all) leg.Dispose();
             await WebSocketText.CloseQuietlyAsync(ws);
         }
 
-        async Task ReceiveAsync()
+        /// <summary>
+        /// Runs one direction until its audio ends. True when the client switched direction (the next leg is
+        /// queued); false when the audio ran out or STT failed, which ends the session as before.
+        /// </summary>
+        async Task<bool> RunLegAsync(Leg leg)
+        {
+            var terms = start.Glossary ? glossary.For(leg.Source, leg.Target) : null;
+            var settings = new CascadeSettings(
+                leg.Source, languages.Find(leg.Source)!.Name, leg.Target, languages.Find(leg.Target)!.Name,
+                Voice: opts.Voices.GetValueOrDefault(leg.Target),
+                Keyterms: terms?.Keys.ToList(),
+                Glossary: terms,
+                History: history.TakeLast(CascadeProtocol.MaxHistoryPairs).ToList(),
+                FirstUtterance: nextUtterance);
+            try
+            {
+                await foreach (var e in pipeline.RunAsync(leg.Audio.Reader.ReadAllAsync(leg.Stop.Token), settings, leg.Stop.Token, clock))
+                {
+                    nextUtterance = Math.Max(nextUtterance, e.Utterance + 1);
+                    switch (e)
+                    {
+                        case SourceFinal: activity.Success($"stt:{stt.Name}"); break;
+                        case TranslationFinal f:
+                            activity.Success($"translator:{translator.Name}");
+                            if (f.Text.Length > 0) history.Add((f.Source, f.Text));
+                            if (history.Count > CascadeProtocol.MaxHistoryPairs) history.RemoveAt(0);
+                            break;
+                        case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;
+                    }
+                    if (e is TtsAudio a)
+                    {
+                        await send.WaitAsync(ct);
+                        try { await ws.SendAsync(a.Audio.Pcm16, WebSocketMessageType.Binary, true, ct); }
+                        finally { send.Release(); }
+                    }
+                    else if (CascadeProtocol.ToWire(e) is { } message)
+                    {
+                        await SendJson(message);
+                    }
+                }
+                return false;
+            }
+            catch (OperationCanceledException) when (leg.Stop.IsCancellationRequested && !stop.IsCancellationRequested)
+            {
+                // The client switched speaker: this direction's utterance in flight is dropped (D12).
+                return true;
+            }
+        }
+
+        async Task ReceiveAsync(Leg leg)
         {
             try
             {
@@ -206,12 +278,28 @@ public static class CascadeEndpoints
                     {
                         if (limit.IsCancellationRequested) continue;
                         // Copy: the next receive reuses nothing, but the frame outlives this loop iteration.
-                        await audio.Writer.WriteAsync(new AudioFrame(msg.Data.ToArray(), 16000), stop.Token);
+                        leg.Audio.Writer.TryWrite(new AudioFrame(msg.Data.ToArray(), 16000));
                         continue;
                     }
                     var control = JsonSerializer.Deserialize<CascadeProtocol.ClientMessage>(msg.Data.Span, CascadeProtocol.Json);
                     if (control?.Type == "ping") await SendJson(new { type = "pong", c = control.C, t = Now() });
                     else if (control?.Type == "stop") break;
+                    else if (control?.Type == "direction")
+                    {
+                        if (control.Source is not { } s || control.Target is not { } t || !languages.IsSupportedDirection(s, t))
+                        {
+                            // Told, not closed: the current direction keeps running.
+                            await SendSessionError("Unsupported language direction", ProviderErrorKind.Unavailable);
+                            continue;
+                        }
+                        var next = new Leg(s, t, stop.Token, limit.Token);
+                        all.Add(next);
+                        legs.Writer.TryWrite(next);
+                        // The old leg's queued audio goes with its pipeline; the next leg starts clean.
+                        leg.Audio.Writer.TryComplete();
+                        await leg.Stop.CancelAsync();
+                        leg = next;
+                    }
                 }
             }
             catch (Exception e) when (e is OperationCanceledException or WebSocketException or JsonException)
@@ -220,7 +308,8 @@ public static class CascadeEndpoints
             finally
             {
                 // End of audio: the pipeline finishes the queued utterances, then the socket closes.
-                audio.Writer.TryComplete();
+                leg.Audio.Writer.TryComplete();
+                legs.Writer.TryComplete();
             }
         }
     }

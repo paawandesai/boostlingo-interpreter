@@ -32,10 +32,12 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
 
     private sealed class FakeTranslator : IStreamingTranslator
     {
+        public readonly List<TranslationRequest> Requests = [];
         public string Name => "fake-translator";
 
         public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
         {
+            lock (Requests) Requests.Add(request);
             await Task.Yield();
             yield return "Hola.";
         }
@@ -82,14 +84,16 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    /// <summary>Emits a final as soon as the first audio frame arrives, then keeps listening.</summary>
+    /// <summary>Emits a final as soon as the first audio frame arrives, then keeps listening. Records each run's language.</summary>
     private sealed class FirstFrameStt : IStreamingStt
     {
+        public readonly List<string> Languages = [];
         public string Name => "first-frame-stt";
 
         public async IAsyncEnumerable<SttEvent> TranscribeAsync(
             IAsyncEnumerable<AudioFrame> audio, SttOptions options, [EnumeratorCancellation] CancellationToken ct)
         {
+            lock (Languages) Languages.Add(options.Language);
             var first = true;
             await foreach (var _ in audio.WithCancellation(ct))
             {
@@ -101,18 +105,21 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
     }
 
     private async Task<(WebSocket Ws, FakeStt Stt)> Connect(
-        string? serverToken = Token, IStreamingTts? tts = null, IStreamingStt? sttOverride = null, int? maxSessionSeconds = null)
+        string? serverToken = Token, IStreamingTts? tts = null, IStreamingStt? sttOverride = null, int? maxSessionSeconds = null,
+        int permitLimit = 100, string sttKey = "deepgram", IStreamingTranslator? translator = null,
+        params (string Key, string Value)[] settings)
     {
         var stt = new FakeStt();
         var server = factory.WithWebHostBuilder(b =>
         {
             b.UseSetting("Access:Token", serverToken ?? "");
-            b.UseSetting("Access:PermitLimit", "100");
-            if (maxSessionSeconds is { } max) b.UseSetting("Cascade:MaxSessionSeconds", max.ToString());
+            b.UseSetting("Access:PermitLimit", permitLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (maxSessionSeconds is { } max) b.UseSetting("Cascade:MaxSessionSeconds", max.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            foreach (var (key, value) in settings) b.UseSetting(key, value);
             b.ConfigureServices(s =>
             {
-                s.AddKeyedSingleton<IStreamingStt>("deepgram", sttOverride ?? stt);
-                s.AddKeyedSingleton<IStreamingTranslator>("openai", new FakeTranslator());
+                s.AddKeyedSingleton<IStreamingStt>(sttKey, sttOverride ?? stt);
+                s.AddKeyedSingleton<IStreamingTranslator>("openai", translator ?? new FakeTranslator());
                 s.AddKeyedSingleton<IStreamingTts>("elevenlabs", tts ?? new FakeTts());
             });
         }).Server;
@@ -272,6 +279,96 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             .Single(j => (string?)j["type"] == "error");
         Assert.Equal(("stt", "deepgram", "Auth"), ((string?)frame["stage"], (string?)frame["provider"], (string?)frame["kind"]));
         Assert.Equal("DEEPGRAM_API_KEY is not configured on the server", (string?)frame["message"]);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task Switches_direction_eleven_times_on_one_socket_and_one_rate_limit_permit()
+    {
+        // A speaker flip used to reopen the socket, and each upgrade spent one of the per-client permits
+        // (10 a minute): the 11th flip in a minute got a 429. Now the flip is a message on the open socket.
+        var stt = new FirstFrameStt();
+        var (ws, _) = await Connect(sttOverride: stt, permitLimit: 1);
+        await Start(ws);
+
+        for (var i = 0; i < 11; i++)
+        {
+            var (source, target) = i % 2 == 0 ? ("es", "en") : ("en", "es");
+            await Send(ws, new { type = "direction", source, target });
+            var ack = await ReadUntil(ws, "direction");
+            Assert.Equal((source, target), ((string?)ack["source"], (string?)ack["target"]));
+        }
+        await SendFrame(ws);
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        var json = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json).ToList();
+        Assert.DoesNotContain(json, j => (string?)j["type"] == "error");
+        Assert.Equal("Hello.", (string?)json.Single(j => (string?)j["type"] == "transcript.final")["text"]);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+        // The last turn ran in the eleventh flip's direction (es>en).
+        Assert.Equal("es", stt.Languages[^1]);
+    }
+
+    [Fact]
+    public async Task A_direction_change_keeps_counting_utterances_and_carries_the_finished_turns_as_context()
+    {
+        var translator = new FakeTranslator();
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: translator);
+        await Start(ws);
+
+        await SendFrame(ws);
+        Assert.Equal(1, (int?)(await ReadUntil(ws, "utterance.done"))["u"]);
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await ReadUntil(ws, "direction");
+        await SendFrame(ws);
+        var done = await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        Assert.Equal(2, (int?)done["u"]);
+        Assert.Equal(2, translator.Requests.Count);
+        Assert.Equal(("Spanish", "English"), (translator.Requests[1].SourceLanguage, translator.Requests[1].TargetLanguage));
+        Assert.Equal([("Hello.", "Hola.")], translator.Requests[1].Context!);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task A_direction_change_drops_the_utterance_in_flight_and_keeps_the_socket()
+    {
+        // D12: the interpreter stops speaking the old direction's turn; the socket stays up for the new one.
+        var tts = new HangingTts();
+        var (ws, _) = await Connect(tts: tts, sttOverride: new FirstFrameStt());
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+        await SendFrame(ws);
+        while ((await WebSocketText.ReceiveAsync(ws, ct)).Type != WebSocketMessageType.Binary) { }
+
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+
+        await tts.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await ReadUntil(ws, "direction");
+        await Send(ws, new { type = "ping", c = 7.0 });
+        Assert.Equal(7.0, (double?)(await ReadUntil(ws, "pong"))["c"]);
+        await Send(ws, new { type = "stop" });
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, (await ReadAll(ws))[^1].Close);
+    }
+
+    [Fact]
+    public async Task An_unsupported_direction_is_reported_and_the_session_goes_on()
+    {
+        var (ws, _) = await Connect();
+        await Start(ws);
+
+        await Send(ws, new { type = "direction", source = "en", target = "fr" });
+        var error = await ReadUntil(ws, "error");
+        await Send(ws, new { type = "ping", c = 1.0 });
+        var pong = await ReadUntil(ws, "pong");
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        Assert.Equal(("session", "Unsupported language direction"), ((string?)error["stage"], (string?)error["message"]));
+        Assert.Equal(1.0, (double?)pong["c"]);
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
 }

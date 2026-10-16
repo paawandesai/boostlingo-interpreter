@@ -3,8 +3,9 @@
  * TTS with its own keys; the browser sends 16 kHz PCM16 and plays the 24 kHz PCM16 that comes back.
  *
  * Owns: mic capture (frames, client VAD marks), the socket, clock sync, the playback scheduler and the
- * half-duplex mic gate. stop() releases all of them. A speaker switch opens a new socket for the new
- * direction and keeps capture and playback; an utterance in flight is dropped (D12).
+ * half-duplex mic gate. stop() releases all of them. A speaker switch sends a direction message over the
+ * open socket and keeps capture and playback; an utterance in flight is dropped (D12). The socket is only
+ * reopened when it dropped, because every upgrade spends one of the server's per-client rate-limit permits.
  */
 import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
@@ -39,6 +40,8 @@ export class CascadeTransport implements Transport {
   private ready = false
   /** The server explained its refusal on this socket, so the close that follows adds nothing. */
   private serverError = false
+  /** A direction change was sent; what the old direction still produces is dropped until the server confirms it. */
+  private switching = false
   private stopped = false
   private sockets = 0
   private firstOut = new Set<string>()
@@ -83,7 +86,7 @@ export class CascadeTransport implements Transport {
             message: `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`,
           }),
       })
-      this.connect(config.speaker)
+      this.connect()
     } catch (e) {
       await this.release()
       this.emitter.emit(
@@ -98,7 +101,16 @@ export class CascadeTransport implements Transport {
     if (!this.config || this.stopped) return
     this.config = { ...this.config, speaker: side }
     this.playback?.stop()
-    this.connect(side)
+    const ws = this.ws
+    if (ws?.readyState === WebSocket.OPEN) {
+      // The server restarts its pipeline for the new direction on this socket; no new upgrade.
+      const [source, target] = direction(this.config, side)
+      this.switching = true
+      ws.send(JSON.stringify({ type: 'direction', source, target }))
+    } else if (ws?.readyState !== WebSocket.CONNECTING) {
+      // No socket, or it dropped: reconnect. A socket still connecting reads the direction when it opens.
+      this.connect()
+    }
   }
 
   async stop(): Promise<void> {
@@ -111,29 +123,31 @@ export class CascadeTransport implements Transport {
     this.emitter.emit({ type: 'state', state: 'closed' })
   }
 
-  private connect(side: SpeakerSide): void {
+  /** Opens a socket for the configured direction, closing the old one if any (a start or a reconnect). */
+  private connect(): void {
     this.closeSocket()
-    const [source, target] = direction(this.config!, side)
     const ws = new WebSocket(CascadeTransport.url())
     ws.binaryType = 'arraybuffer'
     this.ws = ws
     this.ready = false
     this.serverError = false
+    this.switching = false
     // Each socket has its own server clock (it starts at the connection), so the offset is re-measured.
     // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
     this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
 
-    const glossary = this.config!.glossary ?? false
     ws.onopen = () => {
-      const history = this.config?.history?.().slice(-HISTORY_PAIRS) ?? []
+      const config = this.config!
+      const [source, target] = direction(config, config.speaker)
+      const history = config.history?.().slice(-HISTORY_PAIRS) ?? []
       ws.send(
         JSON.stringify({
           type: 'start',
           token: currentAccessToken(),
           source,
           target,
-          glossary,
+          glossary: config.glossary ?? false,
           ...(history.length ? { history } : {}),
         }),
       )
@@ -167,11 +181,19 @@ export class CascadeTransport implements Transport {
       this.ready = true
       this.syncClock()
     }
+    if (json.type === 'direction') {
+      // The old direction's pipeline is gone; whatever follows belongs to the new one.
+      this.switching = false
+      if (this.parser) this.parser.speaking = null
+      return
+    }
+    // The utterance in flight at a speaker switch is dropped (D12); session messages still get through.
+    if (this.switching && json.type !== 'error' && json.type !== 'ready') return
     for (const ev of this.parser?.parse(json) ?? []) this.emitter.emit(ev)
   }
 
   private onAudio(data: ArrayBuffer): void {
-    if (!this.playback || !this.capture) return
+    if (!this.playback || !this.capture || this.switching) return
     const receivedAt = performance.now()
     const speaking = this.parser?.speaking
     // Network stage (D9): first audio frame of the utterance received on the client.
@@ -216,6 +238,7 @@ export class CascadeTransport implements Transport {
     const ws = this.ws
     this.ws = null
     this.ready = false
+    this.switching = false
     if (!ws) return
     ws.onopen = null
     ws.onmessage = null

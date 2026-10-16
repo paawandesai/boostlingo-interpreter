@@ -17,10 +17,11 @@ vi.mock('../../audio/capture', () => ({
   contextMsToPerf: (_ctx: unknown, ms: number) => 4000 + ms,
 }))
 const enqueue = vi.fn<(samples: Float32Array, rate: number) => number | null>(() => 2.5)
+const playbackStop = vi.fn()
 vi.mock('../../audio/playback', () => ({
   PlaybackScheduler: class {
     enqueue = enqueue
-    stop = vi.fn()
+    stop = playbackStop
   },
 }))
 vi.mock('../../session/access', () => ({ currentAccessToken: () => 'demo-token' }))
@@ -53,6 +54,11 @@ class FakeSocket {
   server(msg: object) {
     this.onmessage?.({ data: JSON.stringify(msg) })
   }
+  /** The socket dropped (the server went away, not a client close). */
+  drop(code = 1006) {
+    this.readyState = 3
+    this.onclose?.({ code })
+  }
   json() {
     return this.sent
       .filter((s): s is string => typeof s === 'string')
@@ -63,6 +69,9 @@ class FakeSocket {
 describe('CascadeTransport', () => {
   beforeEach(() => {
     FakeSocket.all = []
+    enqueue.mockClear()
+    playbackStop.mockClear()
+    capture.stop.mockClear()
     vi.stubGlobal('WebSocket', FakeSocket)
     vi.useFakeTimers()
   })
@@ -71,12 +80,17 @@ describe('CascadeTransport', () => {
     vi.unstubAllGlobals()
   })
 
-  async function started() {
+  async function fresh() {
     const { CascadeTransport } = await import('./CascadeTransport')
     CascadeTransport.url = () => 'ws://test/ws/cascade'
     const t = new CascadeTransport()
     const events: TransportEvent[] = []
     t.subscribe((e) => events.push(e))
+    return { t, events }
+  }
+
+  async function started() {
+    const { t, events } = await fresh()
     await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
     const ws = FakeSocket.all[0]
     ws.open()
@@ -113,25 +127,46 @@ describe('CascadeTransport', () => {
     expect(firstOut).toEqual([{ type: 'mark', name: 'audio.first_out', t: 6500, utteranceId: 'c1-1' }])
   })
 
-  it('opens a new socket for the other direction on a speaker switch', async () => {
-    const { t, ws } = await started()
+  it('switches direction over the open socket instead of opening a second one', async () => {
+    const { t, ws, events } = await started()
+    ws.server({ type: 'ready', t: 0 })
+
     t.setSpeaker('B')
 
-    expect(ws.close).toHaveBeenCalled()
-    const next = FakeSocket.all[1]
-    next.open()
-    expect(next.json()[0]).toMatchObject({ type: 'start', source: 'es', target: 'en' })
+    expect(FakeSocket.all).toHaveLength(1)
+    expect(ws.close).not.toHaveBeenCalled()
+    expect(ws.json().at(-1)).toEqual({ type: 'direction', source: 'es', target: 'en' })
+    expect(playbackStop).toHaveBeenCalled()
+    // The old direction's utterance in flight is dropped (D12) until the server confirms the switch.
+    ws.server({ type: 'transcript.final', u: 1, text: 'late', t: 5 })
+    ws.onmessage!({ data: new Int16Array([1]).buffer })
+    expect(events.some((e) => e.type === 'transcript')).toBe(false)
+    expect(enqueue).not.toHaveBeenCalled()
+    // Audio keeps flowing: the server queues it for the new direction.
+    onFrame!(new Int16Array(320))
+    expect(ws.sent.at(-1)).toBeInstanceOf(Int16Array)
+
+    ws.server({ type: 'direction', source: 'es', target: 'en', t: 6 })
+    ws.server({ type: 'transcript.final', u: 2, text: 'Hola.', t: 7 })
+    expect(events.at(-1)).toMatchObject({ type: 'transcript', role: 'source', utteranceId: 'c1-2', text: 'Hola.' })
+
+    for (let i = 0; i < 10; i++) t.setSpeaker(i % 2 ? 'B' : 'A')
+    expect(FakeSocket.all).toHaveLength(1)
+    expect(ws.json().filter((m) => m.type === 'direction')).toHaveLength(11)
   })
 
-  it('re-measures the clock offset on each new socket', async () => {
+  it('reopens the socket on a speaker switch only after it dropped, with a fresh clock', async () => {
     const { t, ws, events } = await started()
     ws.server({ type: 'ready', t: 0 })
     const c1 = performance.now()
     ws.server({ type: 'pong', c: c1 - 10, t: 100_000 })
+    ws.drop(1011)
+    expect(events.at(-1)).toMatchObject({ type: 'error', kind: 'unavailable' })
 
     t.setSpeaker('B')
     const next = FakeSocket.all[1]
     next.open()
+    expect(next.json()[0]).toMatchObject({ type: 'start', source: 'es', target: 'en' })
     next.server({ type: 'ready', t: 0 })
     const c2 = performance.now()
     // Slower round trip than the first socket's best: it must still be used, the server clock restarted.
@@ -144,15 +179,14 @@ describe('CascadeTransport', () => {
   })
 
   it('sends the latest finished turns as context on every new socket (G9)', async () => {
-    const { CascadeTransport } = await import('./CascadeTransport')
-    CascadeTransport.url = () => 'ws://test/ws/cascade'
-    const t = new CascadeTransport()
+    const { t } = await fresh()
     const pairs = Array.from({ length: 8 }, (_, i) => ({ source: `s${i}`, target: `t${i}` }))
     await t.start({ langA: 'en', langB: 'es', speaker: 'A', history: () => pairs })
     FakeSocket.all[0].open()
     expect(FakeSocket.all[0].json()[0].history).toEqual(pairs.slice(-6))
 
     pairs.push({ source: 'new', target: 'nuevo' })
+    FakeSocket.all[0].drop()
     t.setSpeaker('B')
     FakeSocket.all[1].open()
     expect((FakeSocket.all[1].json()[0].history as unknown[]).at(-1)).toEqual({ source: 'new', target: 'nuevo' })

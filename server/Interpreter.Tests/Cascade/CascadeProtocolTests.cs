@@ -42,4 +42,13 @@ public class CascadeProtocolTests
         Assert.Equal("Auth", (string?)frame["kind"]);
         Assert.Equal("DEEPGRAM_API_KEY is not configured on the server", (string?)frame["message"]);
     }
+
+    [Fact]
+    public void A_direction_message_carries_the_new_languages()
+    {
+        var control = JsonSerializer.Deserialize<CascadeProtocol.ClientMessage>(
+            """{"type":"direction","source":"es","target":"en"}""", CascadeProtocol.Json)!;
+
+        Assert.Equal(("direction", "es", "en"), (control.Type, control.Source, control.Target));
+    }
 }

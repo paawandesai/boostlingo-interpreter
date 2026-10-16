@@ -18,9 +18,9 @@ export interface SessionConfig {
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
   /**
-   * Finished turns from before this connection (G9): a mode switch or a cascade speaker switch starts a
-   * new connection, and these are sent along as context data so the new one keeps names and register.
-   * Read at connect time; the newest last.
+   * Finished turns from before this connection (G9): a mode switch, or a cascade socket reopened after it
+   * dropped, starts a new connection, and these are sent along as context data so the new one keeps names
+   * and register. Read at connect time; the newest last.
    */
   history?: () => HistoryPair[]
 }
