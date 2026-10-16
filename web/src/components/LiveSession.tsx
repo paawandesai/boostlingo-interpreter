@@ -50,6 +50,7 @@ export function LiveSession({
           value={state.mode}
           onChange={onSwitchMode}
           translateAvailable={translateSupported(languages, state.langA, state.langB)}
+          blocked={languages?.blockedModes}
         />
         <div role="status" className={`status ${lampKind}`}>
           <span className={`lamp ${lampKind}`} aria-hidden="true" />

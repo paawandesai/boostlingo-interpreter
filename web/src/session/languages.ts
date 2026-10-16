@@ -14,10 +14,13 @@ export interface LanguagesResponse {
   pairs: [string, string][]
   /** Prompt-leak canary from the interpreter instructions (G15); never expected in an output. */
   canary?: string
+  /** Modes the server's BAA mode refuses, with the reason to show; empty or absent when it is off. */
+  blockedModes?: Partial<Record<'translate' | 'realtime' | 'cascade', string>>
 }
 
-/** Realtime translate is offered only when the model can speak both languages of the pair. */
+/** Realtime translate is offered only when the model can speak both languages of the pair and BAA mode allows it. */
 export function translateSupported(langs: LanguagesResponse | null, a: string, b: string): boolean {
+  if (langs?.blockedModes?.translate) return false
   const ok = (code: string) => langs?.languages.find((l) => l.code === code)?.realtimeTranslate === true
   return ok(a) && ok(b)
 }

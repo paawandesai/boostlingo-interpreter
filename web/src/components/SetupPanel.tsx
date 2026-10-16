@@ -62,6 +62,7 @@ export function SetupPanel({
           value={state.mode}
           onChange={(mode) => onConfigure({ mode })}
           translateAvailable={canTranslate}
+          blocked={languages?.blockedModes}
           described
         />
       </div>
