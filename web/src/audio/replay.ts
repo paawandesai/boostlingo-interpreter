@@ -64,11 +64,15 @@ async function untilTrue(cond: () => boolean, maxMs: number, signal: AbortSignal
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const t = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => {
+    const onAbort = () => {
       clearTimeout(t)
       resolve()
-    })
+    }
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -84,14 +88,17 @@ export function createReplay(clips: ReplayClip[], opts: ReplayOptions = {}): Rep
       const src = ctx.createBufferSource()
       src.buffer = clip.buffer
       src.connect(dest)
+      // One listener per clip would pile up over a long soak, so each clip removes its own.
+      const onAbort = () => resolve()
       src.onended = () => {
+        abort.signal.removeEventListener('abort', onAbort)
         src.disconnect()
         current = null
         resolve()
       }
       current = src
       src.start()
-      abort.signal.addEventListener('abort', () => resolve())
+      abort.signal.addEventListener('abort', onAbort, { once: true })
     })
 
   return {
