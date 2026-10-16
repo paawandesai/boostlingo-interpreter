@@ -46,12 +46,12 @@ cd web && npm ci && npm run dev      # Vite proxies /api and /ws to the backend
 npm run lint && npm run typecheck && npm test
 
 # eval
-python3 eval/summarize.py eval/results/logs/*.json     # p50/p95, WER, chrF, cost per mode
+python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json   # p50/p95, WER, chrF, cost per mode (writes eval/results/summary.md; --out elsewhere to keep it)
 ```
 
 ## Attribution in history
 
-Commits are authored as Paawan. Every commit an agent made carries a `Co-Authored-By` trailer naming the model and a `Claude-Session` trailer (a private link to the session that made it), and 119 of the 261 commits on `main` have Claude as committer. [AI_USAGE.md](AI_USAGE.md) lists which artifacts were model-generated and which were checked.
+Commits are authored as Paawan. Every commit an agent made carries a `Co-Authored-By` trailer naming the model and a `Claude-Session` trailer (a private link to the session that made it), and 120 of the 263 commits on `main` have Claude as committer. [AI_USAGE.md](AI_USAGE.md) lists which artifacts were model-generated and which were checked.
 
 ## What the history shows, honestly
 
