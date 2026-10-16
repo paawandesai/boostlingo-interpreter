@@ -53,7 +53,7 @@
       "key": "tts:elevenlabs",
       "model": "eleven_flash_v2_5",
       "perThousandCharacters": null,
-      "note": "Left null: depends on the plan tier, which is not recorded, and ElevenLabs' own pages disagree ($0.04 vs $0.05 per 1,000 characters for Flash/Turbo; plan credits at 0.5 to 1 credit per character). Paawan to record the tier and its rate.",
+      "note": "Left null: depends on the plan tier, which is not recorded, and ElevenLabs' own pages disagree ($0.04 vs $0.05 per 1,000 characters for Flash/Turbo; plan credits at 0.5 to 1 credit per character). Paawan is on the Starter plan (2026-10-16); its Flash rate is still to be confirmed.",
       "source": "https://elevenlabs.io/pricing/api",
       "checkedOn": "2026-10-16",
       "checkedBy": "agent; unresolved"
