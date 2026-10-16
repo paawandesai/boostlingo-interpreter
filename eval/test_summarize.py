@@ -262,6 +262,23 @@ class SummarizeTests(unittest.TestCase):
         )
         self.assertIn("unpriced: STT (openai) upper bound: session minutes", unpriced)
 
+    def test_a_missing_quantity_is_named_not_counted_as_free(self) -> None:
+        # The cascade export has no STT line: its cost per minute says it leaves STT out.
+        logs = [log("openai", modes=[mode_block("cascade", 2.0, *CASCADE_LINES)])]
+        self.assertIn(
+            "| $0.0790 (excludes STT: no quantity in the log) |",
+            summarize.render(summarize.summarize(logs, SCRIPTS, PRICES), []),
+        )
+        realtime = mode_block(
+            "realtime", 2.0, cost_line("Realtime audio input (rt-model-b)", 0.5, "MTok")
+        )
+        rendered = summarize.render(
+            summarize.summarize([log("openai", modes=[realtime])], SCRIPTS, PRICES), []
+        )
+        self.assertIn(
+            "(excludes input transcription: no quantity in the log)", rendered
+        )
+
     def test_refuses_to_mix_redteam_and_replay_logs(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             replay = Path(d, "2026-10-15-cascade-replay-openai-synthetic.json")
