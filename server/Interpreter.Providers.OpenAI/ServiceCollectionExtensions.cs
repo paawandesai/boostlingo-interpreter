@@ -34,4 +34,14 @@ public static class ServiceCollectionExtensions
         services.AddKeyedTransient<IStreamingTranslator>("openai", (sp, _) => sp.GetRequiredService<OpenAITranslator>());
         return services;
     }
+
+    public static IServiceCollection AddOpenAITts(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddOptions<OpenAISpeechOptions>()
+            .Bind(config.GetSection(OpenAISpeechOptions.Section))
+            .PostConfigure(o => o.ApiKey ??= config["OPENAI_API_KEY"]);
+        services.AddHttpClient<OpenAISpeechTts>(c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddKeyedTransient<IStreamingTts>("openai", (sp, _) => sp.GetRequiredService<OpenAISpeechTts>());
+        return services;
+    }
 }
