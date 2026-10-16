@@ -29,12 +29,9 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                '**/transports/realtime/**',
-                '**/transports/cascade/**',
-                '**/transports/realtime',
-                '**/transports/cascade',
-              ],
+              // Every concrete transport folder (translate, realtime, cascade and any added later);
+              // the shared interface and the factory stay importable.
+              group: ['**/transports/*', '**/transports/*/**', '!**/transports/types', '!**/transports/index'],
               message:
                 'UI components must not import a concrete transport. Use the session store / Transport interface.',
             },
