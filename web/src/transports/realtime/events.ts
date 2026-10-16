@@ -111,12 +111,16 @@ function toUsage(u: Json | undefined): Usage | undefined {
   if (!u) return undefined
   const inD = (u.input_token_details as Json | undefined) ?? {}
   const outD = (u.output_token_details as Json | undefined) ?? {}
+  // Cached input is billed at its own rates per modality, so the split is kept when the API reports it.
+  const cachedD = (inD.cached_tokens_details as Json | undefined) ?? {}
   return {
     inputTokens: u.input_tokens as number | undefined,
     outputTokens: u.output_tokens as number | undefined,
     inputAudioTokens: inD.audio_tokens as number | undefined,
     inputTextTokens: inD.text_tokens as number | undefined,
     cachedTokens: inD.cached_tokens as number | undefined,
+    cachedTextTokens: cachedD.text_tokens as number | undefined,
+    cachedAudioTokens: cachedD.audio_tokens as number | undefined,
     outputAudioTokens: outD.audio_tokens as number | undefined,
     outputTextTokens: outD.text_tokens as number | undefined,
   }
