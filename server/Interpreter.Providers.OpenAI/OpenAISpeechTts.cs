@@ -60,7 +60,7 @@ public sealed class OpenAISpeechTts(HttpClient http, IOptions<OpenAISpeechOption
             var buffer = new byte[8192];
             byte? carry = null;
             int read;
-            while ((read = await body.ReadAsync(buffer.AsMemory(carry is null ? 0 : 1), ct)) > 0)
+            while ((read = await ReadAsync(body, buffer.AsMemory(carry is null ? 0 : 1), ct)) > 0)
             {
                 var length = read;
                 if (carry is { } b)
@@ -76,6 +76,22 @@ public sealed class OpenAISpeechTts(HttpClient http, IOptions<OpenAISpeechOption
                 }
                 if (length > 0) yield return new AudioChunk(buffer.AsSpan(0, length).ToArray(), Rate);
             }
+        }
+    }
+
+    /// <summary>
+    /// A body read that fails after the response started (dropped connection, reset) becomes a provider
+    /// error, as ElevenLabs' closed stream does, so the pipeline reports it instead of ending the session.
+    /// </summary>
+    private static async ValueTask<int> ReadAsync(Stream body, Memory<byte> buffer, CancellationToken ct)
+    {
+        try
+        {
+            return await body.ReadAsync(buffer, ct);
+        }
+        catch (Exception e) when (e is IOException or HttpRequestException && !ct.IsCancellationRequested)
+        {
+            throw new ProviderException(ProviderErrorKind.Unavailable, Provider, "OpenAI speech stream failed while reading audio", inner: e);
         }
     }
 }

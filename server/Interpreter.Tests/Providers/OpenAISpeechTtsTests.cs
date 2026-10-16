@@ -28,6 +28,16 @@ public class OpenAISpeechTtsTests
             base.ReadAsync(buffer[..Math.Min(piece, buffer.Length)], ct);
     }
 
+    /// <summary>Returns <paramref name="before"/> bytes, then fails the next read as a dropped connection would.</summary>
+    private sealed class FailingStream(int before) : MemoryStream(new byte[before])
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            return read > 0 ? read : throw new IOException("The response ended prematurely.");
+        }
+    }
+
     [Fact]
     public void Asks_for_24khz_pcm_from_a_stock_voice()
     {
@@ -77,5 +87,22 @@ public class OpenAISpeechTtsTests
         });
 
         Assert.Equal((ProviderErrorKind.Auth, "openai-tts"), (e.Kind, e.Provider));
+    }
+
+    [Fact]
+    public async Task Maps_a_failed_read_mid_stream_to_an_unavailable_error()
+    {
+        var handler = new StubHttpHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new FailingStream(4)) });
+
+        var chunks = new List<AudioChunk>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var c in Tts(handler).SynthesizeAsync(Texts("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken))
+                chunks.Add(c);
+        });
+
+        Assert.Equal((ProviderErrorKind.Unavailable, "openai-tts"), (e.Kind, e.Provider));
+        Assert.IsType<IOException>(e.InnerException);
+        Assert.Equal(4, chunks.Sum(c => c.Pcm16.Length));
     }
 }
