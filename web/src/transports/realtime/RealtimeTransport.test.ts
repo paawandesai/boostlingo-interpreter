@@ -7,9 +7,13 @@ const capture = {
   setGated: vi.fn(),
   stop: vi.fn().mockResolvedValue(undefined),
 }
+const captureOpts: { onVad?: (kind: 'speech.start' | 'speech.end', t: number) => void } = {}
 vi.mock('../../audio/capture', () => ({
   MicDeniedError: class MicDeniedError extends Error {},
-  startCapture: vi.fn(async () => capture),
+  startCapture: vi.fn(async (opts: typeof captureOpts) => {
+    captureOpts.onVad = opts.onVad
+    return capture
+  }),
 }))
 vi.mock('./firstAudioProbe', () => ({ createFirstAudioProbe: () => ({ arm: vi.fn(), stop: vi.fn() }) }))
 
@@ -84,7 +88,13 @@ describe('RealtimeTransport', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  async function started() {
+  async function started(info: object = session) {
+    if (info !== session) {
+      fetchMock.mockReset()
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify(info)))
+        .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    }
     const { RealtimeTransport } = await import('./RealtimeTransport')
     const t = new RealtimeTransport()
     const events: TransportEvent[] = []
@@ -182,6 +192,58 @@ describe('RealtimeTransport', () => {
       'response.create',
       'session.update',
     ])
+  })
+
+  it('with client endpointing, commits the turn and asks for a response after speech ends', async () => {
+    const { pc } = await started({ ...session, endpointing: 'client' })
+    pc.dc.open()
+    vi.useFakeTimers()
+    try {
+      captureOpts.onVad?.('speech.start', 0)
+      captureOpts.onVad?.('speech.end', 1000)
+      expect(pc.dc.sent).toEqual([])
+      vi.advanceTimersByTime(1000)
+      expect(pc.dc.sent.map((m) => (JSON.parse(m) as { type: string }).type)).toEqual([
+        'input_audio_buffer.commit',
+        'response.create',
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('with client endpointing, holds a turn that ends during a response until that response is done', async () => {
+    const { pc } = await started({ ...session, endpointing: 'client' })
+    pc.dc.open()
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'response.created', response: { id: 'resp_1' } }) })
+    vi.useFakeTimers()
+    try {
+      captureOpts.onVad?.('speech.start', 0)
+      captureOpts.onVad?.('speech.end', 1000)
+      vi.advanceTimersByTime(1000)
+      expect(pc.dc.sent).toEqual([])
+      pc.dc.onmessage?.({ data: JSON.stringify({ type: 'response.done', response: { id: 'resp_1' } }) })
+      expect(pc.dc.sent.map((m) => (JSON.parse(m) as { type: string }).type)).toEqual([
+        'input_audio_buffer.commit',
+        'response.create',
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('with server endpointing, the client VAD sends nothing', async () => {
+    const { pc } = await started()
+    pc.dc.open()
+    vi.useFakeTimers()
+    try {
+      captureOpts.onVad?.('speech.start', 0)
+      captureOpts.onVad?.('speech.end', 1000)
+      vi.advanceTimersByTime(1000)
+      expect(pc.dc.sent).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('stop() closes the data channel, peer and capture', async () => {

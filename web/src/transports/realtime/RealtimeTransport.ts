@@ -45,6 +45,10 @@ export class RealtimeTransport implements Transport {
   private pendingUpdate: string | null = null
   /** Set when the session has no turn detection: the browser's VAD commits each turn (client endpointing). */
   private endpointer: ClientEndpointer | null = null
+  /** Between response.created and response.done. */
+  private responding = false
+  /** Client endpointing: a turn ended while a response was active; it is committed when that one is done. */
+  private commitDeferred = false
 
   /** How long to wait for the data channel before reporting a failed connection. */
   static connectTimeoutMs = 15000
@@ -57,6 +61,8 @@ export class RealtimeTransport implements Transport {
     this.responseQueued = false
     this.turnInFlight = false
     this.pendingUpdate = null
+    this.responding = false
+    this.commitDeferred = false
     this.parser = new RealtimeEventParser()
     this.emitter.emit({ type: 'state', state: 'connecting' })
     try {
@@ -179,6 +185,13 @@ export class RealtimeTransport implements Transport {
    */
   private commitTurn(): void {
     if (this.dc?.readyState !== 'open') return
+    // Committing now would leave this turn without a response (one active response at a time) and the queued
+    // response.create could cover two items at once, which dropped turns in the first client-endpointing
+    // soak. The audio stays in the input buffer instead and is committed when the response is done.
+    if (this.responding) {
+      this.commitDeferred = true
+      return
+    }
     this.turnInFlight = true
     this.dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' }))
     this.dc.send(JSON.stringify({ type: 'response.create' }))
@@ -198,7 +211,12 @@ export class RealtimeTransport implements Transport {
       return
     }
     if (json.type === 'input_audio_buffer.speech_stopped' || json.type === 'response.created') this.turnInFlight = true
-    if (json.type === 'response.done') {
+    if (json.type === 'response.created') this.responding = true
+    if (json.type === 'response.done') this.responding = false
+    if (json.type === 'response.done' && this.commitDeferred) {
+      this.commitDeferred = false
+      this.commitTurn()
+    } else if (json.type === 'response.done') {
       if (this.responseQueued && this.dc?.readyState === 'open') {
         // The queued turn was spoken before any flip, so it stays in flight with the current instructions.
         this.responseQueued = false
