@@ -26,6 +26,8 @@ import { CascadeEventParser } from './events'
 /** Capture worklet output rate (D6). */
 const STT_RATE = 16000
 const TTS_RATE = 24000
+/** STT audio time is reported to the store this often (T3.5), so an export taken before End has it. */
+const USAGE_REPORT_SECONDS = 5
 
 export class CascadeTransport implements Transport {
   readonly mode: Mode = 'cascade'
@@ -46,7 +48,7 @@ export class CascadeTransport implements Transport {
   private sockets = 0
   private firstOut = new Set<string>()
   private firstReceived = new Set<string>()
-  /** Samples sent to STT on this transport, reported as session usage on stop (T3.5). */
+  /** Samples sent to STT since the last usage report; the store sums the reports (T3.5). */
   private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
@@ -68,6 +70,7 @@ export class CascadeTransport implements Transport {
           if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(pcm as Int16Array<ArrayBuffer>)
             this.samplesSent += pcm.length
+            if (this.samplesSent >= USAGE_REPORT_SECONDS * STT_RATE) this.reportSttUsage()
           }
         },
         onVad: (kind, t) => this.emitter.emit({ type: 'mark', name: kind, t }),
@@ -115,10 +118,7 @@ export class CascadeTransport implements Transport {
 
   async stop(): Promise<void> {
     this.stopped = true
-    if (this.samplesSent > 0) {
-      this.emitter.emit({ type: 'usage', usage: { sttAudioSeconds: this.samplesSent / STT_RATE } })
-      this.samplesSent = 0
-    }
+    this.reportSttUsage()
     await this.release()
     this.emitter.emit({ type: 'state', state: 'closed' })
   }
@@ -216,6 +216,13 @@ export class CascadeTransport implements Transport {
         utteranceId,
       })
     }
+  }
+
+  /** Reports the audio time sent to STT since the last report (T3.5) and starts a new count. */
+  private reportSttUsage(): void {
+    if (this.samplesSent === 0) return
+    this.emitter.emit({ type: 'usage', usage: { sttAudioSeconds: this.samplesSent / STT_RATE } })
+    this.samplesSent = 0
   }
 
   /** Five quick pings at connect, then one every 30 s (D9). */

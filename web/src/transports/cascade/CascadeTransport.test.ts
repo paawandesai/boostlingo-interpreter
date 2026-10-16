@@ -192,6 +192,21 @@ describe('CascadeTransport', () => {
     expect((FakeSocket.all[1].json()[0].history as unknown[]).at(-1)).toEqual({ source: 'new', target: 'nuevo' })
   })
 
+  it('reports STT audio time every 5 s and the remainder on stop (T3.5)', async () => {
+    const { t, ws, events } = await started()
+    ws.server({ type: 'ready', t: 0 })
+    const reported = () => events.flatMap((e) => (e.type === 'usage' ? [e.usage.sttAudioSeconds] : []))
+
+    for (let i = 0; i < 249; i++) onFrame!(new Int16Array(320)) // 4.98 s of 20 ms frames
+    expect(reported()).toEqual([])
+    onFrame!(new Int16Array(320))
+    expect(reported()).toEqual([5])
+    for (let i = 0; i < 100; i++) onFrame!(new Int16Array(320))
+    expect(reported()).toEqual([5])
+
+    await t.stop()
+    expect(reported()).toEqual([5, 2])
+  })
   it('stop closes the socket and the mic', async () => {
     const { t, ws, events } = await started()
     await t.stop()

@@ -74,7 +74,7 @@ export interface Usage {
   cachedTokens?: number
   /** Characters sent to cascade TTS. */
   ttsCharacters?: number
-  /** Seconds of audio streamed to cascade STT (session-level usage events only). */
+  /** Seconds of audio streamed to cascade STT since the last report (session-level usage events; the store sums them). */
   sttAudioSeconds?: number
 }
 
