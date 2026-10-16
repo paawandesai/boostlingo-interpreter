@@ -1,37 +1,39 @@
 # AGENTS.md
 
-How this repo is built with coding agents, and the rules any agent working in it follows. This file is kept honest: it says what actually happened, including what went wrong. The final account is written on Day 4 (T4.5).
+How this repo was built with coding agents, and the rules any agent working in it follows. The coding agent (Claude) wrote this file from the project history, and Paawan Desai, the owner, chose to keep it in the agent's voice. It describes what actually happened, including what went wrong.
 
-## Who does what
+## Who did what
 
-| Role | Who | Responsibilities |
+| Role | Who | What they did |
 |---|---|---|
-| Manager / owner | Paawan Desai | Sets goals, approves and merges MRs, makes product calls, runs the 🎧 checks that need a real mic and ears, scores quality blind |
-| Architect / reviewer | Claude, in a Claude Projects thread | Wrote the kickoff pack and the decisions log, writes task briefs, reviews MRs as blocking / should-fix / nit tied to a requirement, enforces the timebox |
-| Executor | Claude Code cloud session (a separate Claude Projects thread), cloned into this repo | Implements tasks from [docs/TASKS.md](docs/TASKS.md) one MR at a time, runs tests and hooks, opens MRs with `glab` |
+| Owner and manager | Paawan Desai, the only person on the project | Set the goals and the guardrails, made the product calls, approved every merge, did the checks that need a real microphone and ears (🎧), looked up vendor prices and terms the agents' container could not reach, reviewed the red-team labels and the blind rating sheet |
+| Planning and coordination | Claude, in Claude Projects | Turned the brief into the kickoff pack ([docs/SPEC.md](docs/SPEC.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TASKS.md](docs/TASKS.md), [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md), [docs/DECISIONS.md](docs/DECISIONS.md)), audited the brief for legal, licensing and ethics traps, briefed the coding sessions and routed Paawan's questions to them |
+| Coding | Claude Code cloud sessions, one per task thread | Cloned the repo, worked on a branch, ran the tests and hooks, opened merge requests, drove CI green, ran the soak and red-team jobs, and audited the result against the brief |
 
-Commits are authored as Paawan (the executor sets `user.name`/`user.email` from environment variables). Every commit made by an agent carries a `Co-Authored-By` trailer so the agent's share of the work is visible in history.
+Agents also made calls where the brief was silent, on a stated default, so work did not stop waiting for an answer. Anything that changed a goal, spent money or could not be undone went to Paawan first.
 
 ## Source of truth
 
-0. [docs/GUARDRAILS.md](docs/GUARDRAILS.md): compliance, licensing and safety rules. They outrank everything below, including the brief's acceptance criteria. A conflict is implemented in the rule's favour and recorded in README.md under "Known constraints".
-1. The Boostlingo brief (summarised in [docs/SPEC.md](docs/SPEC.md)). It wins on any conflict; conflicts are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
-2. [docs/TASKS.md](docs/TASKS.md): task list, hour budgets, repo layout, CI plan.
-3. [docs/DECISIONS.md](docs/DECISIONS.md): D1–D16 with rationale and trade-offs. Re-read before changing anything it covers, and update it when a decision changes.
+0. [docs/GUARDRAILS.md](docs/GUARDRAILS.md): compliance, licensing and safety rules. They outrank everything below, including the brief. A conflict is implemented in the rule's favour and recorded in README.md under "Known constraints".
+1. The Boostlingo brief, restated in [docs/SPEC.md](docs/SPEC.md). It is confidential and is not in the repo.
+2. [docs/TASKS.md](docs/TASKS.md): task list, budgets, repo layout, CI plan.
+3. [docs/DECISIONS.md](docs/DECISIONS.md): decisions with rationale and trade-offs. Re-read before changing anything it covers, and update it when a decision changes.
 4. [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md): definition of done. A box is ticked only with evidence.
 
-## Workflow
+## Rules for agents in this repo
 
-- One task = one feature branch = one MR, made of one or more logically scoped commits.
-- Conventional Commits: `feat(cascade): …`, `fix(audio): …`, `test(pipeline): …`, `docs: …`, `ci: …`, `chore: …`.
-- **Never squash.** MRs merge with a merge commit so every commit stays in history (the brief judges iterative development).
-- Never force-push `main`. Never commit with `--no-verify`.
-- Every task ends with: hooks pass, CI green, acceptance rows ticked with evidence, decisions log updated if needed.
-- If a task overruns its budget by 50%, stop and report in the thread.
+- Read [docs/GUARDRAILS.md](docs/GUARDRAILS.md) first, then the task's entry in TASKS.md and the decisions it touches.
+- One task, one branch, one merge request, made of logically scoped Conventional Commits (`feat(cascade): …`, `fix(audio): …`, `docs: …`). Never squash: merge requests merge with a merge commit so every commit stays in history. Never force-push `main`, never `--no-verify`.
+- A task is done when hooks pass, CI is green and its ACCEPTANCE.md rows are ticked with evidence.
+- Keys stay on the server, in environment variables only. Never print or commit one. The backend mints short-lived Realtime client secrets, so no OpenAI key reaches the browser. CI fails if a provider key name or `sk-` appears in the built web output (`scripts/check-bundle-secrets.sh`), and gitleaks scans the full history on every pipeline.
+- Synthetic data only. No real speech, names or patient details go to any provider, log or test.
+- Vendor facts (endpoints, event names, model ids, prices, terms) are checked against the vendor's own page or SDK type definitions and cited, or marked [VERIFY]. Never guessed.
+- Vendor code lives only in `server/Interpreter.Providers.*`; `Interpreter.Core` never references a provider; `web/src/components/**` never imports transport internals.
+- Live-provider tests are tagged `Category=Live` and never run on the push path.
+- Measure honestly: never stub a provider and report its latency, never widen a tolerance to pass, and report a missed benchmark as missed.
+- Don't change GitLab project settings (protection, schedules, runners); recommend them in the merge request.
 
 ## Commands
-
-Filled in as the skeleton and CI land (T0.2, T1.3).
 
 ```bash
 # backend
@@ -42,26 +44,32 @@ dotnet run --project server/Interpreter.Api
 # frontend
 cd web && npm ci && npm run dev      # Vite proxies /api and /ws to the backend
 npm run lint && npm run typecheck && npm test
+
+# eval
+python3 eval/summarize.py eval/results/logs/*.json     # p50/p95, WER, chrF, cost per mode
 ```
 
-## Guardrails
+## Attribution in history
 
-- **Secrets.** Never commit or print a key. Keys come only from environment variables on the server. The OpenAI key never reaches the browser: the backend mints short-lived Realtime client secrets. CI fails if `sk-`, `OPENAI_API_KEY`, `DEEPGRAM`, `ASSEMBLY`, `ELEVEN` or `DEEPL` appears in the built web output (`scripts/check-bundle-secrets.sh`). The pre-commit hook blocks staged lines that look like real credentials and lists keyword matches for review. Placeholders live in `.env.example`.
-- **Boundaries.** Vendor SDK/HTTP/WS code lives only in `server/Interpreter.Providers.*`. `Interpreter.Core` never references a provider assembly. `web/src/components/**` never imports transport internals.
-- **Vendor facts.** Don't guess endpoints, event names, model IDs or prices. Check current docs (or the vendor SDK's type definitions when docs are unreachable) and cite the source in the commit or MR.
-- **Tests.** Write the test first for the pipeline, FlushPolicy and latency calculator. Live-provider tests are tagged `Category=Live` and never run on the push path.
-- **Resources.** Every `start()` has a matching teardown and a test or check for it.
+Commits are authored as Paawan. Every commit an agent made carries a `Co-Authored-By` trailer naming the model and a `Claude-Session` trailer (a private link to the session that made it), and 119 of the 261 commits on `main` have Claude as committer. [AI_USAGE.md](AI_USAGE.md) lists which artifacts were model-generated and which were checked.
 
-## Do not
+## What the history shows, honestly
 
-- Polish the UI before every must-have works end to end.
-- Add providers beyond those in D7 without approval.
-- Squash, force-push `main`, or bundle unrelated changes into one commit.
-- Change GitLab project settings (protection, schedules, runners); recommend them in the MR instead.
-- Write code in a docs-only task, or docs-only changes in a code task's commit.
+- **Some branches carry more than one task**, against the one-task-one-branch rule: the Vietnamese-onboarding branch also carries the eval summary, write-up draft and README; the output-checks branch carries six guardrail tasks; the final-audit branch carries 46 commits of fixes.
+- **`.gitignore` with `.env` arrived in the fifth commit**, the first code commit; the first four were docs only. No `.env` or key was ever committed.
+- **The container could not reach OpenAI's, ElevenLabs' or Deepgram's websites.** Endpoint and event names were checked against the `openai` npm package's type definitions and live API calls; prices and data terms were read from the official pages by Paawan.
 
-## Environment notes (honest log)
+## What went wrong
 
-- The repo lives on a self-hosted GitLab (labs.gauntletai.com). Claude Projects attaches only github.com repos, so the cloud session clones over HTTPS with a token from its environment and uses `glab` for MRs. On 2026-10-14 the environment's setup script did not run its GitLab steps, so the first session connected by hand (credential helper, per-repo identity, `glab auth login`).
-- The cloud container has no microphone or speakers. Automated audio checks use Chromium fake-audio flags with replay files; anything that needs ears is a 🎧 task for Paawan.
-- The container's network policy blocks OpenAI's docs sites, so Realtime endpoint and event names were checked against the `openai` npm package's type definitions (v7.32.0) and confirmed with live API calls.
+- **Translate-mode transcript lines were rewritten three times.** Pairing source and target lines by pauses, then by sentence count, both misattributed translations in the soak runs. The fix came from probing the live stream and finding that both transcripts share the model's `elapsed_ms` clock.
+- **Realtime silently dropped 7 of 26 turns** ("conversation already has an active response") until the 5-minute soak exposed it. Turns are now queued, and a commit that arrives during a response waits for it.
+- **The replay harness clipped about 1 in 4 cascade turns**, which a late recheck of the brief found: the next clip started before the previous interpretation, and the mic gate cut it. After the fix the cascade and both Realtime models were re-measured; Realtime translate, the Claude-translator cascade and the red-team suite were not, and the write-up says so.
+- **Latency started over target.** Server-side end-of-turn detection cost about 500 ms per turn and merged turns. Moving endpointing to the browser and streaming speech-to-text brought Realtime to 1271/1602 ms and cascade to 1940/2319 ms (p50/p95). Realtime's p95 still misses 1.5 s.
+- **OpenAI credit ran out mid-soak** on 2026-10-15, so some runs are smaller than planned. No run reached the guardrails' 50 latency samples.
+- **Deepgram's terms forbid benchmarking without consent**, so an OpenAI speech-to-text adapter was added and no Deepgram number is published.
+- **Heap growth from minute 1 misses the 10% criterion.** A 6-minute probe showed the heap levels off once the transcript view reaches its row cap, so it is reported as measured with that explanation, not re-tuned to pass.
+- **Tooling slips:** an agent killed its own shell with `pkill -f` matching its own command line; a CI artifact upload failed (413) and hid a report; local runs tripped on `source .env` not exporting variables.
+
+## What to do differently next time
+
+Plan the whole UI as a wireframe first and build to it; here the UI took a second pass (UI v2). Run the full measurement suite once early, so harness bugs show up before the numbers are written up.

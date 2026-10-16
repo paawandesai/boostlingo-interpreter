@@ -1,9 +1,11 @@
 # CLAUDE.md
 
-Read [docs/GUARDRAILS.md](docs/GUARDRAILS.md) before any change; it outranks every other document. Then read [AGENTS.md](AGENTS.md): roles, workflow, commands, guardrails and the "do not" list all live there. This file adds only what Claude Code needs at the start of a session.
+Read [docs/GUARDRAILS.md](docs/GUARDRAILS.md) before any change; it outranks every other document, including the brief. Then read [AGENTS.md](AGENTS.md) for how this repo is run with agents and the rules that apply.
 
-- Start each task by reading its entry in [docs/TASKS.md](docs/TASKS.md) and the decisions it touches in [docs/DECISIONS.md](docs/DECISIONS.md).
-- Work on a feature branch named `t<id>-<slug>` (for example `t1.4-audio-io`) and open an MR with `glab mr create`. Never push to `main` after the bootstrap commit.
-- Keep commits small and Conventional; never squash, never `--no-verify`.
-- Before calling a task done: tests and hooks pass, CI is green, and the task's rows in [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) are ticked with evidence.
-- Say "verify" next to any vendor fact you could not check, and check it before code depends on it.
+At the start of a task:
+
+- Read the task in [docs/TASKS.md](docs/TASKS.md) and the decisions it touches in [docs/DECISIONS.md](docs/DECISIONS.md).
+- Work on a branch named `t<id>-<slug>` and open a merge request; never push to `main`.
+- Small Conventional Commits; never squash, never `--no-verify`.
+- A task is done when tests and hooks pass, CI is green and its rows in [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) are ticked with evidence.
+- Mark any vendor fact you could not check as [VERIFY], and check it before code depends on it.

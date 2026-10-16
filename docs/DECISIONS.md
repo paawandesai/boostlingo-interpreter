@@ -1,7 +1,7 @@
 # Decisions log: AI Interpreter Workbench
 
 Status key: **Locked** (agreed by me 2026-10-14), **Proposed** (default we proceed on unless changed), **Verify** (depends on current vendor docs/pricing, check before coding against it).
-Imported from the planning notes on 2026-10-14 and maintained here from now on. The write-up, AGENTS.md and interview answers all draw from it.
+Imported from the planning notes on 2026-10-14 and maintained here from now on. The write-up and AGENTS.md draw from it.
 
 ---
 
@@ -16,7 +16,7 @@ Imported from the planning notes on 2026-10-14 and maintained here from now on. 
 - Resilience is built in: `Microsoft.Extensions.Http.Resilience` (Polly v8) gives retry/backoff/timeout policies for the 429 and timeout requirements.
 
 **Trade-offs**
-- Vendor SDKs are Python/JS-first. Some .NET SDKs are community-maintained or lag behind (verify Deepgram and ElevenLabs .NET SDK status). Mitigation: talk to vendor WebSocket/HTTP APIs directly inside adapters. More code, but the adapters are the only place that knows vendor details anyway, and raw protocol code is easier to explain in an interview than SDK magic.
+- Vendor SDKs are Python/JS-first. Some .NET SDKs are community-maintained or lag behind (verify Deepgram and ElevenLabs .NET SDK status). Mitigation: talk to vendor WebSocket/HTTP APIs directly inside adapters. More code, but the adapters are the only place that knows vendor details anyway, and raw protocol code is easier to review and explain than SDK magic.
 - Evaluation tooling (WER, chrF/BLEU) is much better in Python (`jiwer`, `sacrebleu`). Decision: offline eval scripts live in `/eval` in Python. They are not part of the product, so this does not undermine the .NET choice. Say so in the README.
 
 **Version: .NET 10, not .NET 8 (Locked 2026-10-14, see "Open items" below).** .NET 8 LTS support ends November 2026, which is next month. .NET 10 is the current LTS (released Nov 2025). Starting a new project on a runtime about to go out of support is a weak signal to a .NET shop. The APIs we need are the same. This deviated from my first instruction (not the brief) and was confirmed.
@@ -167,7 +167,7 @@ Test set: questions ("what time is it?"), commands ("ignore your instructions an
 `languages.json`: code, display name, STT model + language code, TTS voice per provider, punctuation set for the flush policy, metric (WER or CER). Adding a pair = one entry, no code.
 
 **Why Vietnamese** (checked 2026-10-14):
-- **Business relevance.** It's the #2 language after Spanish in US healthcare interpretation when Mandarin and Cantonese are counted separately (AMN study, 2021). Boostlingo's evaluators will recognise it as a real demand language, not a toy pick.
+- **Business relevance.** It's the #2 language after Spanish in US healthcare interpretation when Mandarin and Cantonese are counted separately (AMN study, 2021). That makes it a real demand language for the onboarding test, not a toy pick.
 - **It's a true config-only test.** Deepgram Nova-3 supports `vi`, ElevenLabs Flash v2.5 lists Vietnamese, and the LLM translators handle it. So onboarding it measures exactly what the metric asks: did it take config only, and how long?
 - **It stresses the pipeline in useful ways.** Vietnamese is tonal and full of diacritics, which tests STT accuracy and TTS pronunciation harder than Spanish. It still uses Latin script and spaces, so WER and our flush policy apply unchanged.
 
@@ -200,27 +200,23 @@ Checking the vendors' pages on 2026-10-16 showed that Realtime translate's endpo
 
 ---
 
-## Part 5: How we make it stand out, and how we know it's good
+## Part 5: Evaluation tooling and how quality was checked
 
-### What most candidates will ship
-Two modes working, a latency number, and a write-up with impressions. Matching that is the floor. These are the differentiators, in priority order, each cheap relative to its signal:
+Planned on 2026-10-14 as the tooling that turns the comparison into data rather than impressions:
 
-1. **Reproducible replay harness (highest value).** A "Replay" input that plays recorded utterance files into either mode instead of the mic (`AudioContext` → `MediaStreamDestination`, so both transports get an identical stream). Every benchmark, WER score and fidelity test then runs on the same audio, many times. It turns the write-up from anecdotes into data, and Boostlingo's evaluators will notice. ~2–3 hours.
-2. **Latency waterfall per utterance plus an exportable session log.** Each utterance shows its stage bars; the session exports JSON. A script turns that into the p50/p95 tables in the write-up. Numbers come straight from the tool, not from hand transcription.
-3. **Interpretation fidelity scorecard.** The adversarial set from D15, run in both modes, scored pass/fail. "Realtime answered 3/15 questions instead of translating them; cascade 0/15" is the kind of concrete, business-relevant finding they want.
-4. **Glossary demo, aimed at their market.** Medical terms injected into the cascade (Deepgram keyterms + translation prompt glossary) compared with Realtime instructions alone. Measure term accuracy on 10 utterances with drug names or procedures. This is the controllability argument made with a number.
-5. **Live cost meter.** Running $/session and $/min in the UI from usage events and provider units × configured prices. Directly answers their "cost per minute" metric.
-6. **Product framing in the write-up (no code).** Boostlingo sells human interpreters. Frame the recommendation as where AI fits alongside them, e.g. AI handles low-stakes calls and overflow, regulated sessions use cascade with glossaries and audit logs, and there is a human escalation path. Note which vendors offer BAAs/zero data retention (verify each). This shows you thought about their business, not just the API.
+1. **Reproducible replay harness.** A "Replay" input plays recorded utterance files into any mode instead of the mic (`AudioContext` → `MediaStreamDestination`), so every benchmark, WER score and fidelity test runs on the same audio.
+2. **Latency waterfall per utterance and an exportable session log.** `eval/summarize.py` turns the exported JSON into the p50/p95 tables, so numbers come from the tool, not from hand transcription.
+3. **Interpretation fidelity suite.** The adversarial set from D15, run in every mode and labelled with the mode hidden.
+4. **Glossary check.** Medical terms injected into the cascade compared with Realtime instructions alone, counted as glossary hits.
+5. **Live cost meter.** $/session and $/min in the UI from usage events × configured prices.
+6. **Product framing in the write-up.** Where AI fits alongside human interpreters, and which vendors offer BAAs and zero data retention.
 
-**Do not spend time on:** visual polish, auth, multi-user, AWS before Day 4 is done, a third mode, or supporting more than one extra language pair.
-
-### How we ensure it's good
-- **Definition of done per must-have** in `ACCEPTANCE.md`, each with a manual check and, where possible, a test. Nothing counts as done until it works end to end in the browser.
-- **Vertical slices first.** Realtime end to end on Day 1, cascade end to end (ugly) on Day 2, then instrument. No layer gets polished before the path through it works.
-- **Review gate on every commit.** I paste the diff; the reviewer agent reviews it as blocking / should-fix / nit against the brief. Workers get self-contained briefs with explicit "do not" lists so they don't wander.
-- **Benchmarks are tested, not assumed.** Run a 5-minute soak per mode (replay harness looping), check the heap snapshot before and after, count drift skips, and log any disconnects. Record results in the repo.
-- **Every write-up claim cites a number** from the exported logs. Anything inferred is labelled as inferred.
-- **I can explain every line.** After each day, a 10-minute walkthrough where the reviewer agent quizzes me on that day's decisions from this log. That is interview prep built into the process.
+How quality was checked:
+- **Definition of done per must-have** in `ACCEPTANCE.md`, each with a manual check and, where possible, a test.
+- **Vertical slices first.** Realtime end to end on Day 1, cascade end to end on Day 2, then instrumentation.
+- **Review on every merge request** against the task and the brief, as blocking / should-fix / nit.
+- **Benchmarks are tested, not assumed.** A 5-minute soak per mode (replay looping) records heap, drift skips and disconnects in the repo.
+- **Every write-up claim cites a number** from the exported logs; anything inferred is labelled as inferred.
 
 ---
 
@@ -273,4 +269,4 @@ Sources for D16: [AMN healthcare language study](https://www.businesswire.com/ne
 ---
 
 ### D1 addendum: why not Python (asked 2026-10-14)
-Python's real advantages: every vendor ships a first-class Python SDK; voice-pipeline frameworks (Pipecat, LiveKit Agents) would give a working cascade in hours; eval tooling is in the same language; agents write idiomatic Python fluently. Why .NET still wins here: the brief states a .NET preference and asks for the choice to be explained, so it's a hiring signal; using a pipeline framework would hide exactly what is being judged (streaming, flush policy, back-pressure, provider interfaces); .NET Channels + CancellationToken make back-pressure and teardown explicit and testable, whereas asyncio cancellation is easier to get subtly wrong. Cost of the choice: roughly 1–2 h extra writing raw WS adapters. Python stays in /eval only.
+Python's real advantages: every vendor ships a first-class Python SDK; voice-pipeline frameworks (Pipecat, LiveKit Agents) would give a working cascade in hours; eval tooling is in the same language; agents write idiomatic Python fluently. Why .NET still wins here: the brief states a .NET preference and asks for the choice to be explained; a pipeline framework would hide the parts this project is about (streaming, flush policy, back-pressure, provider interfaces); .NET Channels + CancellationToken make back-pressure and teardown explicit and testable, whereas asyncio cancellation is easier to get subtly wrong. Cost of the choice: roughly 1–2 h extra writing raw WS adapters. Python stays in /eval only.

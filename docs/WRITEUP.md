@@ -1,7 +1,7 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`. **[VERIFY]** and **[REPHRASE]** markers are
-> mine to clear: a vendor page, citation or figure to check, or an opinion to restate in my own words.
+> Every number comes from a file under `eval/results/`. A **[VERIFY]** marker is a vendor fact that
+> nobody could check against the vendor's own page yet. The prose is AI-written (AI_USAGE.md).
 > A browsing AI assistant read the vendor prices, data terms and legal citations on the official pages
 > on 2026-10-16 and I checked its table (an AI coding agent read the Claude Haiku price on 2026-10-14).
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
@@ -21,7 +21,8 @@ the TTS stream when translation starts. Each run looped synthetic TTS clips of s
 Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
-its alternatives **[VERIFY: I check references, then score blind]**. Deepgram's terms bar
+its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode, en → es)
+and judged all 21 acceptable, without per-dimension scores. Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
 ## 2. Latency (client ms, speech end → first audio, 2026-10-16)
@@ -65,9 +66,9 @@ numbers of earlier drafts. Realtime translate was last scored on 2026-10-15 with
 one reference (chrF 69.4, 11 of 15 glossary hits). `gpt-realtime-whisper` takes no prompt, so
 glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
 because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
-Vietnamese onboarding run scored chrF 90.8 on 8 of 13 lines against references no Vietnamese
-speaker has checked (`eval/results/onboarding-vi.md`). **This table is not a ranking** until there
-is recorded speech, checked references and my own rubric, scored with the mode hidden.
+Vietnamese onboarding run used Deepgram STT, so it has no published quality number
+(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic, and my
+blind review judged all 21 sampled outputs acceptable, so it does not separate the modes either.
 
 ## 4. Cost per minute
 
@@ -125,7 +126,7 @@ HIPAA-compliant. BAA mode (off by default, README "BAA mode") refuses any route 
 HIPAA-eligible list, so Realtime translate is always refused; the per-vendor retention, zero-retention
 and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
 
-## 6. Recommendation by scenario **[REPHRASE]**
+## 6. Recommendation by scenario
 
 | Scenario | Recommendation | Why |
 |---|---|---|
@@ -141,4 +142,5 @@ and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
   samples, and only `gpt-realtime-2.1` went through the red-team suite.
 - No Deepgram numbers, and no cascade cost with `gpt-realtime-whisper` priced.
 - Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%).
-- Quality references are model-written and unchecked, and the red-team labels have one labeller.
+- Quality references are model-written; one person reviewed them and the 21-row blind sheet, with
+  no per-dimension scores. The red-team labels have one labeller.

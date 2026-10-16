@@ -1,7 +1,7 @@
 # Write-up appendix: method and longer analyses
 
 Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it at two pages. Every number comes from a file
-under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
+under `eval/results/`; the same **[VERIFY]** rule applies.
 
 ## A. Setup and method
 
@@ -26,8 +26,8 @@ under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
   (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
-  single-reference numbers. References were written by a model and are unverified (the same
-  **[VERIFY: I check references, then score blind]** as in the write-up).
+  single-reference numbers. References were written by a model; Paawan reviewed them and judged all 21 rows of the blind
+  sheet acceptable, without per-dimension scores (`eval/rating.py`).
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
@@ -120,10 +120,9 @@ Fewer turns fit in 5 minutes because each one now waits for its reply. The tuned
 translate and the red-team suite were not re-run, so their 2026-10-15 numbers, and the red-team
 omission counts, are still inflated by the harness.
 A person who stops talking when the interpreter starts would not lose words this way, but one who
-keeps talking would, so the first-clause flush remains a secondary suspect. **[VERIFY with the fixed
-replay and a recorded run before quoting cascade quality.]** The Vietnamese onboarding run, with longer pauses, scored chrF 90.8
-(`eval/results/onboarding-vi.md`, "Summary of the two logs": 8 matched lines of 13 translated,
-Deepgram STT so latency withheld, references unchecked by a Vietnamese speaker).
+keeps talking would, so the first-clause flush remains a secondary suspect. No recorded run has
+tested that. The Vietnamese onboarding run used Deepgram STT, so it is a functional check with no
+quality number (`eval/results/onboarding-vi.md`).
 
 On 2026-10-15 Realtime matched only 13 lines because server-side endpointing merged several clips
 into one turn, which the line matcher can't split; with client endpointing and the fixed replay both
