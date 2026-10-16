@@ -8,13 +8,12 @@ acceptance criterion, implement the rule and record the conflict in README.md un
 
 ## Reading the PRD
 - The PRD is a hiring document, not a spec you may redistribute. Never commit the PRD, its
-  PDF/docx, or long verbatim quotes into the repo (the Thesis brief is marked "Confidential -
-  Thesis Internal"). Paraphrase requirements in your own words.
+  PDF/docx, or long verbatim quotes into the repo. Paraphrase requirements in your own words.
 - Normalize the PRD's export artifacts; never copy them: `AI\_USAGE.md` is `AI_USAGE.md`,
   `https\://` is `https://`, `â€"` is an em dash, `â‰¥` is `≥`, `&lt;code&gt;` is `<code>`.
   Leftover editorial notes such as "(Raised from 2 days: ...)" are not requirements.
-- Inputs the PRD describes but did not deliver (a `data/` folder, "provided parcels", a
-  warehouse schema "reviewed at onboarding") are requested, not invented. If you must
+- Inputs the PRD describes but did not deliver (a data folder, sample files, a schema) are
+  requested, not invented. If you must
   generate stand-ins, name them `fixtures/generated-*`, say so in the README, and never
   describe them as "provided".
 - Every model name, API path, vendor tier, and legal citation in the PRD is checked against

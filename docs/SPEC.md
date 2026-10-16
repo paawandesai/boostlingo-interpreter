@@ -1,6 +1,6 @@
 # SPEC: AI Interpreter Workbench (Realtime API vs. Cascade Pipeline)
 
-This page restates the Boostlingo Week 4 brief in the repo's own words; the brief itself is confidential and is not quoted here. Precedence: [GUARDRAILS.md](GUARDRAILS.md) outranks the brief, and the brief outranks everything else in this repo. A conflict between the guardrails and the brief is resolved in the guardrails' favour and recorded in the README under "Known constraints"; any other conflict with the brief is resolved in the brief's favour and recorded in [DECISIONS.md](DECISIONS.md).
+This page restates the Boostlingo brief in the repo's own words; the brief itself is confidential and is not quoted here. Precedence: [GUARDRAILS.md](GUARDRAILS.md) outranks the brief, and the brief outranks everything else in this repo. A conflict between the guardrails and the brief is resolved in the guardrails' favour and recorded in the README under "Known constraints"; any other conflict with the brief is resolved in the brief's favour and recorded in [DECISIONS.md](DECISIONS.md).
 
 ## Problem
 
