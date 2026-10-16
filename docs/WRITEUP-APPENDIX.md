@@ -9,7 +9,7 @@ under `eval/results/`; the same **[VERIFY]** and **[REPHRASE]** rules apply.
   *Realtime*: `gpt-realtime-2.1` speech-to-speech over WebRTC, instructed only to interpret, no tools.
   *Realtime translate*: `gpt-realtime-translate`, a dedicated streaming translation model that takes
   only a target language. The brief's `gpt-realtime` is deprecated (removal 2027-01-20 per OpenAI's
-  deprecations page, † in the write-up); it stays selectable but is not the default, and it was never measured.
+  deprecations page); it stays selectable but is not the default, and it was never measured.
 - **Audio.** 65 synthetic TTS clips of scripted English ↔ Spanish dialogue (both directions),
   looped for 5 minutes per mode in headless Chromium (fake mic): Realtime and Realtime translate on
   the CI runner, Cascade in the cloud container with each translator (OpenAI, Claude). The 28
