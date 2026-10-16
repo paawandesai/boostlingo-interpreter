@@ -16,70 +16,30 @@ describe('fetchHealth', () => {
 
 describe('missingConfig', () => {
   const base = { status: 'ok', version: '1' }
-  // Every key unset, in the sorted order /health sends them.
-  const keys = {
-    CLAUDE_TRANSLATOR_API_KEY: false,
-    DEEPGRAM_API_KEY: false,
-    ELEVENLABS_API_KEY: false,
-    OPENAI_API_KEY: false,
-  }
+  const adapters = { cascadeStt: 'openai', cascadeTranslator: 'openai', cascadeTts: 'elevenlabs' }
 
-  it('lists unset keys and a missing access token, and nothing for an older server', () => {
+  it('shows the keys the server says are missing, after a missing access token', () => {
     expect(missingConfig(base)).toEqual([])
     expect(
       missingConfig({
         ...base,
-        config: {
-          accessTokenSet: false,
-          keys: { OPENAI_API_KEY: true, DEEPGRAM_API_KEY: false },
-          cascadeStt: 'deepgram',
-          cascadeTranslator: 'openai',
-          cascadeTts: 'elevenlabs',
-        },
+        config: { accessTokenSet: false, keys: { A_KEY: true, B_KEY: false }, ...adapters, missing: ['B_KEY'] },
       }),
-    ).toEqual(['DEMO_ACCESS_TOKEN', 'DEEPGRAM_API_KEY'])
+    ).toEqual(['DEMO_ACCESS_TOKEN', 'B_KEY'])
+    expect(
+      missingConfig({
+        ...base,
+        config: { accessTokenSet: true, keys: { A_KEY: true, B_KEY: false }, ...adapters, missing: [] },
+      }),
+    ).toEqual([])
   })
 
-  it('skips the keys of cascade adapters that are not configured', () => {
-    // The public demo: OpenAI STT and translator, so Deepgram and the Anthropic translator key do not matter.
+  it('lists every unset key when an older server sends no missing list', () => {
     expect(
       missingConfig({
         ...base,
-        config: {
-          accessTokenSet: true,
-          keys,
-          cascadeStt: 'openai',
-          cascadeTranslator: 'openai',
-          cascadeTts: 'elevenlabs',
-        },
+        config: { accessTokenSet: true, keys: { A_KEY: false, B_KEY: true, C_KEY: false }, ...adapters },
       }),
-    ).toEqual(['ELEVENLABS_API_KEY', 'OPENAI_API_KEY'])
-    expect(
-      missingConfig({
-        ...base,
-        config: {
-          accessTokenSet: true,
-          keys,
-          cascadeStt: 'deepgram',
-          cascadeTranslator: 'anthropic',
-          cascadeTts: 'other',
-        },
-      }),
-    ).toEqual(['CLAUDE_TRANSLATOR_API_KEY', 'DEEPGRAM_API_KEY', 'OPENAI_API_KEY'])
-  })
-
-  it('still lists a key it does not know about', () => {
-    expect(
-      missingConfig({
-        ...base,
-        config: {
-          accessTokenSet: true,
-          keys: { NEW_VENDOR_KEY: false },
-          cascadeStt: 'openai',
-          cascadeTranslator: 'openai',
-          cascadeTts: 'elevenlabs',
-        },
-      }),
-    ).toEqual(['NEW_VENDOR_KEY'])
+    ).toEqual(['A_KEY', 'C_KEY'])
   })
 })

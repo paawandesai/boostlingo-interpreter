@@ -8,31 +8,26 @@ export interface Health {
     cascadeStt: string
     cascadeTranslator: string
     cascadeTts: string
+    /** Unset keys the configured adapters need, decided by the server. Absent on older servers. */
+    missing?: string[]
   }
   /** ISO time each provider last succeeded in a real session, keyed "stage:adapter". */
   lastSuccess?: Record<string, string>
 }
 
-type HealthConfig = NonNullable<Health['config']>
-
 /**
- * Keys only one cascade adapter needs. /health reports every key the server knows, so a key is
- * listed as missing only when the adapter that would use it is the configured one; the others
- * (OPENAI_API_KEY for both Realtime modes and the OpenAI cascade adapters) are always needed.
+ * Server settings that will make a session fail, for the header. The server says which unset keys
+ * its configured adapters need (`missing`); the SPA never carries key names itself (the bundle check
+ * forbids them). An older server without `missing` gets every unset key listed.
  */
-const NEEDED_BY: Record<string, (c: HealthConfig) => boolean> = {
-  DEEPGRAM_API_KEY: (c) => c.cascadeStt === 'deepgram',
-  CLAUDE_TRANSLATOR_API_KEY: (c) => c.cascadeTranslator === 'anthropic',
-  ELEVENLABS_API_KEY: (c) => c.cascadeTts === 'elevenlabs',
-}
-
-/** Server settings that will make a session fail, for the header. */
 export function missingConfig(h: Health): string[] {
   const config = h.config
   if (!config) return []
-  const missing = Object.entries(config.keys)
-    .filter(([name, set]) => !set && (NEEDED_BY[name]?.(config) ?? true))
-    .map(([name]) => name)
+  const missing =
+    config.missing ??
+    Object.entries(config.keys)
+      .filter(([, set]) => !set)
+      .map(([name]) => name)
   return config.accessTokenSet ? missing : ['DEMO_ACCESS_TOKEN', ...missing]
 }
 
