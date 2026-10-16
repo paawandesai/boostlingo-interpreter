@@ -82,9 +82,9 @@ Notes on reading the evidence lines:
 
 ## 1c. Code-quality expectations (brief §Code Quality)
 
-- [ ] **Mode-specific transport separate from mode-agnostic UI**  
-  Enforcement: `web/src/transports/{translate,realtime,cascade}` implement one `Transport` interface; UI imports only the interface and the session store. ESLint `no-restricted-imports` rule blocks `components/**` from importing `transports/*/**` internals  
-  Evidence: `web/src/transports/index.ts` is the only module that knows the concrete transports (`createTransport(mode)`); every file in `web/src/components/` imports only types from `transports/types`. The ESLint rule in `web/eslint.config.js` (lines 22–45) blocks `components/**` from `transports/realtime` and `transports/cascade`. Waits on: the rule adding `**/transports/translate/**` (the third transport, G17, is not in its pattern list); tick once it is.
+- [x] **Mode-specific transport separate from mode-agnostic UI**  
+  Enforcement: `web/src/transports/{translate,realtime,cascade}` each implement the one `Transport` interface (`web/src/transports/types.ts`); UI imports only the interface and the session store. ESLint `no-restricted-imports` blocks `components/**` from importing `transports/*` and `transports/*/**`, with only `transports/types` and `transports/index` allowed  
+  Evidence: `TranslateTransport`, `RealtimeTransport` and `CascadeTransport` each declare `implements Transport`; `web/src/transports/index.ts` (`createTransport(mode)`) is the only module that knows the concrete transports, and every file in `web/src/components/` imports only types from `transports/types`. The ESLint rule in `web/eslint.config.js` (`files: ['src/components/**/*.{ts,tsx}']`, group `['**/transports/*', '**/transports/*/**', '!**/transports/types', '!**/transports/index']`) covers every transport folder, including any added later; it was widened from `{realtime,cascade}` to that pattern in dc09251 (branch `fa/web`), and `web:lint` runs it on every MR.
 
 - [x] **Provider abstractions**  
   Enforcement: `IStreamingStt`, `IStreamingTranslator`, `IStreamingTts` in `server/Interpreter.Core`; vendor SDK/HTTP code only in `server/Interpreter.Providers.*`. An architecture test (NetArchTest or reflection) fails if Core references a Providers assembly  
