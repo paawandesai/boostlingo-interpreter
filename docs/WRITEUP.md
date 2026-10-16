@@ -76,9 +76,11 @@ Claude-translator red-team run.
 | Realtime translate | 70 of 71 | 64 | 69.4 | n/a | 11 of 15 | length ratio 7, wrong language 1 |
 
 **Cascade loses the ends of sentences in this replay, and that, not translation, drives its scores**
-("Do you accept" for "Do you accept credit cards?"). The inferred cause (a first-clause flush whose
-spoken output trips the half-duplex mic gate) is not yet proven; it and the fix candidates are in
-appendix C, with a recorded run still to do. The Vietnamese onboarding run, with longer pauses, scored chrF 90.8 on the 8 of 13 translated lines the
+("Do you accept" for "Do you accept credit cards?"). The marks point at the replay harness, not
+the pipeline: it started the next clip once the interpreter had been idle for 600 ms, so 12 of 56
+(Claude translator) and 14 of 62 (OpenAI) turns ended at or before the previous turn's first
+interpreter audio, and the half-duplex mic gate then cut the clip. A replay fix is in progress and
+a re-run would change these numbers (appendix C). The Vietnamese onboarding run, with longer pauses, scored chrF 90.8 on the 8 of 13 translated lines the
 matcher could pair, against references no Vietnamese speaker has checked, latency withheld because it
 ran on Deepgram STT (`eval/results/onboarding-vi.md`, "Summary of the two logs"). Realtime's 13
 matched lines are merged turns the matcher can't split. **This table is not a ranking** until there
@@ -133,6 +135,12 @@ sentence-tail loss (section 3) shows up as omitted or mangled lines (examples in
 are subjective counts from synthetic voices and one labeller, with small n (Realtime merged clips
 into 17 turns): failure shapes, not benchmark rates.
 
+**Lock-in and observability.** Cascade spreads the session over three vendors, but each stage is a
+config entry behind one interface: the STT swap (Deepgram to OpenAI transcription) and the translator
+swap (OpenAI to Claude) were config-only, and every stage reports its own marks, so a slow or failing
+vendor is visible per stage. Realtime and Realtime translate are one vendor each: the model's time is
+opaque, no stage can be swapped, and leaving the vendor means a new transport, not a setting.
+
 **Data flows.**
 
 | Vendor | Used in | Default retention | Zero retention | BAA |
@@ -164,4 +172,5 @@ agreements instead of one. No audio is stored; transcripts are discarded at End 
 - No prices for STT, TTS or OpenAI models, so no cost per minute.
 - Heap grew more than 10% from minute 1 in every mode but Realtime translate; cascade dropped
   22–26 s of late interpreter audio per 5-minute replay to stay in sync.
-- Cascade's sentence-tail loss under replay (section 3) is unexplained until a recorded run.
+- Cascade's sentence-tail loss under replay (section 3) is most likely the replay's turn-taking;
+  the cascade quality and omission numbers wait on a re-run with the fixed replay.

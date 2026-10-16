@@ -45,11 +45,17 @@ minute 1 across the four replay runs (criterion < 10%; only Realtime translate p
 
 **Cascade loses the ends of sentences in this replay, and that, not translation, drives its scores.**
 Its source lines stop early ("Do you accept" for "Do you accept credit cards?", "Trabajo de lunes a
-viernes." without "de ocho a cinco"). Inferred cause, not yet proven: cascade flushes a translation
-at the first clause, its spoken output starts while the clip is still playing, and the half-duplex
-mic gate then drops the rest of the clip. A person who stops when the interpreter starts would not
-lose words this way, but one who keeps talking would. **[VERIFY with a recorded run; fix candidates:
-flush only on sentence ends, or keep capturing while gated and queue the remainder.]** The Vietnamese onboarding run, with longer pauses, scored chrF 90.8
+viernes." without "de ocho a cinco"). The marks in the two 2026-10-15 cascade replay logs point at the
+replay harness rather than the flush policy: the harness started the next clip as soon as the
+interpreter had been idle for 600 ms, before the previous turn had been interpreted, so 12 of 56
+turns (Claude translator) and 14 of 62 (OpenAI translator) have a speech end at or before the previous
+turn's `audio.first_out` mark (computed from `marks` in `eval/results/logs/`), and the half-duplex mic
+gate then cut the clip when that interpretation started playing. A fix to the replay (wait for the
+reply to start, up to 8 s, then for it to finish) is in progress on a separate branch; the cascade
+WER, chrF and omission figures are expected to change after a re-run, which needs OpenAI credit.
+A person who stops talking when the interpreter starts would not lose words this way, but one who
+keeps talking would, so the first-clause flush remains a secondary suspect. **[VERIFY with the fixed
+replay and a recorded run before quoting cascade quality.]** The Vietnamese onboarding run, with longer pauses, scored chrF 90.8
 (`eval/results/onboarding-vi.md`, "Summary of the two logs": 8 matched lines of 13 translated,
 Deepgram STT so latency withheld, references unchecked by a Vietnamese speaker).
 
