@@ -78,6 +78,8 @@ export type SessionAction =
   | { type: 'started'; at?: number }
   | { type: 'segmentEnded'; at: number }
   | { type: 'ended' }
+  /** The transport ended the session itself (a duration limit, the server closing): the transcript stays for export. */
+  | { type: 'closed' }
   | { type: 'handoff' }
   | { type: 'dismissError' }
   | { type: 'marker'; text: string }
@@ -178,6 +180,9 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'ended':
       // G20: transcripts live only for the session view; export before End to keep them.
       return { ...discardTranscript(state), status: 'ended', level: 0, gated: false }
+    case 'closed':
+      // Leaves the live screen with the error that explains why; the next start discards the transcript (G20).
+      return { ...state, status: 'ended', level: 0, gated: false, pendingSpeechEnd: null, notice: null }
     case 'handoff':
       // The transcript stays for this screen only, so it can still be exported after the handoff; the next
       // start discards it (G20).

@@ -88,6 +88,23 @@ describe('useSession', () => {
     },
   )
 
+  it('leaves the live state and releases the transport when it ends the session itself', async () => {
+    await act(() => session.start())
+    const t = created[0]
+    await act(async () => {
+      for (const l of t.listeners) l({ type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hi', final: true })
+      for (const l of t.listeners) l({ type: 'error', kind: 'unavailable', message: 'limit reached' })
+      for (const l of t.listeners) l({ type: 'state', state: 'closed' })
+    })
+
+    expect(session.state.status).toBe('ended')
+    expect(session.state.error?.message).toBe('limit reached')
+    // Kept for export on the setup screen; the next start discards it.
+    expect(session.state.timeline).toHaveLength(1)
+    expect(t.stop).toHaveBeenCalled()
+    expect(created).toHaveLength(1)
+  })
+
   it('still switches modes when nothing interrupts the switch', async () => {
     await act(() => session.start())
     await act(() => session.switchMode('cascade'))

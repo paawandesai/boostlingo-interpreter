@@ -148,13 +148,16 @@ export class RealtimeTransport implements Transport {
       const max = info.maxSessionSeconds
       if (max)
         this.limitTimer = setTimeout(() => {
-          void this.release().then(() =>
+          // The session is over, not paused: the mic closes and the UI leaves the live screen (closed).
+          this.stopped = true
+          void this.release().then(() => {
             this.emitter.emit({
               type: 'error',
               kind: 'unavailable',
               message: `This session reached the ${Math.round(max / 6) / 10}-minute limit. Start a new session to continue.`,
-            }),
-          )
+            })
+            this.emitter.emit({ type: 'state', state: 'closed' })
+          })
         }, max * 1000)
     }
     // ICE can fail silently behind strict firewalls; surface it instead of "connecting" forever.

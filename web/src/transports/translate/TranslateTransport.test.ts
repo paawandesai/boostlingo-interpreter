@@ -131,11 +131,13 @@ describe('TranslateTransport', () => {
     pc.dc.open()
     await vi.advanceTimersByTimeAsync(1800 * 1000)
     expect(pc.close).toHaveBeenCalled()
-    expect(events.at(-1)).toMatchObject({
+    expect(events.at(-2)).toMatchObject({
       type: 'error',
       kind: 'unavailable',
       message: expect.stringContaining('30-minute'),
     })
+    // The session ends: the UI leaves the live screen and the mic is closed.
+    expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
   })
 
   it('reports a denied microphone, opens no peer connection and can still be stopped', async () => {

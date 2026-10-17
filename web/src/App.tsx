@@ -128,16 +128,17 @@ export default function App() {
                     In a production deployment this hands the call to a qualified human interpreter. This demo has no
                     interpreter queue, so no request was sent anywhere.
                   </span>
-                  {state.timeline.some((x) => x.kind === 'utterance') && (
-                    <span className="meta">
-                      The transcript is kept on this screen only and is discarded when a new session starts.{' '}
-                      <button type="button" onClick={() => void exportLog()}>
-                        Export log
-                      </button>
-                    </span>
-                  )}
                 </div>
               </div>
+            )}
+            {state.status === 'ended' && state.timeline.some((x) => x.kind === 'utterance') && (
+              <p role="status" className="banner info">
+                The last session&apos;s transcript is kept on this screen only and is discarded when a new session
+                starts.{' '}
+                <button type="button" onClick={() => void exportLog()}>
+                  Export log
+                </button>
+              </p>
             )}
             {state.error && (
               <p role="alert" className="banner">

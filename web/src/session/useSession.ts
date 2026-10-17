@@ -50,6 +50,23 @@ export function useSession(languages: LanguagesResponse | null = null) {
     await r?.stop()
   }, [])
 
+  /**
+   * The active transport closed without being asked to (the Realtime duration limit, the cascade server
+   * ending the session): leave the live state and release everything, as End does, but keep the transcript
+   * so it can still be exported. A transport stopped by teardown is no longer current, so it never gets here.
+   */
+  const closedByTransport = useCallback(
+    async (t: Transport) => {
+      if (transport.current !== t) return
+      startGen.current++
+      cancelNotice()
+      await teardown()
+      await stopReplay()
+      dispatch({ type: 'closed' })
+    },
+    [teardown, stopReplay],
+  )
+
   const setSpeaker = useCallback((side: SpeakerSide) => {
     dispatch({ type: 'configure', speaker: side })
     stateRef.current = { ...stateRef.current, speaker: side }
@@ -101,7 +118,10 @@ export function useSession(languages: LanguagesResponse | null = null) {
       const { mode, langA, langB, speaker, realtimeModel, glossary } = stateRef.current
       const t = createTransport(mode)
       transport.current = t
-      unsubscribe.current = t.subscribe((event) => dispatch({ type: 'transport', event }))
+      unsubscribe.current = t.subscribe((event) => {
+        dispatch({ type: 'transport', event })
+        if (event.type === 'state' && event.state === 'closed') void closedByTransport(t)
+      })
       dispatch({ type: 'started', at: Date.now() })
       await t.start({
         langA,
@@ -114,7 +134,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
         beforeCapture,
       })
     },
-    [teardown, stopReplay, setSpeaker],
+    [teardown, stopReplay, setSpeaker, closedByTransport],
   )
 
   const switching = useRef(false)

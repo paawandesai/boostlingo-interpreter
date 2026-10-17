@@ -291,6 +291,22 @@ describe('RealtimeTransport', () => {
     expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
   })
 
+  it('ends the session at the duration limit: mic closed, closed reported (G19)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { pc, events } = await started({ ...session, maxSessionSeconds: 60 })
+      pc.dc.open()
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+
+      expect(pc.close).toHaveBeenCalled()
+      expect(capture.stop).toHaveBeenCalled()
+      expect(events.at(-2)).toMatchObject({ type: 'error', message: expect.stringContaining('1-minute limit') })
+      expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reports a failed or disconnected peer connection as webrtc_dropped', async () => {
     const { pc, events } = await started()
     pc.dc.open()
