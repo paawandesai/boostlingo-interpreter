@@ -26,8 +26,9 @@ under `eval/results/`; as there, a vendor fact not read on the vendor's own page
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
   (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
-  single-reference numbers. References were written by a model; I reviewed them and judged all 21 rows of the blind
-  sheet acceptable, without per-dimension scores (`eval/rating.py`).
+  single-reference numbers. References were written by a model; I reviewed them and judged 16 of the 21 rows of the blind
+  sheet acceptable, without per-dimension scores (`eval/rating.py`): the five failures are one inserted
+  assistant phrase and four segmentation faults (cut-off or merged turns), four of them in Realtime translate.
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +

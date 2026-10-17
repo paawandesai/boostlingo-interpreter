@@ -24,7 +24,8 @@ Spanish dialogue for 5 minutes, each clip waiting for the previous interpretatio
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
 its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
-and judged all 21 acceptable, without per-dimension scores
+and judged 16 of 21 acceptable, without per-dimension scores; the five failures are one inserted assistant
+phrase and four segmentation faults (cut-off or merged turns), noted on their rows
 (`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
@@ -72,8 +73,10 @@ numbers of earlier drafts. Realtime translate was last run on 2026-10-15 with th
 glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
 because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
 Vietnamese onboarding run used Deepgram STT, so it has no published quality number
-(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic, and my
-blind review judged all 21 sampled outputs acceptable, so it does not separate the modes either.
+(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic. My
+blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one cut-off
+turn) and Realtime translate 3 of 7 (an inserted "¿Cómo puedo ayudarte hoy?" and three cut-off or
+merged turns). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
 
 ## 4. Cost per minute
 
@@ -126,5 +129,5 @@ Reasons for each: [appendix H](WRITEUP-APPENDIX.md#h-recommendation-by-scenario-
 - No Deepgram numbers; the `gpt-realtime-whisper` price behind the $0.0290 cascade figure is from a web search, not OpenAI's page.
 - Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%).
 - Cascade drops late audio to stay in sync: 6 drift skips and 16.0 s dropped on the defaults.
-- Quality references are model-written; one person reviewed them and the 21-row blind sheet, with
-  no per-dimension scores. The red-team labels have one labeller.
+- Quality references are model-written; one person reviewed them and the 21-row blind sheet (16 acceptable,
+  4 of the 5 failures in Realtime translate), with no per-dimension scores. The red-team labels have one labeller.
