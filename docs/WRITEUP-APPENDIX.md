@@ -42,7 +42,8 @@ and `python3 eval/summarize.py <log> --out /tmp/row.md` on each log, so the comm
 ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
 89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
 endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
-endpointing 546/629, response created 25/58, model + audio 560/901. Before the tuning (2026-10-15
+endpointing 546/629, response created 25/58, model + audio 560/901 (final lines only; its soak file's
+661 and 67 at p95 also count the 44th turn, cut off by the end of the run). Before the tuning (2026-10-15
 replay logs, server-side endpointing, older replay; the 2026-10-16 server-VAD cascade baseline is
 the first row of the tuning table) cascade endpointing was 726/2056 and STT final 1195/2451, Realtime
 endpointing 1266/1653; the two translators differed by less than the run-to-run spread (first token
