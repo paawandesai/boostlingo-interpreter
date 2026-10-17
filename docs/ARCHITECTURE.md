@@ -59,7 +59,7 @@ Rules enforced by tooling (see [ACCEPTANCE.md](ACCEPTANCE.md)):
 
 ## Transport interface (web)
 
-As built, from `web/src/transports/types.ts`:
+As built, excerpt from `web/src/transports/types.ts` (the helper types `HistoryPair`, `MarkName`, `ErrorKind` and `Usage`, and `direction`, `HISTORY_PAIRS` and `TransportEmitter`, are left out):
 
 ```ts
 /** 'translate' is gpt-realtime-translate (G17): simultaneous, configured by target language only. */
@@ -78,16 +78,29 @@ export interface SessionConfig {
   /** Replay harness input; the mic is used when absent. */
   inputStream?: MediaStream
   /**
-   * Finished turns from before this connection (G9): a mode switch or a cascade speaker switch starts a
-   * new connection, and these are sent along as context data so the new one keeps names and register.
-   * Read at connect time; the newest last.
+   * Finished turns from before this connection (G9): a mode switch, or a cascade socket reopened after it
+   * dropped, starts a new connection, and these are sent along as context data so the new one keeps names
+   * and register. Read at connect time; the newest last.
    */
   history?: () => HistoryPair[]
+  /**
+   * Resolves when the mic may open (G7: the spoken AI notice plays first). The transport does its
+   * network setup (minting the session) while it waits, so the notice and the connection overlap.
+   */
+  beforeCapture?: Promise<unknown>
 }
 
 export type TransportEvent =
   | { type: 'state'; state: 'connecting' | 'live' | 'closed' }
-  | { type: 'transcript'; role: 'source' | 'target'; utteranceId: string; text: string; final: boolean; confidence?: number }
+  | {
+      type: 'transcript'
+      role: 'source' | 'target'
+      utteranceId: string
+      text: string
+      final: boolean
+      /** STT confidence 0..1 when the provider reports one (lowest across segments). Absent means unknown. */
+      confidence?: number
+    }
   | { type: 'mark'; name: MarkName; t: number; utteranceId?: string }
   | { type: 'usage'; utteranceId?: string; usage: Usage }
   | { type: 'error'; kind: ErrorKind; message: string; retryAfterMs?: number; utteranceId?: string }
