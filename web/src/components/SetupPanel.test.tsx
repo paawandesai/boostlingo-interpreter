@@ -181,3 +181,26 @@ describe('SetupPanel in BAA mode', () => {
     expect(button('Cascade').disabled).toBe(false)
   })
 })
+
+describe('SetupPanel consent vendors', () => {
+  const vendorHint = () =>
+    Array.from(container.querySelectorAll('.hint')).find((p) => p.textContent?.startsWith('This session may use'))!
+      .textContent
+
+  it('names the vendors of every mode the session could switch into, not only the chosen one', () => {
+    render(
+      { ...initialState, mode: 'realtime' },
+      { cascadeProviders: { stt: 'deepgram', translator: 'anthropic', tts: 'elevenlabs' } },
+    )
+    expect(vendorHint()).toContain('This session may use: OpenAI, Deepgram, Anthropic, ElevenLabs')
+  })
+
+  it('leaves out a mode BAA mode blocks', () => {
+    const languages = { ...withNotices, blockedModes: { cascade: 'BAA mode is on' } }
+    render(
+      { ...initialState, mode: 'realtime' },
+      { languages, cascadeProviders: { stt: 'deepgram', translator: 'anthropic', tts: 'elevenlabs' } },
+    )
+    expect(vendorHint()).toContain('This session may use: OpenAI (')
+  })
+})

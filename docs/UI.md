@@ -155,7 +155,7 @@ Real files under `web/src/components/` (the session state machine is `web/src/Ap
 |---|---|
 | `SetupPanel.tsx` | Screen A: mode (three-way `ModeToggle` with a one-line description per mode), language pair, who speaks first, Realtime model select (`gpt-realtime-2.1` default, `gpt-realtime`), glossary toggle, replay files (loop) or mic, access token, consent step (`ConsentNotice`), Start |
 | `ModeToggle.tsx` | `role="radiogroup"`: Realtime translate / Realtime / Cascade; translate is disabled when the pair is not supported |
-| `ConsentNotice.tsx` | AI-use notice in both languages with the vendors the chosen mode sends audio to; Start stays disabled until "Both parties were told and agree" is ticked; the notice is read aloud before the mic opens (G7) |
+| `ConsentNotice.tsx` | AI-use notice in both languages with the vendors of every mode the session can run or switch into ("This session may use: ..."); Start stays disabled until "Both parties were told and agree" is ticked; the notice is read aloud before the mic opens (G7) |
 | `AiBanner.tsx` | Persistent "AI interpretation, not a qualified human interpreter" banner |
 | `BackendStatus.tsx` | `/health` round trip: backend version and which keys are not set on the server |
 | `LiveSession.tsx` | Screen B/C: top bar (mode toggle, status lamp with text, pair, **Export log**, **Request human interpreter**, End with an "export first?" confirmation), Source / Target columns, speaker-side toggle, input level meter, `LatencyPanel`, `ErrorBanner` |
@@ -167,7 +167,7 @@ Real files under `web/src/components/` (the session state machine is `web/src/Ap
 
 Deviations from sections 2–4 above:
 - **Three modes, not two.** Realtime translate (`gpt-realtime-translate`, G17) is the third option and the default for EN↔ES; the mode toggle is three-way and describes each mode.
-- **Consent step before Start** (G7): notice in both languages, vendor list per mode, a checkbox that gates Start, a spoken notice. Not in the Day 1 flow.
+- **Consent step before Start** (G7): notice in both languages, the vendors of every mode the session can switch into, a checkbox that gates Start, a spoken notice. Not in the Day 1 flow.
 - **Human handoff is a button, not a disabled slot:** "Request human interpreter" ends the AI session and inserts a marker; this demo has no interpreter queue behind it.
 - **No mute toggle and no cost meter.** The output-audio mute (pattern 9, §3 table) and the `CostMeter` slot were not built; cost is computed in the session log export from usage and `config/prices.json` instead (null prices show as unpriced). The status text shows when the mic is gated ("Interpreter speaking (mic muted)").
 - **Export is "Export log"** in the top bar, not "Download session.json"; End asks to export first because transcripts are discarded at End (G20).

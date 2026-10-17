@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultMode, type LanguagesResponse } from './languages'
+import { defaultMode, modeAvailable, type LanguagesResponse } from './languages'
 
 const langs = (blockedModes?: LanguagesResponse['blockedModes']): LanguagesResponse => ({
   languages: [
@@ -38,5 +38,19 @@ describe('defaultMode', () => {
 
   it('falls back to Realtime with no language data', () => {
     expect(defaultMode(null, 'en', 'es')).toBe('realtime')
+  })
+})
+
+describe('modeAvailable', () => {
+  it('allows translate only where the pair supports it and BAA mode does not block it', () => {
+    expect(modeAvailable(langs(), 'translate', 'en', 'es')).toBe(true)
+    expect(modeAvailable(langs(), 'translate', 'en', 'vi')).toBe(false)
+    expect(modeAvailable(langs({ translate: 'x' }), 'translate', 'en', 'es')).toBe(false)
+  })
+
+  it('allows Realtime and Cascade for any pair unless BAA mode blocks them', () => {
+    expect(modeAvailable(langs(), 'realtime', 'en', 'vi')).toBe(true)
+    expect(modeAvailable(langs({ realtime: 'x' }), 'realtime', 'en', 'es')).toBe(false)
+    expect(modeAvailable(langs({ realtime: 'x' }), 'cascade', 'en', 'es')).toBe(true)
   })
 })

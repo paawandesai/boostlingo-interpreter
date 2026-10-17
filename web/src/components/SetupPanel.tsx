@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { decodeClips, type ReplayClip } from '../audio/replay'
 import { getAccessToken, setAccessToken } from '../session/access'
-import { translateSupported, type LanguagesResponse } from '../session/languages'
+import { modeAvailable, translateSupported, type LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
-import { vendorsFor } from '../session/providers'
+import { vendorsForModes } from '../session/providers'
 import { realtimeModelLabel, type RealtimeModels } from '../session/models'
 import type { SessionState } from '../session/store'
 import type { Mode, SpeakerSide } from '../transports/types'
@@ -194,7 +194,13 @@ export function SetupPanel({
       </div>
       <ConsentNotice
         languages={pairLanguages}
-        vendors={vendorsFor(state.mode, cascadeProviders)}
+        vendors={vendorsForModes(
+          // A mid-session switch can move into any mode allowed for the pair, so consent covers all their vendors.
+          (['translate', 'realtime', 'cascade'] as const).filter((m) =>
+            modeAvailable(languages, m, state.langA, state.langB),
+          ),
+          cascadeProviders,
+        )}
         consented={consented}
         onConsent={setConsented}
       />

@@ -2,7 +2,7 @@ import type { LanguageInfo } from '../session/languages'
 
 interface Props {
   languages: LanguageInfo[]
-  /** Vendors that will receive the conversation; null while unknown. */
+  /** Vendors that may receive the conversation in any mode the session can switch into; null while unknown. */
   vendors: string[] | null
   consented: boolean
   onConsent(v: boolean): void
@@ -24,7 +24,8 @@ export function ConsentNotice({ languages, vendors, consented, onConsent }: Prop
         </p>
       ))}
       <p className="hint">
-        Audio and text in this mode go to: {vendors ? vendors.join(', ') : 'the providers configured on the server'}.
+        This session may use: {vendors ? vendors.join(', ') : 'the providers configured on the server'} (every mode it
+        can switch into).
       </p>
       <label className="check">
         <input type="checkbox" checked={consented} onChange={(e) => onConsent(e.target.checked)} />
