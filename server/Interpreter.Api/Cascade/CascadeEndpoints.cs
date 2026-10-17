@@ -442,6 +442,8 @@ public static class CascadeEndpoints
                                 $"Audio frames must be at most {MaxAudioFrameBytes} bytes (250 ms of 16 kHz PCM16).");
                             break;
                         }
+                        // An empty frame carries no audio and would slip past the rate limit; drop it.
+                        if (msg.Data.Length < 2) continue;
                         samplesReceived += msg.Data.Length / 2;
                         var allowed = time.GetElapsedTime(readyAt).TotalSeconds * opts.AudioRateFactor + opts.AudioBurstSeconds;
                         if (samplesReceived / (double)SttRate > allowed)
