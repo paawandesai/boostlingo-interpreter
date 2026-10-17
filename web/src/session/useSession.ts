@@ -133,8 +133,11 @@ export function useSession(languages: LanguagesResponse | null = null) {
         return
       }
       switching.current = true
+      // End or a handoff during the switch bumps this; the switch must then not reopen a session.
+      const gen = startGen.current
       try {
         await teardown()
+        if (gen !== startGen.current) return
         dispatch({ type: 'configure', mode })
         dispatch({
           type: 'marker',
@@ -147,6 +150,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
       } finally {
         switching.current = false
       }
+      if (gen !== startGen.current) return
       // Not under the guard: a Realtime start can sit in "connecting" for a long time, and the user
       // must be able to switch back meanwhile (start() supersedes an earlier start).
       await start()
@@ -155,6 +159,8 @@ export function useSession(languages: LanguagesResponse | null = null) {
   )
 
   const end = useCallback(async () => {
+    // Supersedes any start or mode switch still waiting on a teardown, so nothing reopens the mic.
+    startGen.current++
     cancelNotice()
     await teardown()
     await stopReplay()
@@ -170,6 +176,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
 
   /** Ends the AI session at once and records that a human interpreter was asked for (G7). */
   const requestHuman = useCallback(async () => {
+    startGen.current++
     cancelNotice()
     await teardown()
     await stopReplay()
