@@ -73,21 +73,19 @@ export default function App() {
     )
   }
 
-  // The spoken notice plays before the transport starts, so the mic is not open yet (G7).
+  // The spoken notice plays before the mic opens (G7). The transport sets up its connection meanwhile
+  // and opens the mic only when the notice has finished, so the two waits overlap instead of adding up.
   const startWithNotice = async ({ spokenNotice }: { spokenNotice: boolean }) => {
+    let notice: Promise<unknown> | undefined
     if (spokenNotice) {
       const lines = [state.langA, state.langB].flatMap((code) => {
         const text = languages?.languages.find((l) => l.code === code)?.disclosure?.spoken
         return text ? [{ text, lang: code }] : []
       })
       setAnnouncing(true)
-      try {
-        await speakNotice(lines)
-      } finally {
-        setAnnouncing(false)
-      }
+      notice = speakNotice(lines).finally(() => setAnnouncing(false))
     }
-    await start({ replay, replayGapMs })
+    await start({ replay, replayGapMs, beforeCapture: notice })
   }
 
   const inSession = state.status === 'connecting' || state.status === 'live'
@@ -96,6 +94,11 @@ export default function App() {
     <>
       <AiBanner />
       <main className={inSession ? 'app live' : 'app'}>
+        {announcing && (
+          <p role="status" className="banner info">
+            Reading the AI notice aloud. The mic opens when it finishes.
+          </p>
+        )}
         {inSession ? (
           <LiveSession
             state={state}
@@ -117,11 +120,6 @@ export default function App() {
               </div>
               <BackendStatus />
             </header>
-            {announcing && (
-              <p role="status" className="banner info">
-                Reading the AI notice aloud. The mic opens when it finishes.
-              </p>
-            )}
             {state.handoffRequested && (
               <div role="alert" className="banner info">
                 <div>

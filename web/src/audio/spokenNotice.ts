@@ -12,7 +12,9 @@ export interface NoticeLine {
 type Synth = Pick<SpeechSynthesis, 'speak' | 'cancel' | 'getVoices'>
 type MakeUtterance = (text: string) => SpeechSynthesisUtterance
 
-const PER_LINE_TIMEOUT_MS = 15_000
+// Some browsers never fire onend for a network voice, so the wait per line is about how long the
+// line takes to say (2.5 words a second) plus slack, not a flat 15 s that would stall the start.
+const lineTimeoutMs = (text: string) => Math.min(15_000, 3_000 + 400 * text.split(/\s+/).length)
 
 export async function speakNotice(
   lines: NoticeLine[],
@@ -31,7 +33,7 @@ export async function speakNotice(
       const timer = setTimeout(() => {
         synth.cancel()
         resolve()
-      }, PER_LINE_TIMEOUT_MS)
+      }, lineTimeoutMs(line.text))
       u.onend = u.onerror = () => {
         clearTimeout(timer)
         resolve()

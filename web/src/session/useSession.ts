@@ -58,7 +58,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
    * flips the speaker side to the side whose language it is in.
    */
   const start = useCallback(
-    async (opts: { replay?: ReplayClip[]; replayGapMs?: number } = {}) => {
+    async (opts: { replay?: ReplayClip[]; replayGapMs?: number; beforeCapture?: Promise<unknown> } = {}) => {
       const gen = ++startGen.current
       await teardown()
       // A newer start (a quick second mode switch) began while this one waited; let it win.
@@ -78,7 +78,8 @@ export function useSession(languages: LanguagesResponse | null = null) {
           },
         })
         replay.current = r
-        void r.run()
+        // Clips play into the capture, so they wait for it too.
+        void Promise.resolve(opts.beforeCapture).then(() => r.run())
       }
       // A teardown while gated leaves the replay track disabled; the new capture starts ungated.
       const inputStream = replay.current?.stream
@@ -96,6 +97,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
         glossary,
         inputStream,
         history: () => recentPairs(stateRef.current, languagesRef.current),
+        beforeCapture: opts.beforeCapture,
       })
     },
     [teardown, stopReplay, setSpeaker],

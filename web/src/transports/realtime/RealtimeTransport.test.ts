@@ -112,6 +112,23 @@ describe('RealtimeTransport', () => {
     expect(pc.tracks).toHaveLength(1)
   })
 
+  it('mints the session while the spoken notice plays and opens the mic only after it (G7)', async () => {
+    const { startCapture } = await import('../../audio/capture')
+    vi.mocked(startCapture).mockClear()
+    let finishNotice!: () => void
+    const notice = new Promise<void>((r) => (finishNotice = r))
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const starting = t.start({ langA: 'en', langB: 'es', speaker: 'A', beforeCapture: notice })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/realtime/session')
+    expect(startCapture).not.toHaveBeenCalled()
+    finishNotice()
+    await starting
+    expect(startCapture).toHaveBeenCalledTimes(1)
+  })
+
   it('reports live when the data channel opens and forwards parsed events', async () => {
     const { pc, events } = await started()
     pc.dc.open()

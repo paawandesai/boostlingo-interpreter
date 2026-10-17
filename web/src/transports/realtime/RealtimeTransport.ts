@@ -71,6 +71,8 @@ export class RealtimeTransport implements Transport {
       if (this.stopped) return
       if (this.info.endpointing === 'client') this.endpointer = new ClientEndpointer(() => this.commitTurn())
 
+      await config.beforeCapture
+      if (this.stopped) return
       this.capture = await startCapture({
         stream: config.inputStream,
         onVad: (kind, t) => {

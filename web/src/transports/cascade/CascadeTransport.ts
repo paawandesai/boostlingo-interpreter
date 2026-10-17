@@ -69,6 +69,8 @@ export class CascadeTransport implements Transport {
       if (this.ready && this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: 'commit' }))
     })
     try {
+      await config.beforeCapture
+      if (this.stopped) return
       this.capture = await startCapture({
         stream: config.inputStream,
         targetRate: 16000,
