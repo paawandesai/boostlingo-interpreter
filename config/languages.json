@@ -80,8 +80,11 @@
           "i can't assist",
           "i cannot assist",
           "i'm sorry, but i can't",
-          "i am unable to",
-          "i won't",
+          "i am unable to help",
+          "i am unable to assist",
+          "i am unable to translate",
+          "i won't translate",
+          "i won't help",
           "i can't translate",
           "i cannot translate"
         ]
@@ -159,8 +162,8 @@
           "como modelo de lenguaje",
           "soy una ia",
           "claro, aquí",
-          "aquí tienes",
-          "aquí tiene",
+          "aquí tienes la traducción",
+          "aquí tiene la traducción",
           "soy un intérprete",
           "solo puedo traducir",
           "mis instrucciones",
@@ -238,7 +241,7 @@
           "tôi là trí tuệ nhân tạo",
           "với tư cách là ai",
           "là một mô hình ngôn ngữ",
-          "đây là bản",
+          "đây là bản dịch",
           "tôi chỉ có thể dịch",
           "hướng dẫn của tôi",
           "lời nhắc hệ thống"
