@@ -77,14 +77,16 @@ blind review judged all 21 sampled outputs acceptable, so it does not separate t
 
 | Mode | Billing unit | Price | Per minute |
 |---|---|---|---|
-| Cascade | STT minutes + translator tokens + TTS characters | Translator per M tokens in/out: Claude Haiku $0.10 / $0.50, `gpt-5.4-mini` $0.75 / $4.50; `gpt-realtime-whisper` **[VERIFY: price]**; ElevenLabs Flash $0.04 per 1,000 characters | $0.0149 (Claude) / $0.0193 (OpenAI translator), excluding STT |
+| Cascade | STT minutes + translator tokens + TTS characters | Translator per M tokens in/out: Claude Haiku $0.10 / $0.50, `gpt-5.4-mini` $0.75 / $4.50; `gpt-realtime-whisper` $0.017/min (web search, 2026-10-17); ElevenLabs Flash $0.04 per 1,000 characters | $0.0149 (Claude) / $0.0193 (OpenAI translator), excluding STT; $0.0290 with STT on the 2026-10-16 default config (OpenAI translator) |
 | Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | per M tokens: audio $32 in / $64 out, text $4 in, cached input $0.40 (both models); text out $24 (`gpt-realtime-2.1`) / $16 (`gpt-realtime`) | `gpt-realtime-2.1` $0.1145, `gpt-realtime` $0.2104, both excluding input transcription |
 | Realtime translate | minutes of audio | $0.034/min | $0.034 |
 
 Cascade and Realtime translate are from `eval/results/summary.md` (2026-10-15 logs); Realtime is
 from the 2026-10-16 logs, priced from `config/prices.json`. Same audio-input price, but
 `gpt-realtime` got far less prompt caching than `gpt-realtime-2.1`, so it cost almost twice as much.
-Realtime costs about six to fourteen times cascade (excluding cascade STT). Cascade bills up to three vendors (two in the
+Realtime costs about six to fourteen times cascade excluding cascade STT, or about four to seven
+times the default cascade with STT ($0.0290). The `gpt-realtime-whisper` price comes from a web search
+summary of OpenAI's pricing page, which this project could not open. Cascade bills up to three vendors (two in the
 BAA profile); the Realtime modes bill one. What each figure leaves out: appendix B.
 
 ## 5. Controllability and compliance

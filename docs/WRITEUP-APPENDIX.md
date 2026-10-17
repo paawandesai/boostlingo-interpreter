@@ -1,6 +1,6 @@
 # Write-up appendix: method and longer analyses
 
-Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it at two pages. Every number comes from a file
+Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it short. Every number comes from a file
 under `eval/results/`; the same **[VERIFY]** rule applies.
 
 ## A. Setup and method
@@ -89,11 +89,14 @@ That is one local probe run, not a proven result.
 `config/prices.json`. The cascade figures in the write-up ($0.0149 Claude / $0.0193 OpenAI
 translator) are `eval/results/summary.md`, built from the 2026-10-15 replay logs, which carry no STT
 minutes (the browser emitted them only on End), so they leave STT out. Charging STT for the whole
-session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate) gives an
-upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
-the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes,
-but it prices them at that same `gpt-4o-transcribe` rate because `gpt-realtime-whisper` has no entry
-in `config/prices.json` yet, giving $0.0215/min: not the real cost **[VERIFY: price]**. Deepgram
+session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate; those logs
+used that model) gave an upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
+the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes;
+priced at `gpt-realtime-whisper`'s $0.017/min it comes to $0.0290/min
+(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`). That price
+is from a web search on 2026-10-17 summarising OpenAI's pricing page, not from the page itself; since
+`config/prices.json` lists it first, re-running `--stt-minutes-from-session` on the 2026-10-15 logs
+would now charge it to runs that used `gpt-4o-transcribe`. Deepgram
 Nova-3 streaming lists $0.0077/min ($0.0048 under a current promotion), but it has no numbers here.
 Realtime's separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and
 has no price entry, so the Realtime figures ($0.1145 `gpt-realtime-2.1`, $0.2104 `gpt-realtime`) are
