@@ -120,9 +120,12 @@ export class CascadeTransport implements Transport {
 
   setSpeaker(side: SpeakerSide): void {
     if (!this.config || this.stopped) return
+    const same = side === this.config.speaker
     this.config = { ...this.config, speaker: side }
     const ws = this.ws
     if (ws?.readyState === WebSocket.OPEN) {
+      // The same side again: a direction message would only make the server cut the turn in flight.
+      if (same) return
       // The server finishes the turn in flight, then runs the new direction on this socket; no new upgrade.
       // Playback goes on: the old direction's speech still plays, gating the mic like any interpreter speech.
       const [source, target] = direction(this.config, side)

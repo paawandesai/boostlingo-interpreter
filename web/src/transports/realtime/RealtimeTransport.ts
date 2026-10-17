@@ -104,20 +104,12 @@ export class RealtimeTransport implements Transport {
   }
 
   setSpeaker(side: SpeakerSide): void {
-    if (!this.config || !this.info) return
+    if (!this.config) return
+    // Stored even while connecting: the data channel's onopen sends the update for whatever side is current.
     this.config = { ...this.config, speaker: side }
-    const [source, target] = direction(this.config, side)
-    const instructions = this.info.instructions[`${source}>${target}`]
-    if (!instructions || this.dc?.readyState !== 'open') return
-    // Partial update: only instructions and the transcription language change.
-    const update = JSON.stringify({
-      type: 'session.update',
-      session: {
-        type: 'realtime',
-        instructions,
-        audio: { input: { transcription: { model: this.info.transcriptionModel, language: source } } },
-      },
-    })
+    if (this.dc?.readyState !== 'open') return
+    const update = this.sessionUpdate(side)
+    if (!update) return
     // A turn whose response is still to come or still playing was spoken in the old direction: updating now
     // would interpret it the wrong way round. The update waits for its response.done; the last flip wins.
     if (this.turnInFlight) {
@@ -127,6 +119,22 @@ export class RealtimeTransport implements Transport {
       this.dc.send(update)
       this.activeSide = side
     }
+  }
+
+  /** Partial update for a side: only instructions and the transcription language change. */
+  private sessionUpdate(side: SpeakerSide): string | null {
+    if (!this.config || !this.info) return null
+    const [source, target] = direction(this.config, side)
+    const instructions = this.info.instructions[`${source}>${target}`]
+    if (!instructions) return null
+    return JSON.stringify({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        instructions,
+        audio: { input: { transcription: { model: this.info.transcriptionModel, language: source } } },
+      },
+    })
   }
 
   async stop(): Promise<void> {
@@ -156,6 +164,8 @@ export class RealtimeTransport implements Transport {
     dc.onopen = () => {
       this.clearConnectTimer()
       this.sendHistory(dc)
+      // A flip made while connecting: the session was minted for the side before it.
+      if (this.config && this.config.speaker !== this.activeSide) this.setSpeaker(this.config.speaker)
       this.emitter.emit({ type: 'state', state: 'live' })
       // G19: OpenAI bills while the connection is open, so a forgotten session is closed here.
       const max = info.maxSessionSeconds

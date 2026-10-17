@@ -7,9 +7,13 @@ const capture = {
   setGated: vi.fn(),
   stop: vi.fn().mockResolvedValue(undefined),
 }
+const captureOpts: { onVad?: (kind: 'speech.start' | 'speech.end', t: number) => void } = {}
 vi.mock('../../audio/capture', () => ({
   MicDeniedError: class MicDeniedError extends Error {},
-  startCapture: vi.fn(async () => capture),
+  startCapture: vi.fn(async (opts: typeof captureOpts) => {
+    captureOpts.onVad = opts.onVad
+    return capture
+  }),
 }))
 
 class FakeDataChannel {
@@ -123,6 +127,74 @@ describe('TranslateTransport', () => {
       type: 'session.update',
       session: { audio: { output: { language: 'en' } } },
     })
+  })
+
+  it('applies a speaker flip made before the session is minted once the data channel opens', async () => {
+    let mint!: (r: Response) => void
+    fetchMock.mockReset()
+    fetchMock
+      .mockReturnValueOnce(new Promise<Response>((r) => (mint = r)))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    const { TranslateTransport } = await import('./TranslateTransport')
+    const t = new TranslateTransport()
+    const starting = t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    t.setSpeaker('B')
+    mint(new Response(JSON.stringify(session)))
+    await starting
+    const pc = FakePeer.last
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([
+      { type: 'session.update', session: { audio: { output: { language: 'en' } } } },
+    ])
+  })
+
+  it('applies a speaker flip made after the mint but before the data channel opens', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([
+      { type: 'session.update', session: { audio: { output: { language: 'en' } } } },
+    ])
+  })
+
+  it('sends nothing on open when a flip while connecting was undone', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    t.setSpeaker('A')
+    pc.dc.open()
+    expect(pc.dc.sent).toEqual([])
+  })
+
+  it('emits id-less speech-end marks for the empty-transcript check, claimed once input text arrives', async () => {
+    const { pc, events } = await started()
+    pc.dc.open()
+    const idless = () => events.flatMap((e) => (e.type === 'mark' && !e.utteranceId ? [e.name] : []))
+    // Speech with its text already in: claimed at once.
+    captureOpts.onVad?.('speech.start', 100)
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', delta: 'Hello.' }) })
+    captureOpts.onVad?.('speech.end', 900)
+    expect(idless()).toEqual(['speech.end', 'endpoint'])
+    // Speech with no text yet: unclaimed until text arrives.
+    captureOpts.onVad?.('speech.start', 5000)
+    captureOpts.onVad?.('speech.end', 6000)
+    expect(idless()).toEqual(['speech.end', 'endpoint', 'speech.end'])
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', delta: ' Bye.' }) })
+    expect(idless()).toEqual(['speech.end', 'endpoint', 'speech.end', 'endpoint'])
+  })
+
+  it('leaves a speech end with no recognised text unclaimed, so the store flags an empty turn', async () => {
+    const { sessionReducer, initialState } = await import('../../session/store')
+    const { pc, events } = await started()
+    pc.dc.open()
+    captureOpts.onVad?.('speech.start', 100)
+    captureOpts.onVad?.('speech.end', 1000)
+    captureOpts.onVad?.('speech.start', 8000)
+    captureOpts.onVad?.('speech.end', 9000)
+    const s = events.reduce((st, event) => sessionReducer(st, { type: 'transport', event }), initialState)
+    expect(s.error?.kind).toBe('empty_transcript')
   })
 
   it('ends the session at the duration limit and says why', async () => {

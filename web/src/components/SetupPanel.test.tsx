@@ -181,3 +181,72 @@ describe('SetupPanel in BAA mode', () => {
     expect(button('Cascade').disabled).toBe(false)
   })
 })
+
+describe('SetupPanel consent vendors', () => {
+  const vendorHint = () =>
+    Array.from(container.querySelectorAll('.hint')).find((p) => p.textContent?.startsWith('This session may use'))!
+      .textContent
+
+  it('names the vendors of every mode the session could switch into, not only the chosen one', () => {
+    render(
+      { ...initialState, mode: 'realtime' },
+      { cascadeProviders: { stt: 'deepgram', translator: 'anthropic', tts: 'elevenlabs' } },
+    )
+    expect(vendorHint()).toContain('This session may use: OpenAI, Deepgram, Anthropic, ElevenLabs')
+  })
+
+  it('leaves out a mode BAA mode blocks', () => {
+    const languages = { ...withNotices, blockedModes: { cascade: 'BAA mode is on' } }
+    render(
+      { ...initialState, mode: 'realtime' },
+      { languages, cascadeProviders: { stt: 'deepgram', translator: 'anthropic', tts: 'elevenlabs' } },
+    )
+    expect(vendorHint()).toContain('This session may use: OpenAI (')
+  })
+})
+
+describe('SetupPanel language pair change', () => {
+  const languages = (blockedModes?: Record<string, string>) => ({
+    languages: [
+      { code: 'en', name: 'English', disclosure, realtimeTranslate: true },
+      { code: 'es', name: 'Spanish', disclosure, realtimeTranslate: true },
+      { code: 'vi', name: 'Vietnamese', disclosure },
+    ],
+    pairs: [
+      ['en', 'es'],
+      ['en', 'vi'],
+    ] as [string, string][],
+    blockedModes,
+  })
+  function pick(value: string) {
+    const select = container.querySelector<HTMLSelectElement>('#pair')!
+    act(() => {
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+
+  it('keeps the chosen mode when it can still run the new pair', () => {
+    const { onConfigure } = render(
+      { ...initialState, mode: 'cascade', langA: 'en', langB: 'vi' },
+      { languages: languages() },
+    )
+    pick('en|es')
+    expect(onConfigure).toHaveBeenLastCalledWith({ langA: 'en', langB: 'es', mode: 'cascade' })
+  })
+
+  it('falls back to the default only when the chosen mode cannot run the new pair', () => {
+    const { onConfigure } = render({ ...initialState, mode: 'translate' }, { languages: languages() })
+    pick('en|vi')
+    expect(onConfigure).toHaveBeenLastCalledWith({ langA: 'en', langB: 'vi', mode: 'realtime' })
+  })
+
+  it('never falls back into a mode BAA mode blocks', () => {
+    const { onConfigure } = render(
+      { ...initialState, mode: 'translate' },
+      { languages: languages({ realtime: 'BAA mode is on' }) },
+    )
+    pick('en|vi')
+    expect(onConfigure).toHaveBeenLastCalledWith({ langA: 'en', langB: 'vi', mode: 'cascade' })
+  })
+})

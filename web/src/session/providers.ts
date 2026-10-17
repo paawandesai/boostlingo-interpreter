@@ -31,6 +31,16 @@ export function vendorsFor(mode: Mode, cascade: CascadeProviders | null): string
   return [...new Set(names)]
 }
 
+/**
+ * Vendors that may receive the conversation in a session that can switch between `modes` mid-session, for the
+ * consent notice. Null when any of them is unknown, so the notice never names fewer vendors than may be used.
+ */
+export function vendorsForModes(modes: Mode[], cascade: CascadeProviders | null): string[] | null {
+  const lists = modes.map((m) => vendorsFor(m, cascade))
+  if (lists.length === 0 || lists.some((l) => l === null)) return null
+  return [...new Set(lists.flatMap((l) => l!))]
+}
+
 /** List prices from config/prices.json (null prices mean unchecked). */
 export async function fetchPrices(fetchImpl: typeof fetch = fetch): Promise<PriceList> {
   const res = await fetchImpl('/api/prices')

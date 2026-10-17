@@ -90,7 +90,19 @@ describe('CascadeEventParser', () => {
       p.parse({ type: 'error', stage: 'tts', provider: 'elevenlabs', kind: 'Unavailable', t: 1 })[0],
     ).toMatchObject({
       kind: 'tts_failed',
+      audioFailed: true,
     })
+    // Any TTS failure leaves the line without audio; the kind stays for the banner.
+    for (const [kind, mapped] of [
+      ['RateLimited', 'rate_limited'],
+      ['Timeout', 'timeout'],
+      ['Auth', 'auth'],
+    ])
+      expect(p.parse({ type: 'error', u: 3, stage: 'tts', provider: 'elevenlabs', kind, t: 1 })[0]).toMatchObject({
+        kind: mapped,
+        utteranceId: 'c1-3',
+        audioFailed: true,
+      })
     expect(
       p.parse({ type: 'error', stage: 'session', kind: 'Auth', message: 'Missing or wrong access token.' })[0],
     ).toEqual({

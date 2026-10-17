@@ -27,6 +27,12 @@ export function translateSupported(langs: LanguagesResponse | null, a: string, b
   return ok(a) && ok(b)
 }
 
+/** A mode the session can run (or switch into) for the pair: not blocked by BAA mode, and translate only where supported. */
+export function modeAvailable(langs: LanguagesResponse | null, mode: Mode, a: string, b: string): boolean {
+  if (mode === 'translate') return translateSupported(langs, a, b)
+  return !langs?.blockedModes?.[mode]
+}
+
 /** Fallback order when Realtime translate can't run for the pair (G17). */
 const FALLBACK_MODES: Mode[] = ['realtime', 'cascade']
 

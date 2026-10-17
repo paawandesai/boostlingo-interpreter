@@ -155,7 +155,7 @@ Real files under `web/src/components/` (the session state machine is `web/src/Ap
 |---|---|
 | `SetupPanel.tsx` | Screen A: mode (three-way `ModeToggle` with a one-line description per mode), language pair, who speaks first, Realtime model select (`gpt-realtime-2.1` default, `gpt-realtime`), glossary toggle, replay files (loop) or mic, access token, consent step (`ConsentNotice`), Start |
 | `ModeToggle.tsx` | `role="radiogroup"`: Realtime translate / Realtime / Cascade; translate is disabled when the pair is not supported |
-| `ConsentNotice.tsx` | AI-use notice in both languages with the vendors the chosen mode sends audio to; Start stays disabled until "Both parties were told and agree" is ticked; the notice is read aloud before the mic opens (G7) |
+| `ConsentNotice.tsx` | AI-use notice in both languages with the vendors of every mode the session can run or switch into ("This session may use: ..."); Start stays disabled until "Both parties were told and agree" is ticked; the notice is read aloud before the mic opens (G7) |
 | `AiBanner.tsx` | Persistent "AI interpretation, not a qualified human interpreter" banner |
 | `BackendStatus.tsx` | `/health` round trip: backend version and which keys are not set on the server |
 | `LiveSession.tsx` | Screen B/C: top bar (mode toggle, status lamp with text, pair, **Export log**, **Request human interpreter**, End with an "export first?" confirmation), Source / Target columns, speaker-side toggle, input level meter, `LatencyPanel`, `ErrorBanner` |
@@ -167,12 +167,12 @@ Real files under `web/src/components/` (the session state machine is `web/src/Ap
 
 Deviations from sections 2–4 above:
 - **Three modes, not two.** Realtime translate (`gpt-realtime-translate`, G17) is the third option and the default for EN↔ES; the mode toggle is three-way and describes each mode.
-- **Consent step before Start** (G7): notice in both languages, vendor list per mode, a checkbox that gates Start, a spoken notice. Not in the Day 1 flow.
+- **Consent step before Start** (G7): notice in both languages, the vendors of every mode the session can switch into, a checkbox that gates Start, a spoken notice. Not in the Day 1 flow.
 - **Human handoff is a button, not a disabled slot:** "Request human interpreter" ends the AI session and inserts a marker; this demo has no interpreter queue behind it.
 - **No mute toggle and no cost meter.** The output-audio mute (pattern 9, §3 table) and the `CostMeter` slot were not built; cost is computed in the session log export from usage and `config/prices.json` instead (null prices show as unpriced). The status text shows when the mic is gated ("Interpreter speaking (mic muted)").
 - **Export is "Export log"** in the top bar, not "Download session.json"; End asks to export first because transcripts are discarded at End (G20).
 - **`LatencyPanel` replaces `LatencyWaterfall`, `WaterfallBar` and `StatsBar`;** the bars are not individually focusable. `StatusLamp` is a span inside `LiveSession`. `LanguagePairSelect`, `InputSourcePicker` and `LevelMeter` are inline inside `SetupPanel` and `LiveSession` (`<meter>` elements), and `ExportButton`, `UtteranceRow` and `SetupScreen` do not exist as files.
-- **Error states:** the banner has one action per kind and, for a rate limit, a static "retry after N s" note from `Retry-After` rather than the §2.8 countdown; the "Retry utterance / Skip" and "Replay audio / Show text only" pairs were not built. A retry in progress and dropped late audio are notices, not errors. Mic denied offers "Try again"; replay as the fallback is chosen on the setup screen, not from the banner.
+- **Error states:** the banner has one action per kind and, when the error carries `Retry-After`, a Retry button that stays disabled and counts down ("Retry in N s") until it has elapsed, rather than the §2.8 automatic retry; the "Retry utterance / Skip" and "Replay audio / Show text only" pairs were not built. A retry in progress and dropped late audio are notices, not errors. Mic denied offers "Try again"; replay as the fallback is chosen on the setup screen, not from the banner.
 - **Extra controls** not in the design: Realtime model select, glossary toggle, access token field, replay-file loop.
 - **Speaker side** is explicit only (D10); the mode switch marker says the new mode got the last 6 turns as context, or none for Realtime translate (G9).
 - Design tokens: `web/src/index.css` carries the token names and colours from the block above, with IBM Plex Sans / Plex Mono ahead of the `system-ui` / `ui-monospace` fallbacks (v2 canvas).

@@ -104,7 +104,15 @@ export type TransportEvent =
     }
   | { type: 'mark'; name: MarkName; t: number; utteranceId?: string }
   | { type: 'usage'; utteranceId?: string; usage: Usage }
-  | { type: 'error'; kind: ErrorKind; message: string; retryAfterMs?: number; utteranceId?: string }
+  | {
+      type: 'error'
+      kind: ErrorKind
+      message: string
+      retryAfterMs?: number
+      utteranceId?: string
+      /** Speech synthesis failed for utteranceId, whatever the kind: its line has text but no audio. */
+      audioFailed?: boolean
+    }
   /** Something the user should know that needs no action (a retry in progress, dropped late audio). */
   | { type: 'notice'; message: string; utteranceId?: string }
   | { type: 'level'; rms: number }
