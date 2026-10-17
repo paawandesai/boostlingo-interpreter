@@ -75,16 +75,14 @@ export default function App() {
 
   // The spoken notice plays before the mic opens (G7). The transport sets up its connection meanwhile
   // and opens the mic only when the notice has finished, so the two waits overlap instead of adding up.
-  const startWithNotice = async ({ spokenNotice }: { spokenNotice: boolean }) => {
-    let notice: Promise<unknown> | undefined
-    if (spokenNotice) {
-      const lines = [state.langA, state.langB].flatMap((code) => {
-        const text = languages?.languages.find((l) => l.code === code)?.disclosure?.spoken
-        return text ? [{ text, lang: code }] : []
-      })
-      setAnnouncing(true)
-      notice = speakNotice(lines).finally(() => setAnnouncing(false))
-    }
+  // Always spoken (G7); the setup screen keeps Start disabled until both languages have a notice.
+  const startWithNotice = async () => {
+    const lines = [state.langA, state.langB].flatMap((code) => {
+      const text = languages?.languages.find((l) => l.code === code)?.disclosure?.spoken
+      return text ? [{ text, lang: code }] : []
+    })
+    setAnnouncing(true)
+    const notice = speakNotice(lines).finally(() => setAnnouncing(false))
     await start({ replay, replayGapMs, beforeCapture: notice })
   }
 
@@ -156,7 +154,7 @@ export default function App() {
                 onReplay={setReplay}
                 onConfigure={configure}
                 onSpeaker={setSpeaker}
-                onStart={(opts) => void startWithNotice(opts)}
+                onStart={() => void startWithNotice()}
               />
               <aside className="setup-aside">
                 <details className="panel">
