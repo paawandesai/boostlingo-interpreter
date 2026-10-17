@@ -37,7 +37,7 @@ benchmarking, so every cascade number uses OpenAI transcription (method: appendi
 | Realtime translate (2026-10-15; text lag, source text → translated text) | 70 | 1984 | 5284 |
 
 Sources: `eval/results/latency-tuning-2026-10-16.md` (one row per run, each from
-`python3 eval/summarize.py <log>`) and the `soak-2026-10-16-*.json` reports beside it. Before the
+`python3 eval/summarize.py <log> --out /tmp/row.md`, so the committed summary is not overwritten) and the `soak-2026-10-16-*.json` reports beside it. Before the
 tuning, with server-side endpointing, cascade was 2540/4170 ms (2026-10-16 baseline run) and
 `gpt-realtime-2.1` 2251/3451 (2026-10-15, older replay).
 

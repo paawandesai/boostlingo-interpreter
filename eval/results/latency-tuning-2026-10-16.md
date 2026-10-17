@@ -1,6 +1,6 @@
 # Latency tuning runs (2026-10-16)
 
-Each run is a 5-minute soak on the synthetic clip set (`eval/replay/synth.py`, TTS voices, not people), with the turn-taking replay (MR !33): each clip waits for the previous clip's interpretation. Latency is measured client-side, from the browser VAD's speech end to the first audible output (D9). The measurement is the same in every row. chrF is multi-reference (reference plus `alternatives`, model-drafted and unverified). WER is cascade STT only. Rows come from `python3 eval/summarize.py <log>` on the files named.
+Each run is a 5-minute soak on the synthetic clip set (`eval/replay/synth.py`, TTS voices, not people), with the turn-taking replay (MR !33): each clip waits for the previous clip's interpretation. Latency is measured client-side, from the browser VAD's speech end to the first audible output (D9). The measurement is the same in every row. chrF is multi-reference (reference plus `alternatives`, model-drafted and unverified). WER is cascade STT only. Rows come from `python3 eval/summarize.py <log> --out /tmp/row.md` on the files named (`--out` keeps the committed `summary.md` from being overwritten).
 
 Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job ids in brackets). Realtime is `gpt-realtime-2.1` except the `gpt-realtime` row, which ran with the same defaults afterwards. The cascade translator is OpenAI and the TTS is ElevenLabs.
 

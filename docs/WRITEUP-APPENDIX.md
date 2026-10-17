@@ -36,7 +36,7 @@ under `eval/results/`; as there, a vendor fact not read on the vendor's own page
 ## B. Latency detail, sample sizes, stability and cost caveats
 
 Where the time goes on the 2026-10-16 defaults (p50/p95 ms, `eval/results/latency-tuning-2026-10-16.md`
-and `python3 eval/summarize.py` on each log). Cascade (`gpt-realtime-whisper`, OpenAI translator,
+and `python3 eval/summarize.py <log> --out /tmp/row.md` on each log, so the committed summary is not overwritten). Cascade (`gpt-realtime-whisper`, OpenAI translator,
 ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
 89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
 endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
