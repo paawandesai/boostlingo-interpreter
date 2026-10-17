@@ -6,7 +6,7 @@
       "key": "realtime-translate:openai",
       "model": "gpt-realtime-translate",
       "perMinute": 0.034,
-      "note": "Billed per minute of audio (G17): \"Realtime audio duration Per minute Price $0.034\".",
+      "note": "Billed per minute of audio (G17): \"Realtime audio duration Per minute Price $0.034\". The session's gpt-realtime-whisper source transcript is not included; a 2026-10-17 web search found no statement either way, so the write-up assumes it is billed at the stt:openai gpt-realtime-whisper rate, as Realtime's input transcription is.",
       "source": "https://developers.openai.com/api/docs/models/gpt-realtime-translate",
       "checkedOn": "2026-10-16",
       "checkedBy": "Paawan (official page read 2026-10-16)"

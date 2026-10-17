@@ -62,7 +62,7 @@ a rough signal.
 | Cascade (anthropic translator) | 56 of 57 | 48 | 64.3 | 36.0% | 1/10 | omission 3, wrong_language 2 | $0.0149 (excludes STT: no quantity in the log) |
 | Cascade (openai translator) | 62 of 63 | 49 | 64.4 | 33.9% | 2/10 | none | $0.0193 (excludes STT: no quantity in the log) |
 | Realtime | 27 of 29 | 13 | 78.9 | n/a (not STT) | 0/2 | length_ratio 1 | $0.2023 (excludes input transcription: no quantity in the log) |
-| Realtime translate | 70 of 71 | 64 | 74.6 | n/a (not STT) | 11/15 | length_ratio 7, wrong_language 1 | $0.0340 |
+| Realtime translate | 70 of 71 | 64 | 74.6 | n/a (not STT) | 11/15 | length_ratio 7, wrong_language 1 | $0.0340 (excludes source transcript: no quantity in the log) |
 
 WER compares cascade STT text with the script line (normalised: lower case, no punctuation).
 chrF compares the translation with the script's reference and its alternatives. Neither is computed between modes.
