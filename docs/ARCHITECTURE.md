@@ -53,7 +53,7 @@ Every session needs the demo access token (`X-Access-Token`, checked server-side
 BAA mode (`Compliance:RequireBaa`, off by default; README "BAA mode", DECISIONS D18) makes the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's HIPAA-eligible list or whose vendor has no BAA declared in `Compliance:BaaSigned`, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. The eligibility table is `BaaRoutes` in `server/Interpreter.Api/Security/Compliance.cs`. Cascade passes only as OpenAI STT + Claude translator + OpenAI TTS (`Cascade:Tts=openai`, `/v1/audio/speech`).
 
 Rules enforced by tooling (see [ACCEPTANCE.md](ACCEPTANCE.md)):
-- `web/src/components/**` may not import a concrete transport: ESLint `no-restricted-imports` in `web/eslint.config.js` blocks `transports/*` and `transports/*/**` and allows only `transports/types` and `transports/index` (widened from `{realtime,cascade}` in dc09251). Components import only `transports/types`.
+- `web/src/components/**` may not import a concrete transport: ESLint `no-restricted-imports` in `web/eslint.config.js` blocks `transports/*` and `transports/*/**` and allows only `transports/types` and `transports/index` (widened from `{realtime,cascade}` in 42fba49). Components import only `transports/types`.
 - `Interpreter.Core` may not reference any `Interpreter.Providers.*` assembly (`DependencyRulesTests`, reflection).
 - Vendor SDK/HTTP/WS code lives only in `Interpreter.Providers.*`.
 
