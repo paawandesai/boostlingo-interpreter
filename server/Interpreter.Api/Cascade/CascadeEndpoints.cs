@@ -97,15 +97,16 @@ public static class CascadeEndpoints
         }
 
         /// <summary>
-        /// Last wins for a direction that has not started yet: a second switch while the previous direction still
-        /// drains retargets the queued leg (whose audio is already the newest speaker's) instead of queuing
-        /// another leg and STT connection. False once the leg runs.
+        /// Last wins for a direction that has not started yet and holds no audio: a second switch while the
+        /// previous direction still drains retargets the queued leg instead of queuing another leg and STT
+        /// connection. False once the leg runs, or once a speaker has talked into it: that audio stays in its
+        /// own language, and the new direction queues behind it.
         /// </summary>
         public bool TryRetarget(string source, string target)
         {
             lock (_gate)
             {
-                if (_started) return false;
+                if (_started || Audio.Reader.Count > 0) return false;
                 (Source, Target) = (source, target);
                 return true;
             }
