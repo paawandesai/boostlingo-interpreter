@@ -48,7 +48,7 @@ flowchart LR
   Prov --> Vendors["Deepgram or OpenAI STT · OpenAI / Claude translation · ElevenLabs or OpenAI TTS"]
 ```
 
-Every session needs the demo access token (`X-Access-Token`, checked server-side in constant time) and the mint endpoints and the cascade upgrade are rate-limited per client address (G2). Ephemeral secrets live 60 s and a session is capped at 30 minutes in every mode (G19).
+Every session needs the demo access token (`X-Access-Token`, checked server-side in constant time) and the mint endpoints and the cascade upgrade are rate-limited per client address (G2). Ephemeral secrets live 60 s and a session is capped at 30 minutes in every mode (G19): server-side for cascade, by the browser for the Realtime modes (README "Public demo (AWS)").
 
 BAA mode (`Compliance:RequireBaa`, off by default; README "BAA mode", DECISIONS D18) makes the Realtime mint, the translation mint and the cascade socket refuse any route that is not on its vendor's HIPAA-eligible list or whose vendor has no BAA declared in `Compliance:BaaSigned`, before any audio or text is sent; `/api/languages` returns the blocked modes and the setup screen disables them with the reason. The eligibility table is `BaaRoutes` in `server/Interpreter.Api/Security/Compliance.cs`. Cascade passes only as OpenAI STT + Claude translator + OpenAI TTS (`Cascade:Tts=openai`, `/v1/audio/speech`).
 
@@ -211,7 +211,7 @@ sequenceDiagram
   Note over B: playback scheduler: first source.start(when) = audio.first_out
 ```
 
-Internals: `System.Threading.Channels` with bounded capacity between stages (back-pressure), one linked `CancellationToken` per session so teardown cancels every stage, and every adapter throws only `ProviderException { Kind, RetryAfter }` (D8). A speaker switch is a `direction` message on the same socket: the pipeline finishes the turn in flight, starts the new direction and carries the last 6 turns as context (D5, G9). The cascade OpenAI STT is `gpt-realtime-whisper` by default (`gpt-4o-transcribe` with server endpointing is the fallback); it streams text during speech, but translation starts on the turn's final, after the commit.
+Internals: `System.Threading.Channels` with bounded capacity between stages (back-pressure), one linked `CancellationToken` per session so teardown cancels every stage, and every adapter throws only `ProviderException { Kind, RetryAfter }` (D8). A speaker switch is a `direction` message on the same socket: the pipeline finishes the turn in flight, starts the new direction and carries the last 6 turns as context (D5, G9). The cascade OpenAI STT is `gpt-realtime-whisper` by default (`gpt-4o-transcribe` with server endpointing is the fallback); it streams text during speech, but translation starts on the turn's final, after the commit. Abuse limits on the socket (close 1008): an audio frame over 250 ms, or audio faster than real time (`Cascade:AudioRateFactor` 1.25 plus `Cascade:AudioBurstSeconds` 5 s); repeated `direction` messages are ignored and `commit`s closer than 250 ms apart are dropped. A streamed provider body that sends nothing for 10 s (`ProviderBodyStream.DefaultIdleTimeout`) fails as a `Timeout` `ProviderException`.
 
 ## Latency mark points (D9)
 
