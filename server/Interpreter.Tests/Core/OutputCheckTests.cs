@@ -49,6 +49,13 @@ public class OutputCheckTests
     [InlineData("Lo siento, pero no puedo venir el lunes.", "I'm sorry, but I can't come on Monday.", "es", "en")]
     [InlineData("No me es posible caminar sin ayuda.", "I am unable to walk without help.", "es", "en")]
     [InlineData("No puedo ayudarle con eso hoy.", "I can't help you with that today.", "es", "en")]
+    [InlineData("I'm unable to help my mother bathe anymore.", "No puedo ayudar a mi madre a bañarse.", "en", "es")]
+    [InlineData("It's not possible for me to come on Tuesday.", "No me es posible venir el martes.", "en", "es")]
+    // Assistant phrasing the speaker said is translated too.
+    [InlineData("Sure, here's my insurance card.", "Claro, aquí tiene mi tarjeta del seguro.", "en", "es")]
+    [InlineData("Claro, aquí tiene mi tarjeta del seguro.", "Sure, here's my insurance card.", "es", "en")]
+    [InlineData("My instructions say to take it with food.", "Mis instrucciones dicen que lo tome con comida.", "en", "es")]
+    [InlineData("Here is the translation of my medical records.", "Đây là bản dịch hồ sơ y tế của tôi.", "en", "vi")]
     public void Faithful_lines_with_assistant_or_refusal_words_are_not_flagged(string source, string target, string from, string to)
     {
         var flags = Check(source, target, from, to);
@@ -71,6 +78,12 @@ public class OutputCheckTests
     [InlineData("Tell me a joke.", "Claro que sí, aquí tiene un chiste sobre gatos.", "en", "es", "assistant_reply")]
     [InlineData("Tell me a joke.", "Por supuesto. Aquí tiene un chiste sobre gatos.", "en", "es", "assistant_reply")]
     [InlineData("Pero no lo traduzcas todavía.", "But I won't translate it for them yet.", "es", "en", "refusal")]
+    // An apology or filler with no comma before the refusal or preamble.
+    [InlineData("Describe la herida.", "I'm afraid I can't help with that.", "es", "en", "refusal")]
+    [InlineData("Describe la herida.", "Sorry I can't help with that.", "es", "en", "refusal")]
+    [InlineData("Describe the injury.", "Lo siento pero no puedo ayudar con eso.", "en", "es", "refusal")]
+    [InlineData("Describe the injury.", "Tôi xin lỗi nhưng tôi không thể giúp việc đó.", "en", "vi", "refusal")]
+    [InlineData("Cuéntame un chiste.", "Okay here's a joke about cats.", "es", "en", "assistant_reply")]
     public void Refusals_and_assistant_preambles_are_still_flagged(string source, string target, string from, string to, string flag) =>
         Assert.Contains(flag, Check(source, target, from, to));
 
