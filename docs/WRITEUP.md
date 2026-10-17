@@ -15,8 +15,9 @@ translate* (`gpt-realtime-translate`, which takes only a target language). Realt
 deprecations page) but selectable, and I measured both. Stack: .NET 10 server, TypeScript SPA; the
 reasoning is in the README under "Why .NET + TypeScript" and in `docs/DECISIONS.md` D1–D2.
 
-The defaults are the ones tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
-speech end (client endpointing), cascade STT is `gpt-realtime-whisper` streaming, and cascade opens
+The measured configuration uses the defaults tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
+speech end (client endpointing), cascade STT is OpenAI transcription with its adapter's default model,
+`gpt-realtime-whisper`, streaming (`Cascade__Stt=openai`; the code default is Deepgram, see below), and cascade opens
 the TTS stream when translation starts. The STT streams text during speech, but translation starts
 per committed turn, on the STT final. Each run looped synthetic TTS clips of scripted English ↔
 Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
