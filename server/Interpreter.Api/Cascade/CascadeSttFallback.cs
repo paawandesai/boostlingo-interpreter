@@ -1,3 +1,4 @@
+using Interpreter.Api.Security;
 using Interpreter.Providers.Deepgram;
 using Interpreter.Providers.OpenAI;
 using Microsoft.Extensions.Options;
@@ -20,7 +21,7 @@ public sealed class CascadeSttFallback(
     {
         if (options.Stt != "deepgram") return;
         // The .env.example placeholder counts as unset, so copying the file unchanged still runs.
-        if (!string.IsNullOrWhiteSpace(deepgram.Value.ApiKey) && deepgram.Value.ApiKey != "replace-me") return;
+        if (ConfigValue.IsSet(deepgram.Value.ApiKey)) return;
         if (string.IsNullOrWhiteSpace(openai.Value.ApiKey)) return;
         options.Stt = "openai";
         log.LogWarning(

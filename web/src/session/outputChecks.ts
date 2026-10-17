@@ -5,6 +5,8 @@ import type { Utterance } from './store'
  * Deterministic checks on every output segment, both modes (G15). They decide nothing on their own:
  * a failed check marks the line "possibly not a translation" and offers the human handoff, and the
  * text is always kept. Heuristics, not proof; a passing line is not verified either.
+ * server/Interpreter.Core/Interpretation/OutputCheck.cs is a port of checkSegment that keeps flagged cascade
+ * turns out of the server's translator context; change both together.
  */
 export type CheckFlag =
   | 'refusal' // the model declined; shown as "[segment not interpreted — model declined]"

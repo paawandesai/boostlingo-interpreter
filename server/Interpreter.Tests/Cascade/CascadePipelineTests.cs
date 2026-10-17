@@ -84,6 +84,23 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task A_pair_the_context_filter_rejects_is_not_remembered()
+    {
+        // G15: the endpoint passes the output checks; a rejected pair is still delivered, never context.
+        var translator = new FakeTranslator();
+        var pipeline = new CascadePipeline(
+            new FakeStt([Final("What time is it?"), Final("Good morning."), Final("Where does it hurt?")]),
+            translator, new FakeTts());
+        var settings = EnEs with { KeepInContext = (source, _) => source != "What time is it?" };
+
+        var events = await RunAll(pipeline, settings);
+
+        Assert.Equal("ES(What time is it?)", events.OfType<TranslationFinal>().First().Text);
+        Assert.Empty(translator.Requests[1].Context!);
+        Assert.Equal([("Good morning.", "ES(Good morning.)")], translator.Requests[2].Context!);
+    }
+
+    [Fact]
     public async Task Segment_finals_are_translated_before_the_utterance_ends()
     {
         var tts = new FakeTts();

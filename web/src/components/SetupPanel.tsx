@@ -20,7 +20,7 @@ interface Props {
   /** Configured glossary size; null when the server has none. */
   glossaryTerms: number | null
   onSpeaker(s: SpeakerSide): void
-  onStart(opts: { spokenNotice: boolean }): void
+  onStart(): void
   /** Replay clips used as input instead of the mic (T3.6); empty means the mic. */
   replay: ReplayClip[]
   onReplay(clips: ReplayClip[]): void
@@ -42,17 +42,25 @@ export function SetupPanel({
   const [token, setToken] = useState(getAccessToken)
   // Consent is per session: this panel remounts after every session, so it starts unticked.
   const [consented, setConsented] = useState(false)
-  const [spoken, setSpoken] = useState(true)
   const pairLanguages = [state.langA, state.langB].map(
     (code) => languages?.languages.find((l) => l.code === code) ?? { code, name: code },
   )
   const name = (code: string) => languages?.languages.find((l) => l.code === code)?.name ?? code
   const pairKey = `${state.langA}|${state.langB}`
   const canTranslate = translateSupported(languages, state.langA, state.langB)
-  // Start waits for the two things a session cannot do without: the server's access token (an
-  // empty one is refused with 401 before any provider is reached) and both parties' consent (G7).
-  const blocker =
-    token.trim() === '' ? 'Enter the access token first' : consented ? null : 'Confirm both parties agreed first'
+  // Start waits for what a session cannot do without: the AI notice for both languages, shown and read aloud
+  // (G7; none if /api/languages failed), the server's access token (an empty one is refused with 401 before
+  // any provider is reached) and both parties' consent (G7).
+  const noNotice = pairLanguages.find((l) => !('disclosure' in l) || !l.disclosure?.notice || !l.disclosure.spoken)
+  const blocker = noNotice
+    ? languages
+      ? `No AI notice is configured for ${noNotice.name}`
+      : 'The AI notice could not be loaded from the server'
+    : token.trim() === ''
+      ? 'Enter the access token first'
+      : consented
+        ? null
+        : 'Confirm both parties agreed first'
   return (
     <section aria-labelledby="setup-h" className="panel setup">
       <h2 id="setup-h">New session</h2>
@@ -189,10 +197,13 @@ export function SetupPanel({
         vendors={vendorsFor(state.mode, cascadeProviders)}
         consented={consented}
         onConsent={setConsented}
-        spoken={spoken}
-        onSpoken={setSpoken}
       />
       <div className="actions">
+        {noNotice && (
+          <p role="alert" className="hint">
+            {blocker}. Start stays disabled: both parties must hear the notice before the mic opens.
+          </p>
+        )}
         <p className="hint">
           {state.mode === 'translate'
             ? 'Headphones required. Realtime translate speaks while you talk, so the mic stays open and a speaker would be translated again.'
@@ -203,7 +214,7 @@ export function SetupPanel({
           className="primary"
           disabled={blocker !== null}
           title={blocker ?? undefined}
-          onClick={() => onStart({ spokenNotice: spoken })}
+          onClick={() => onStart()}
         >
           Start session
         </button>

@@ -50,6 +50,23 @@ export function useSession(languages: LanguagesResponse | null = null) {
     await r?.stop()
   }, [])
 
+  /**
+   * The active transport closed without being asked to (the Realtime duration limit, the cascade server
+   * ending the session): leave the live state and release everything, as End does, but keep the transcript
+   * so it can still be exported. A transport stopped by teardown is no longer current, so it never gets here.
+   */
+  const closedByTransport = useCallback(
+    async (t: Transport) => {
+      if (transport.current !== t) return
+      startGen.current++
+      cancelNotice()
+      await teardown()
+      await stopReplay()
+      dispatch({ type: 'closed' })
+    },
+    [teardown, stopReplay],
+  )
+
   const setSpeaker = useCallback((side: SpeakerSide) => {
     dispatch({ type: 'configure', speaker: side })
     stateRef.current = { ...stateRef.current, speaker: side }
@@ -101,7 +118,10 @@ export function useSession(languages: LanguagesResponse | null = null) {
       const { mode, langA, langB, speaker, realtimeModel, glossary } = stateRef.current
       const t = createTransport(mode)
       transport.current = t
-      unsubscribe.current = t.subscribe((event) => dispatch({ type: 'transport', event }))
+      unsubscribe.current = t.subscribe((event) => {
+        dispatch({ type: 'transport', event })
+        if (event.type === 'state' && event.state === 'closed') void closedByTransport(t)
+      })
       dispatch({ type: 'started', at: Date.now() })
       await t.start({
         langA,
@@ -114,7 +134,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
         beforeCapture,
       })
     },
-    [teardown, stopReplay, setSpeaker],
+    [teardown, stopReplay, setSpeaker, closedByTransport],
   )
 
   const switching = useRef(false)
@@ -133,8 +153,11 @@ export function useSession(languages: LanguagesResponse | null = null) {
         return
       }
       switching.current = true
+      // End or a handoff during the switch bumps this; the switch must then not reopen a session.
+      const gen = startGen.current
       try {
         await teardown()
+        if (gen !== startGen.current) return
         dispatch({ type: 'configure', mode })
         dispatch({
           type: 'marker',
@@ -147,6 +170,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
       } finally {
         switching.current = false
       }
+      if (gen !== startGen.current) return
       // Not under the guard: a Realtime start can sit in "connecting" for a long time, and the user
       // must be able to switch back meanwhile (start() supersedes an earlier start).
       await start()
@@ -155,6 +179,8 @@ export function useSession(languages: LanguagesResponse | null = null) {
   )
 
   const end = useCallback(async () => {
+    // Supersedes any start or mode switch still waiting on a teardown, so nothing reopens the mic.
+    startGen.current++
     cancelNotice()
     await teardown()
     await stopReplay()
@@ -170,6 +196,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
 
   /** Ends the AI session at once and records that a human interpreter was asked for (G7). */
   const requestHuman = useCallback(async () => {
+    startGen.current++
     cancelNotice()
     await teardown()
     await stopReplay()

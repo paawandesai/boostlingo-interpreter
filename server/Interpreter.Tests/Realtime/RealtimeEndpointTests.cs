@@ -88,6 +88,19 @@ public class RealtimeEndpointTests(WebApplicationFactory<Program> factory) : ICl
     }
 
     [Fact]
+    public async Task The_env_example_placeholder_token_counts_as_not_configured()
+    {
+        var minter = OkMinter();
+
+        // A client that read the public .env.example sends the placeholder; it must not open the gate.
+        var res = await Client(minter, serverToken: "replace-me", clientToken: "replace-me")
+            .PostAsJsonAsync("/api/realtime/session", EnEs, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, res.StatusCode);
+        Assert.Empty(minter.Calls);
+    }
+
+    [Fact]
     public async Task Rate_limits_session_minting_per_client()
     {
         var minter = OkMinter();

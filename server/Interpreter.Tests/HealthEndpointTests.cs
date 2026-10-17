@@ -62,6 +62,16 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
     }
 
     [Fact]
+    public async Task The_env_example_placeholder_counts_as_no_access_token()
+    {
+        var client = factory.WithWebHostBuilder(b => b.UseSetting("Access:Token", "replace-me")).CreateClient();
+
+        var body = await client.GetFromJsonAsync<HealthResponse>("/health", TestContext.Current.CancellationToken);
+
+        Assert.False(body!.Config!.AccessTokenSet);
+    }
+
+    [Fact]
     public async Task Health_lists_only_the_unset_keys_the_configured_adapters_need()
     {
         var client = factory.WithWebHostBuilder(b =>

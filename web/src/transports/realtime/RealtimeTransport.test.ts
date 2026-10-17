@@ -129,6 +129,30 @@ describe('RealtimeTransport', () => {
     expect(startCapture).toHaveBeenCalledTimes(1)
   })
 
+  it('re-mints a secret that expired before the SDP exchange instead of failing', async () => {
+    const expired = { ...session, clientSecret: 'ek_old', expiresAt: '2000-01-01T00:00:00Z' }
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(expired)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...session, clientSecret: 'ek_new' })))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      '/api/realtime/session',
+      '/api/realtime/session',
+      session.callsUrl,
+    ])
+    expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer ek_new')
+    expect(events.some((e) => e.type === 'error')).toBe(false)
+    expect(FakePeer.last.remote).toEqual({ type: 'answer', sdp: 'v=0 answer' })
+  })
+
   it('reports live when the data channel opens and forwards parsed events', async () => {
     const { pc, events } = await started()
     pc.dc.open()
@@ -183,6 +207,29 @@ describe('RealtimeTransport', () => {
     t.setSpeaker('A')
     expect(pc.dc.sent).toHaveLength(2)
     expect(JSON.parse(pc.dc.sent[1]).session.instructions).toBe('EN to ES')
+  })
+
+  it('keeps the side of a turn that finishes after a speaker flip', async () => {
+    const { t, pc, events } = await started()
+    pc.dc.open()
+    const server = (e: object) => pc.dc.onmessage?.({ data: JSON.stringify(e) })
+    server({ type: 'input_audio_buffer.speech_stopped', item_id: 'u1', audio_end_ms: 1 })
+
+    t.setSpeaker('B')
+    server({ type: 'response.created', response: { id: 'resp_1' } })
+    server({ type: 'response.output_audio_transcript.done', response_id: 'resp_1', transcript: 'Hola.' })
+    server({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'Hello.' })
+    server({ type: 'response.done', response: { id: 'resp_1', status: 'completed' } })
+    // The flip's update is sent now; the next turn is B's.
+    server({ type: 'input_audio_buffer.speech_stopped', item_id: 'u2', audio_end_ms: 2 })
+    server({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u2', transcript: 'Hola.' })
+
+    const sides = events.flatMap((e) => (e.type === 'transcript' ? [[e.utteranceId, e.role, e.side]] : []))
+    expect(sides).toEqual([
+      ['u1', 'target', 'A'],
+      ['u1', 'source', 'A'],
+      ['u2', 'source', 'B'],
+    ])
   })
 
   it('queues a turn that ended during an active response instead of dropping it', async () => {
@@ -289,6 +336,22 @@ describe('RealtimeTransport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1) // the secret was minted, no SDP exchange followed
     await t.stop()
     expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+  })
+
+  it('ends the session at the duration limit: mic closed, closed reported (G19)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { pc, events } = await started({ ...session, maxSessionSeconds: 60 })
+      pc.dc.open()
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+
+      expect(pc.close).toHaveBeenCalled()
+      expect(capture.stop).toHaveBeenCalled()
+      expect(events.at(-2)).toMatchObject({ type: 'error', message: expect.stringContaining('1-minute limit') })
+      expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports a failed or disconnected peer connection as webrtc_dropped', async () => {

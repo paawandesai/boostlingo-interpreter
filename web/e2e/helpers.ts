@@ -74,6 +74,19 @@ export async function startSession(
   mode: 'Realtime translate' | 'Realtime' | 'Cascade',
   opts: { replayFiles?: string[]; query?: string } = {},
 ): Promise<void> {
+  // The AI notice is always read aloud (G7). Headless Chromium has no voices, so a stand-in synthesizer
+  // finishes each line at once; the app still waits for it before the mic opens.
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        getVoices: () => [],
+        cancel: () => {},
+        speak: (u: SpeechSynthesisUtterance) =>
+          setTimeout(() => u.onend?.(new Event('end') as SpeechSynthesisEvent), 0),
+      },
+    })
+  })
   await page.goto(`/${opts.query ?? ''}`)
   await page.getByRole('radio', { name: mode, exact: true }).click()
   await page.fill('#access-token', accessToken())
@@ -82,7 +95,6 @@ export async function startSession(
     await expect(page.getByText(/^Replaying \d+ clip/)).toBeVisible()
   }
   await page.getByLabel('Both parties were told').check()
-  await page.getByLabel('Read the notice aloud').uncheck()
   await page.getByRole('button', { name: 'Start session' }).click()
   await expect(page.getByRole('button', { name: 'End' })).toBeVisible()
 }

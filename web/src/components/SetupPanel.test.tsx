@@ -20,13 +20,23 @@ afterEach(() => {
   localStorage.clear()
 })
 
+// Synthetic notice text: the gate only needs both languages to have one.
+const disclosure = { notice: 'Synthetic on-screen notice.', spoken: 'Synthetic spoken notice.' }
+const withNotices = {
+  languages: [
+    { code: 'en', name: 'English', disclosure },
+    { code: 'es', name: 'Spanish', disclosure },
+  ],
+  pairs: [['en', 'es']] as [string, string][],
+}
+
 function render(state: SessionState, props: Partial<Parameters<typeof SetupPanel>[0]> = {}) {
   const onConfigure = vi.fn()
   const onStart = vi.fn()
   const element = (s: SessionState) => (
     <SetupPanel
       state={s}
-      languages={null}
+      languages={withNotices}
       models={models}
       cascadeProviders={null}
       glossaryTerms={null}
@@ -107,7 +117,38 @@ describe('SetupPanel start gate', () => {
     expect(start.title).toBe('')
 
     act(() => start.click())
-    expect(onStart).toHaveBeenCalledWith({ spokenNotice: true })
+    expect(onStart).toHaveBeenCalled()
+  })
+
+  it('has no switch to skip the spoken notice (G7)', () => {
+    render({ ...initialState, mode: 'realtime' })
+    expect(container.textContent).toContain('read aloud in both languages')
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(1)
+  })
+
+  it('keeps Start disabled when the notice could not be loaded', () => {
+    render({ ...initialState, mode: 'realtime' }, { languages: null })
+    type(container.querySelector<HTMLInputElement>('#access-token')!, 'invite-code')
+    const consent = Array.from(container.querySelectorAll('label')).find((l) =>
+      l.textContent?.startsWith('Both parties were told'),
+    )!
+    act(() => consent.querySelector('input')!.click())
+
+    expect(startButton().disabled).toBe(true)
+    expect(startButton().title).toBe('The AI notice could not be loaded from the server')
+  })
+
+  it('keeps Start disabled when a language of the pair has no notice', () => {
+    const languages = {
+      languages: [
+        { code: 'en', name: 'English', disclosure },
+        { code: 'es', name: 'Spanish' },
+      ],
+      pairs: [['en', 'es']] as [string, string][],
+    }
+    render({ ...initialState, mode: 'realtime' }, { languages })
+    expect(startButton().disabled).toBe(true)
+    expect(startButton().title).toBe('No AI notice is configured for Spanish')
   })
 
   it('treats a blank token as missing', () => {

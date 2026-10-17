@@ -186,10 +186,11 @@ public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> optio
                 {
                     if (!_opts.ClientEndpointing) continue;
                     turns.ClientCommitted();
+                    // The endpoint goes out before the commit, so a fast transcript can never overtake it.
+                    await events.WriteAsync(new SttEndpoint(), ct);
                     await sendLock.WaitAsync(ct);
                     try { await WebSocketText.SendTextAsync(ws, """{"type":"input_audio_buffer.commit"}""", ct); }
                     finally { sendLock.Release(); }
-                    await events.WriteAsync(new SttEndpoint(), ct);
                     continue;
                 }
                 if (frame.Pcm16.IsEmpty) continue;
@@ -297,6 +298,12 @@ public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> optio
         catch (WebSocketException e)
         {
             events.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "OpenAI stream dropped", inner: e));
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // A message this loop could not read (malformed JSON, a missing field): without this the receive task
+            // faults, no transcript ever comes, and the send loop keeps streaming billed audio.
+            events.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "Unreadable message from OpenAI transcription", inner: e));
         }
     }
 

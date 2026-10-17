@@ -78,6 +78,8 @@ export type SessionAction =
   | { type: 'started'; at?: number }
   | { type: 'segmentEnded'; at: number }
   | { type: 'ended' }
+  /** The transport ended the session itself (a duration limit, the server closing): the transcript stays for export. */
+  | { type: 'closed' }
   | { type: 'handoff' }
   | { type: 'dismissError' }
   | { type: 'marker'; text: string }
@@ -153,9 +155,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         glossary: locked ? state.glossary : (action.glossary ?? state.glossary),
       }
     }
-    case 'started':
+    case 'started': {
+      // G20: a new session after an ended one starts empty. Only a handoff leaves a transcript behind (for
+      // export on that screen); it must never reach the next session's context or its export.
+      const base = state.status === 'ended' ? discardTranscript(state) : state
       return {
-        ...state,
+        ...base,
         status: 'connecting',
         error: null,
         notice: null,
@@ -163,9 +168,10 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         handoffRequested: false,
         segments:
           action.at === undefined
-            ? state.segments
-            : [...state.segments, { mode: state.mode, startedAt: action.at, endedAt: null }],
+            ? base.segments
+            : [...base.segments, { mode: base.mode, startedAt: action.at, endedAt: null }],
       }
+    }
     case 'segmentEnded':
       return {
         ...state,
@@ -174,9 +180,16 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'ended':
       // G20: transcripts live only for the session view; export before End to keep them.
       return { ...discardTranscript(state), status: 'ended', level: 0, gated: false }
+    case 'closed':
+      // Leaves the live screen with the error that explains why; the next start discards the transcript (G20).
+      return { ...state, status: 'ended', level: 0, gated: false, pendingSpeechEnd: null, notice: null }
     case 'handoff':
+      // The transcript stays for this screen only, so it can still be exported after the handoff; the next
+      // start discards it (G20).
       return {
-        ...discardTranscript(state),
+        ...state,
+        pendingSpeechEnd: null,
+        notice: null,
         status: 'ended',
         level: 0,
         gated: false,
@@ -235,6 +248,7 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       const cleared = e.role === 'target' && e.final ? { ...state, notice: null } : state
       return updateUtterance(cleared, e.utteranceId, (u) => ({
         ...u,
+        side: e.side ?? u.side,
         [e.role]:
           e.role === 'source' && e.confidence !== undefined
             ? { text: e.text, final: e.final, confidence: e.confidence }

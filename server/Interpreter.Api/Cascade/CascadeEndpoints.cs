@@ -5,6 +5,7 @@ using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Cascade;
 using Interpreter.Core.Errors;
+using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
 using Interpreter.Core.Net;
 using Interpreter.Providers.OpenAI;
@@ -154,12 +155,12 @@ public static class CascadeEndpoints
         }
 
         var expected = access.Value.Token;
-        if (string.IsNullOrEmpty(expected))
+        if (!ConfigValue.IsSet(expected))
         {
             await Refuse("Server access token is not configured. Set DEMO_ACCESS_TOKEN on the server.", ProviderErrorKind.Auth);
             return;
         }
-        if (!AccessControl.TokensMatch(start.Token ?? "", expected))
+        if (!AccessControl.TokensMatch(start.Token ?? "", expected!))
         {
             await Refuse("Missing or wrong access token.", ProviderErrorKind.Auth);
             return;
@@ -206,6 +207,9 @@ public static class CascadeEndpoints
         var nextUtterance = 1;
         var receive = ReceiveAsync(firstLeg);
         var pipeline = new CascadePipeline(stt, translator, tts, time);
+        // Anything but a normal end closes with an error status, so the client never takes it for a clean stop.
+        var closeStatus = WebSocketCloseStatus.NormalClosure;
+        var closeReason = "done";
         try
         {
             await foreach (var leg in legs.Reader.ReadAllAsync(stop.Token))
@@ -250,12 +254,31 @@ public static class CascadeEndpoints
         {
             log.LogInformation("Cascade session ended: socket dropped");
         }
+        catch (Exception e) when (e is not OperationCanceledException || !stop.IsCancellationRequested)
+        {
+            // An adapter or pipeline bug (a vendor payload it could not parse, say). The turn in flight is lost,
+            // so the client is told and the socket closes as an error. Only the exception type is logged:
+            // its message can carry vendor text.
+            log.LogError("Cascade session failed: {ExceptionType}", e.GetType().Name);
+            closeStatus = WebSocketCloseStatus.InternalServerError;
+            closeReason = "interpreter error";
+            try
+            {
+                await SendSessionError(
+                    "The interpreter stopped after an unexpected error, and the turn in progress was not interpreted. Start a new session to continue.",
+                    ProviderErrorKind.Unavailable);
+            }
+            catch (Exception sendFailure) when (sendFailure is WebSocketException or OperationCanceledException or ObjectDisposedException)
+            {
+                // The socket is already gone; the close below is best effort too.
+            }
+        }
         finally
         {
             await stop.CancelAsync();
             await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             foreach (var leg in all) leg.Dispose();
-            await WebSocketText.CloseQuietlyAsync(ws);
+            await WebSocketText.CloseQuietlyAsync(ws, closeReason, closeStatus);
         }
 
         /// <summary>
@@ -266,13 +289,18 @@ public static class CascadeEndpoints
         async Task RunLegAsync(Leg leg)
         {
             var terms = start.Glossary ? glossary.For(leg.Source, leg.Target) : null;
+            // G15: a translation that failed the output checks is shown (flagged) but never becomes context.
+            var sourceChecks = languages.Find(leg.Source)?.OutputChecks;
+            var targetChecks = languages.Find(leg.Target)?.OutputChecks;
+            bool Keep(string s, string t) => OutputCheck.FitForContext(s, t, sourceChecks, targetChecks);
             var settings = new CascadeSettings(
                 leg.Source, languages.Find(leg.Source)!.Name, leg.Target, languages.Find(leg.Target)!.Name,
                 Voice: opts.Voices.GetValueOrDefault(leg.Target),
                 Keyterms: terms?.Keys.ToList(),
                 Glossary: terms,
                 History: history.TakeLast(CascadeProtocol.MaxHistoryPairs).ToList(),
-                FirstUtterance: nextUtterance);
+                FirstUtterance: nextUtterance,
+                KeepInContext: Keep);
             await foreach (var e in pipeline.RunAsync(leg.Audio.Reader.ReadAllAsync(stop.Token), settings, stop.Token, clock))
             {
                 nextUtterance = Math.Max(nextUtterance, e.Utterance + 1);
@@ -281,7 +309,7 @@ public static class CascadeEndpoints
                     case SourceFinal: activity.Success($"stt:{stt.Name}"); break;
                     case TranslationFinal f:
                         activity.Success($"translator:{translator.Name}");
-                        if (f.Text.Length > 0) history.Add((f.Source, f.Text));
+                        if (Keep(f.Source, f.Text)) history.Add((f.Source, f.Text));
                         if (history.Count > CascadeProtocol.MaxHistoryPairs) history.RemoveAt(0);
                         break;
                     case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;

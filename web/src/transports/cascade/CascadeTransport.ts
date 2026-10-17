@@ -6,8 +6,10 @@
  * half-duplex mic gate. stop() releases all of them. A speaker switch sends a direction message over the
  * open socket and keeps capture and playback: the server finishes the turn in flight first, and everything
  * it sends before its direction ack is the old direction's, shown and played as usual (only a mode switch
- * drops an utterance, D12). The socket is only reopened when it dropped, because every upgrade spends one
- * of the server's per-client rate-limit permits.
+ * drops an utterance, D12). The socket is only reopened when it dropped (no close frame), because every
+ * upgrade spends one of the server's per-client rate-limit permits. A close the server sends (the session
+ * limit, an STT failure, a refusal or an internal error) ends the session: the mic closes, and a speaker
+ * toggle can't open a fresh server session behind the user's back.
  */
 import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
@@ -29,6 +31,8 @@ import { CascadeEventParser } from './events'
 /** Capture worklet output rate (D6). */
 const STT_RATE = 16000
 const TTS_RATE = 24000
+/** WebSocket close code for a connection lost without a close frame. */
+const ABNORMAL_CLOSURE = 1006
 /** STT audio time is reported to the store this often (T3.5), so an export taken before End has it. */
 const USAGE_REPORT_SECONDS = 5
 
@@ -53,6 +57,8 @@ export class CascadeTransport implements Transport {
   private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
+  /** The side of the direction the server is interpreting now; it changes only at the server's direction ack. */
+  private legSide: SpeakerSide = 'A'
   /** Tells the server the speaker stopped; an STT adapter with client endpointing ends the turn on it. */
   private endpointer: ClientEndpointer | null = null
 
@@ -146,9 +152,12 @@ export class CascadeTransport implements Transport {
     // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
     this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
+    this.legSide = this.config!.speaker
 
     ws.onopen = () => {
       const config = this.config!
+      // The start message carries the direction as of now; a flip while connecting is not acked.
+      this.legSide = config.speaker
       const [source, target] = direction(config, config.speaker)
       const history = config.history?.().slice(-HISTORY_PAIRS) ?? []
       ws.send(
@@ -169,14 +178,25 @@ export class CascadeTransport implements Transport {
     ws.onclose = (e) => {
       if (this.stopped || ws !== this.ws) return
       this.ready = false
-      if (e.code !== 1000 && !this.serverError) {
-        const reason = e.reason ? `: ${e.reason}` : ''
+      const reason = e.reason ? `: ${e.reason}` : ''
+      if (e.code === ABNORMAL_CLOSURE) {
+        // No close frame: the network or a proxy dropped the socket. A speaker toggle reconnects.
         this.emitter.emit({
           type: 'error',
           kind: 'unavailable',
           message: `Cascade connection closed (${e.code})${reason}`,
         })
+        return
       }
+      // The server closed the session. Its error message, if one came, already says why; a close with none
+      // (even a 1000) is still an end the user must see.
+      if (!this.serverError)
+        this.emitter.emit({
+          type: 'error',
+          kind: 'unavailable',
+          message: `The server ended the cascade session (${e.code})${reason}. Start a new session to continue.`,
+        })
+      void this.stop()
     }
   }
 
@@ -194,9 +214,13 @@ export class CascadeTransport implements Transport {
     if (json.type === 'direction') {
       // The old direction's pipeline has delivered its last turn; whatever follows belongs to the new one.
       if (this.parser) this.parser.speaking = null
+      const source = (json as { source?: string }).source
+      if (this.config && source) this.legSide = source === this.config.langA ? 'A' : 'B'
       return
     }
-    for (const ev of this.parser?.parse(json) ?? []) this.emitter.emit(ev)
+    // Turns the server finishes after a flip were spoken in the old direction and keep its side.
+    for (const ev of this.parser?.parse(json) ?? [])
+      this.emitter.emit(ev.type === 'transcript' ? { ...ev, side: this.legSide } : ev)
   }
 
   private onAudio(data: ArrayBuffer): void {

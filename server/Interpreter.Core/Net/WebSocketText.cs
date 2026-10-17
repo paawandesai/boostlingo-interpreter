@@ -33,13 +33,14 @@ public static class WebSocketText
         ws.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, ct);
 
     /// <summary>Closes politely if the socket is still open; never throws.</summary>
-    public static async Task CloseQuietlyAsync(WebSocket ws, string reason = "done")
+    public static async Task CloseQuietlyAsync(
+        WebSocket ws, string reason = "done", WebSocketCloseStatus status = WebSocketCloseStatus.NormalClosure)
     {
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, timeout.Token);
+                await ws.CloseAsync(status, reason, timeout.Token);
         }
         catch (Exception e) when (e is WebSocketException or OperationCanceledException or ObjectDisposedException)
         {

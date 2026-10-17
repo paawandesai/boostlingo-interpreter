@@ -31,7 +31,7 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    private sealed class FakeTranslator : IStreamingTranslator
+    private sealed class FakeTranslator(string reply = "Hola.") : IStreamingTranslator
     {
         public readonly List<TranslationRequest> Requests = [];
         public string Name => "fake-translator";
@@ -40,7 +40,7 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         {
             lock (Requests) Requests.Add(request);
             await Task.Yield();
-            yield return "Hola.";
+            yield return reply;
         }
     }
 
@@ -234,6 +234,21 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
     }
 
     [Fact]
+    public async Task The_env_example_placeholder_token_counts_as_not_configured()
+    {
+        var (ws, stt) = await Connect(serverToken: "replace-me");
+
+        await Send(ws, new { type = "start", token = "replace-me", source = "en", target = "es" });
+        var messages = await ReadAll(ws);
+
+        var error = Json(messages[0]);
+        Assert.Equal("Auth", (string?)error["kind"]);
+        Assert.Contains("not configured", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, messages[^1].Close);
+        Assert.Equal(0, stt.Frames);
+    }
+
+    [Fact]
     public async Task Runs_a_turn_end_to_end_and_answers_pings_on_the_same_clock()
     {
         var (ws, stt) = await Connect();
@@ -369,6 +384,62 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Equal(("Spanish", "English"), (translator.Requests[1].SourceLanguage, translator.Requests[1].TargetLanguage));
         Assert.Equal([("Hello.", "Hola.")], translator.Requests[1].Context!);
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    /// <summary>Fails the way an adapter bug does: not a ProviderException (a vendor payload it can't parse).</summary>
+    private sealed class BuggyTranslator : IStreamingTranslator
+    {
+        public string Name => "buggy-translator";
+
+        public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            throw new KeyNotFoundException("synthetic parse failure");
+#pragma warning disable CS0162 // an iterator needs a yield
+            yield break;
+#pragma warning restore CS0162
+        }
+    }
+
+    [Fact]
+    public async Task An_unexpected_adapter_error_is_reported_and_closes_the_socket_as_an_error()
+    {
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: new BuggyTranslator());
+        await Start(ws);
+
+        await SendFrame(ws);
+        var messages = await ReadAll(ws);
+
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Equal("session", (string?)error["stage"]);
+        Assert.DoesNotContain("synthetic parse failure", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task A_translation_that_fails_the_output_checks_is_not_carried_as_context()
+    {
+        // G15: the line is still delivered (and flagged by the client), but the next leg never sees it as an
+        // earlier answer of its own.
+        var translator = new FakeTranslator("I'm sorry, but I can't help with that.");
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: translator);
+        await Start(ws);
+
+        await SendFrame(ws);
+        var first = await ReadThrough(ws, "utterance.done");
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await ReadUntil(ws, "direction");
+        await SendFrame(ws);
+        await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        var shown = first.Where(m => m.Type == WebSocketMessageType.Text).Select(Json)
+            .Single(j => (string?)j["type"] == "translation.final");
+        Assert.Equal("I'm sorry, but I can't help with that.", (string?)shown["text"]);
+        Assert.Equal(2, translator.Requests.Count);
+        Assert.Empty(translator.Requests[1].Context!);
     }
 
     [Fact]

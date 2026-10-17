@@ -185,6 +185,11 @@ public sealed class DeepgramStt(IOptions<DeepgramOptions> options) : IStreamingS
         {
             events.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "Deepgram stream dropped", inner: e));
         }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // A message Parse could not read: end the stream with an error instead of faulting silently.
+            events.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "Unreadable message from Deepgram", inner: e));
+        }
     }
 
     /// <summary>Maps one Deepgram message to an event, or null for messages the pipeline doesn't use.</summary>
