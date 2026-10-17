@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { decodeClips, type ReplayClip } from '../audio/replay'
 import { getAccessToken, setAccessToken } from '../session/access'
-import { modeAvailable, translateSupported, type LanguagesResponse } from '../session/languages'
+import { defaultMode, modeAvailable, translateSupported, type LanguagesResponse } from '../session/languages'
 import type { CascadeProviders } from '../session/providers'
 import { vendorsForModes } from '../session/providers'
 import { realtimeModelLabel, type RealtimeModels } from '../session/models'
@@ -84,12 +84,10 @@ export function SetupPanel({
             value={pairKey}
             onChange={(e) => {
               const [langA, langB] = e.target.value.split('|')
-              // G17: Realtime translate is the default wherever the pair supports it.
-              const mode = translateSupported(languages, langA, langB)
-                ? 'translate'
-                : state.mode === 'translate'
-                  ? 'realtime'
-                  : state.mode
+              // The chosen mode stays while it can run the new pair; otherwise the default for the pair (G17).
+              const mode = modeAvailable(languages, state.mode, langA, langB)
+                ? state.mode
+                : defaultMode(languages, langA, langB)
               onConfigure({ langA, langB, mode })
             }}
           >
