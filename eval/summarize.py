@@ -105,6 +105,8 @@ REQUIRED_LINES: dict[str, list[tuple[str, str]]] = {
     "cascade": [("STT (", "STT")],
     # Realtime bills its input transcription separately; the browser never exported a line for it.
     "realtime": [("Realtime input transcription", "input transcription")],
+    # The translate session also requests a source transcript; treated as billed, like Realtime's.
+    "translate": [("Realtime translate source transcript", "source transcript")],
 }
 # The unit each price field is quoted in; a line in any other unit stays unpriced, never rescaled.
 PRICE_UNITS = {"perMinute": "min", "perThousandCharacters": "k chars"}  # else MTok

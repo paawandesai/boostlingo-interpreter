@@ -106,8 +106,10 @@ price, but `gpt-realtime` got far less prompt caching in its run, so it cost alm
 On the 2026-10-15 runs `gpt-realtime-2.1` cost $0.2023/min, about 10.5 to 13.6 times the two
 cascades ($0.0193 and $0.0149, both without STT), and Realtime translate ($0.034) about 1.8 to 2.3
 times. Realtime translate's $0.034 excludes its source transcript: the session also requests a
-`gpt-realtime-whisper` transcript of the source audio, whose billing was not checked; billed at
-$0.017/min it would bring the total to about $0.051/min.
+`gpt-realtime-whisper` transcript of the source audio. A 2026-10-17 web search of OpenAI's pages
+didn't say whether that is billed on top; Realtime bills its input transcription separately, so the
+write-up assumes the same, at $0.017/min, for about $0.051/min, about 1.8 times the default cascade with STT
+($0.0290) and still about a quarter of Realtime.
 
 ## C. Cascade's sentence-tail loss
 

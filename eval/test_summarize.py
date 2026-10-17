@@ -330,6 +330,23 @@ class SummarizeTests(unittest.TestCase):
         self.assertIn(
             "(excludes input transcription: no quantity in the log)", rendered
         )
+        translate_price = {
+            "key": "realtime-translate:openai",
+            "model": "gpt-realtime-translate",
+            "perMinute": 0.034,
+            "source": "test",
+            "checkedOn": "2026-10-17",
+        }
+        priced = {**PRICES, "entries": [*PRICES["entries"], translate_price]}
+        translate = mode_block(
+            "translate", 2.0, cost_line("Realtime translate (session time)", 2.0, "min")
+        )
+        rendered = summarize.render(
+            summarize.summarize([log("openai", modes=[translate])], SCRIPTS, priced), []
+        )
+        self.assertIn(
+            "| $0.0340 (excludes source transcript: no quantity in the log) |", rendered
+        )
 
     def test_refuses_to_mix_redteam_and_replay_logs(self) -> None:
         with tempfile.TemporaryDirectory() as d:
