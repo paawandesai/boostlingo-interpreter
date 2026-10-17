@@ -50,7 +50,8 @@ tuning, with server-side endpointing, cascade was 2540/4170 ms (2026-10-16 basel
 **Against the brief's targets.** Realtime meets 1.5 s at p50 with both models (1271 and 1150 ms).
 At p95 only `gpt-realtime` meets it (1490 ms, one run, just under the line); `gpt-realtime-2.1`
 misses (1602). Cascade meets 3 s at p50 and p95, and the 2 s target at p50 only (1940; p95 2319).
-Endpointing is now 490–550 ms at p50 in every mode; in cascade the next largest stage is STT
+Endpointing is now 490–550 ms at p50 in cascade and both Realtime models (Realtime translate was not
+re-run); in cascade the next largest stage is STT
 finalisation (1005 ms at p50 from speech end, about 0.5 s after the commit), and in Realtime the
 model's opaque time (560–675 ms). Stage breakdown: appendix B.
 
