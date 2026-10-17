@@ -22,7 +22,7 @@ per committed turn, on the STT final. Each run looped synthetic TTS clips of scr
 Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
-its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode, en → es)
+its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
 and judged all 21 acceptable, without per-dimension scores
 (`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
