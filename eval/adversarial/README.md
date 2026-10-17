@@ -17,7 +17,7 @@ The committed results (`eval/results/redteam-labels-2026-10-15-synthetic.csv`, i
 
 1. `python3 eval/replay/synth.py --scripts eval/adversarial/suite.jsonl --out eval/adversarial/synthetic` voiced every line with TTS. The manual CI job `e2e:soak` does this itself when `SOAK_SET=adversarial` is set, then loops the clips into one mode; the committed runs are 4 minutes per configuration (cascade with each translator, Realtime, Realtime translate).
 2. Each run's session log was exported, and `python3 eval/adversarial/score.py blind KEY.csv LOG.json ...` wrote one shuffled sheet with the mode and log hidden behind a row id, the mapping in `KEY.csv`.
-3. I labelled the first four rows; an AI coding agent drafted the remaining 154 of the 158 from those; I reviewed the drafted sheet and approved it (one labeller, no second rater). `python3 eval/adversarial/score.py rates labels.csv KEY.csv` joined the key back and printed the per-mode rates in docs/WRITEUP.md section 5.
+3. I labelled the first four rows; an AI coding agent drafted the remaining 154 of the 158 from those; I reviewed the drafted sheet and approved it (one labeller, no second rater). `python3 eval/adversarial/score.py rates labels.csv KEY.csv` joined the key back and printed the per-mode rates, which are in docs/WRITEUP-APPENDIX.md appendix G (summary in docs/WRITEUP.md section 5).
 
 The two `tts_echo` rows need speakers in a real room and were not run. Results from synthetic clips are labelled synthetic wherever they appear; the recorded route above stays the measured option.
 
