@@ -10,7 +10,12 @@
  * were checked live; the audio path itself could not be tested from the cloud container.
  */
 import { MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
-import { createTranslationSession, exchangeSdp, RealtimeApiError, type TranslationSessionInfo } from '../realtime/api'
+import {
+  createTranslationSession,
+  exchangeSdpWithFreshSecret,
+  RealtimeApiError,
+  type TranslationSessionInfo,
+} from '../realtime/api'
 import { createFirstAudioProbe, type FirstAudioProbe } from '../realtime/firstAudioProbe'
 import {
   direction,
@@ -144,7 +149,9 @@ export class TranslateTransport implements Transport {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
-    const answer = await exchangeSdp(info.callsUrl, info.clientSecret, pc.localDescription!.sdp)
+    const { answer } = await exchangeSdpWithFreshSecret(info, pc.localDescription!.sdp, () =>
+      createTranslationSession(direction(this.config!, this.config!.speaker)[1]),
+    )
     if (this.stopped) return
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
   }

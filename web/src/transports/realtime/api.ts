@@ -18,12 +18,15 @@ export interface RealtimeSessionInfo {
 export class RealtimeApiError extends Error {
   readonly kind: ErrorKind
   readonly retryAfterMs?: number
+  /** HTTP status, when the error is an HTTP answer. */
+  readonly status?: number
 
-  constructor(kind: ErrorKind, message: string, retryAfterMs?: number) {
+  constructor(kind: ErrorKind, message: string, retryAfterMs?: number, status?: number) {
     super(message)
     this.name = 'RealtimeApiError'
     this.kind = kind
     this.retryAfterMs = retryAfterMs
+    this.status = status
   }
 }
 
@@ -109,7 +112,47 @@ export async function exchangeSdp(
     throw new RealtimeApiError(
       res.status === 429 ? 'rate_limited' : 'unavailable',
       `SDP exchange failed (HTTP ${res.status})`,
+      undefined,
+      res.status,
     )
   }
   return res.text()
+}
+
+/** A secret this close to its expiry is not used for the SDP exchange; a fresh one is minted instead. */
+export const SECRET_MARGIN_MS = 5000
+
+interface MintedSecret {
+  clientSecret: string
+  expiresAt: string
+  callsUrl: string
+}
+
+/**
+ * The SDP exchange with a secret that is still valid. The secret is minted while the spoken notice plays,
+ * so the two overlap; a slow first microphone-permission prompt can then outlast its short lifetime. A secret
+ * about to expire is re-minted first, and an exchange refused with 401 is retried once with a fresh one.
+ * Never more than one extra mint per connection. Returns the answer and the session info that was used.
+ */
+export async function exchangeSdpWithFreshSecret<T extends MintedSecret>(
+  info: T,
+  offerSdp: string,
+  remint: () => Promise<T>,
+  now: () => number = Date.now,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ answer: string; info: T }> {
+  let current = info
+  let reminted = false
+  const expiresAt = Date.parse(current.expiresAt)
+  if (Number.isFinite(expiresAt) && expiresAt - now() < SECRET_MARGIN_MS) {
+    current = await remint()
+    reminted = true
+  }
+  try {
+    return { answer: await exchangeSdp(current.callsUrl, current.clientSecret, offerSdp, fetchImpl), info: current }
+  } catch (e) {
+    if (reminted || !(e instanceof RealtimeApiError) || e.status !== 401) throw e
+    current = await remint()
+    return { answer: await exchangeSdp(current.callsUrl, current.clientSecret, offerSdp, fetchImpl), info: current }
+  }
 }

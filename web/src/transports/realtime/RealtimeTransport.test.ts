@@ -129,6 +129,30 @@ describe('RealtimeTransport', () => {
     expect(startCapture).toHaveBeenCalledTimes(1)
   })
 
+  it('re-mints a secret that expired before the SDP exchange instead of failing', async () => {
+    const expired = { ...session, clientSecret: 'ek_old', expiresAt: '2000-01-01T00:00:00Z' }
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(expired)))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...session, clientSecret: 'ek_new' })))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const events: TransportEvent[] = []
+    t.subscribe((e) => events.push(e))
+
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      '/api/realtime/session',
+      '/api/realtime/session',
+      session.callsUrl,
+    ])
+    expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer ek_new')
+    expect(events.some((e) => e.type === 'error')).toBe(false)
+    expect(FakePeer.last.remote).toEqual({ type: 'answer', sdp: 'v=0 answer' })
+  })
+
   it('reports live when the data channel opens and forwards parsed events', async () => {
     const { pc, events } = await started()
     pc.dc.open()

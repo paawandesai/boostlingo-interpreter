@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createRealtimeSession, exchangeSdp, RealtimeApiError } from './api'
+import { createRealtimeSession, exchangeSdp, exchangeSdpWithFreshSecret, RealtimeApiError } from './api'
 
 describe('createRealtimeSession', () => {
   it('posts the direction to our backend, not to OpenAI', async () => {
@@ -49,5 +49,52 @@ describe('exchangeSdp', () => {
     const init = fetchImpl.mock.calls[0][1]
     expect(init.headers).toEqual({ Authorization: 'Bearer ek_1', 'Content-Type': 'application/sdp' })
     expect(init.body).toBe('v=0 offer')
+  })
+})
+
+describe('exchangeSdpWithFreshSecret', () => {
+  const info = (secret: string, expiresAt: string) => ({
+    clientSecret: secret,
+    expiresAt,
+    callsUrl: 'https://calls.test',
+  })
+  const now = () => Date.parse('2026-10-17T12:00:00Z')
+  const answer = () => new Response('v=0 answer', { status: 201 })
+  const authHeader = (f: ReturnType<typeof vi.fn>, call: number) =>
+    (f.mock.calls[call][1] as { headers: Record<string, string> }).headers.Authorization
+
+  it('uses a secret that is still valid as is', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(answer())
+    const remint = vi.fn()
+    const out = await exchangeSdpWithFreshSecret(info('ek_1', '2026-10-17T12:00:30Z'), 'offer', remint, now, fetchImpl)
+    expect(out.answer).toBe('v=0 answer')
+    expect(remint).not.toHaveBeenCalled()
+    expect(authHeader(fetchImpl, 0)).toBe('Bearer ek_1')
+  })
+
+  it('re-mints a secret that expired while the mic permission prompt waited', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(answer())
+    const remint = vi.fn().mockResolvedValue(info('ek_2', '2026-10-17T12:01:00Z'))
+    const out = await exchangeSdpWithFreshSecret(info('ek_1', '2026-10-17T12:00:02Z'), 'offer', remint, now, fetchImpl)
+    expect(remint).toHaveBeenCalledTimes(1)
+    expect(authHeader(fetchImpl, 0)).toBe('Bearer ek_2')
+    expect(out.info.clientSecret).toBe('ek_2')
+  })
+
+  it('retries a 401 once with a fresh secret, and only once', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('', { status: 401 }))
+      .mockResolvedValueOnce(answer())
+    const remint = vi.fn().mockResolvedValue(info('ek_2', ''))
+    const out = await exchangeSdpWithFreshSecret(info('ek_1', ''), 'offer', remint, now, fetchImpl)
+    expect(out.answer).toBe('v=0 answer')
+    expect(authHeader(fetchImpl, 1)).toBe('Bearer ek_2')
+
+    const refusing = vi.fn().mockImplementation(async () => new Response('', { status: 401 }))
+    await expect(exchangeSdpWithFreshSecret(info('ek_1', ''), 'offer', remint, now, refusing)).rejects.toThrow(
+      'HTTP 401',
+    )
+    expect(refusing).toHaveBeenCalledTimes(2)
   })
 })

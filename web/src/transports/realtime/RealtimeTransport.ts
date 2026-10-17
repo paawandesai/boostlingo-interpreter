@@ -18,7 +18,7 @@ import {
   type Transport,
 } from '../types'
 import { ClientEndpointer } from '../endpointing'
-import { createRealtimeSession, exchangeSdp, RealtimeApiError, type RealtimeSessionInfo } from './api'
+import { createRealtimeSession, exchangeSdpWithFreshSecret, RealtimeApiError, type RealtimeSessionInfo } from './api'
 import { RealtimeEventParser } from './events'
 import { createFirstAudioProbe, type FirstAudioProbe } from './firstAudioProbe'
 
@@ -192,8 +192,12 @@ export class RealtimeTransport implements Transport {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
-    const answer = await exchangeSdp(info.callsUrl, info.clientSecret, pc.localDescription!.sdp)
+    const { answer, info: used } = await exchangeSdpWithFreshSecret(info, pc.localDescription!.sdp, () => {
+      const [source, target] = direction(this.config!, this.config!.speaker)
+      return createRealtimeSession(source, target, this.config!.realtimeModel, undefined, this.config!.glossary)
+    })
     if (this.stopped) return
+    this.info = used
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
   }
 
