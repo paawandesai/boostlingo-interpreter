@@ -25,7 +25,9 @@ builder.Services.AddAccessControl(builder.Configuration);
 // BAA mode (off by default): refuses any session whose route isn't covered by a declared BAA.
 builder.Services.AddCompliance(builder.Configuration);
 builder.Services.AddHostedService<ComplianceStartupCheck>();
-builder.Services.Configure<CascadeOptions>(builder.Configuration.GetSection(CascadeOptions.Section));
+builder.Services.AddOptions<CascadeOptions>().Bind(builder.Configuration.GetSection(CascadeOptions.Section)).ValidateOnStart();
+// A voice the active TTS doesn't list, or a session cap that isn't positive, stops startup with the setting's name.
+builder.Services.AddSingleton<IValidateOptions<CascadeOptions>, CascadeOptionsValidation>();
 // Without a Deepgram key the default STT adapter can't run; with an OpenAI key the openai one serves instead.
 builder.Services.ConfigureOptions<CascadeSttFallback>();
 builder.Services.AddDeepgramStt(builder.Configuration);
