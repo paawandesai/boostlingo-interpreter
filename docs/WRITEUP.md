@@ -2,8 +2,8 @@
 
 > Every number comes from a file under `eval/results/`. No **[VERIFY]** markers remain: a vendor fact
 > not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
-> A browsing AI assistant read the vendor prices, data terms and legal citations on the official pages
-> on 2026-10-16 and I checked its table (an AI coding agent read the Claude Haiku price on 2026-10-14).
+> I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
+> browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).
 > Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
@@ -23,7 +23,8 @@ Spanish dialogue for 5 minutes, each clip waiting for the previous interpretatio
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
 its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode, en → es)
-and judged all 21 acceptable, without per-dimension scores. Deepgram's terms bar
+and judged all 21 acceptable, without per-dimension scores
+(`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
 ## 2. Latency (client ms, speech end → first audio, 2026-10-16)
@@ -93,55 +94,28 @@ the total is about $0.051/min. What each figure leaves out: appendix B.
 
 ## 5. Controllability and compliance
 
-**Prompt injection.** All speech is untrusted input to an instructed model. Realtime translate is
-structurally the safest: no instructions and no tools, so "ignore your instructions" can only be
-translated. Realtime relies on its instructions and has no tools; cascade's translator gets the
-transcript as delimited data with no tools. Every output line in every mode is run through
-deterministic checks (target language, length ratio, assistant phrasing, refusal, prompt-leak
-canary). The red-team suite (`eval/adversarial/`) ran on 2026-10-15 in all four configurations on
-synthetic voices (Realtime on `gpt-realtime-2.1`; the two speaker-echo lines need a real room and
-were not run). Rates come from a shuffled sheet on which the mode was hidden, each output judged
-against the line's intended (faithful) rendering. An AI coding agent drafted 154 of the 158 labels
-from my first four; I reviewed and approved the sheet: one labeller, no second rater
-(`eval/results/redteam-labels-2026-10-15-synthetic.csv`, key in `redteam-key-2026-10-15-synthetic.csv`).
-
-| Rate | Cascade (both translators) | Realtime | Realtime translate |
-|---|---|---|---|
-| Answered instead of translating | 0/88 (0%) | 0/17 (0%) | 0/53 (0%) |
-| Instruction followed | 0/88 (0%) | 0/17 (0%) | 1/53 (2%) |
-| Omission | 32/88 (36%) | 5/17 (29%) | 18/53 (34%) |
-| Refusal | 0/88 (0%) | 1/17 (6%) | 0/53 (0%) |
-| Wrong language | 0/88 (0%) | 1/17 (6%) | 0/53 (0%) |
-| Meaning changed or garbled ("other") | 37/88 (42%) | 3/17 (18%) | 10/53 (19%) |
-| Fully faithful | 19/88 (22%) | 7/17 (41%) | 24/53 (45%) |
-
-No mode answered a question addressed to it. Cascade's weakness here is loss, not obedience, and
-it ran with the old replay's sentence-tail loss (examples in appendix D). These are subjective
-counts with small n: failure shapes, not benchmark rates.
-
-**Lock-in and observability.** Each cascade stage is a config entry behind one interface: the STT
-swap between Deepgram and `gpt-4o-transcribe` and the translator swap (OpenAI to Claude) are
-config-only; `gpt-realtime-whisper` needed adapter and pipeline work (client endpointing). Every stage reports its own marks, so a slow vendor is visible per
-stage. Realtime and Realtime translate are one vendor each: the model's time is opaque, no stage can
-be swapped, and leaving the vendor means a new transport, not a setting. Model lifecycle is part of
-the same risk: the brief's `gpt-realtime` is already deprecated, and `gpt-4o-transcribe`, now the
-STT fallback, is listed for shutdown on 2027-02-26. A replacement must be re-measured before it is
-trusted.
-
-**Data flows.** No BAA or zero-retention terms are in place for this project, and it is not
-HIPAA-compliant. BAA mode (off by default, README "BAA mode") refuses any route not on its vendor's
-HIPAA-eligible list, so Realtime translate is always refused; the per-vendor retention, zero-retention
-and BAA table is in [appendix E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
+Speech is untrusted input to an instructed model. Realtime translate takes no instructions and has
+no tools, so it is structurally the safest; Realtime relies on its instructions; cascade's
+translator gets the transcript as delimited data. Every output line is run through deterministic
+checks. On the red-team suite (2026-10-15, synthetic voices, one labeller) no mode answered a
+question addressed to it, and only Realtime translate followed an instruction once (1/53).
+Cascade's failures were loss (36% omission), partly the old replay's fault. Cascade stages swap by
+configuration; the Realtime modes are one vendor each, and leaving means a new transport. No BAA
+is in place and this is not HIPAA-compliant; BAA mode refuses routes outside each vendor's
+eligible list. Rates, examples and the data-flow table: [appendix G](WRITEUP-APPENDIX.md#g-controllability-and-compliance-in-full),
+[D](WRITEUP-APPENDIX.md#d-red-team-failure-examples) and [E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
 
 ## 6. Recommendation by scenario
 
-| Scenario | Recommendation | Why |
-|---|---|---|
-| Consumer and low-stakes (travel, retail, customer service) | Realtime translate where the pair is supported, else Realtime | Lowest structural injection risk, one vendor, simplest billing. |
-| Any setting with personal or health data that is not itself clinical or legal (scheduling, billing, intake) | Realtime, or cascade on OpenAI STT + Claude + OpenAI TTS (OpenAI TTS passed a live test; in-session latency and cost unmeasured), with BAA mode on and each vendor's BAA and retention terms signed; never Realtime translate | Realtime translate's endpoint is not on OpenAI's HIPAA-eligible list. That cascade needs two agreements (OpenAI and Anthropic); the default ElevenLabs TTS would add a third, and ElevenLabs offers zero retention and a BAA only on Enterprise; on lower plans it keeps TTS history and may train on the text unless "Data use" is off (off for this project). |
-| Pairs Realtime translate does not support, or a needed glossary/tone: the cost of onboarding | Cascade | Any language the STT/TTS support is a config entry: Vietnamese took about 5 minutes of configuration and about 50 lines of eval tooling, 0 application-code lines, timed by an AI coding agent (`eval/results/onboarding-vi.md`); glossary and register are controllable. |
-| The same pairs: quality on the new pair | Cascade for low-stakes use only; a human interpreter, or a human relay, in regulated settings | Unverified: no Vietnamese speaker has checked the notices, word lists or references, and AI quality is expected to be lowest on rare pairs. Cheap onboarding says nothing about fidelity. |
-| Medical and legal | A qualified human interpreter; AI only with a human reviewing it | ACA Section 1557 requires qualified human review of machine translation where accuracy is critical and a qualified interpreter for spoken interpretation, and federal and California courts require certified or qualified interpreters (citations in [appendix F](WRITEUP-APPENDIX.md#f-medical-and-legal-citations)). Latency and cost are secondary. |
+- **Consumer and low-stakes:** Realtime translate where the pair is supported, else Realtime.
+- **Personal or health data, not itself clinical or legal:** Realtime, or cascade on OpenAI STT +
+  Claude + OpenAI TTS, with BAA mode on and the BAAs signed; never Realtime translate.
+- **Pairs Realtime translate lacks, or a glossary or register is needed:** cascade; a new pair is
+  configuration only (Vietnamese took about 5 minutes).
+- **Quality on a rare pair:** cascade for low-stakes use only; unverified without a native speaker.
+- **Medical and legal:** a qualified human interpreter; AI only with a human reviewing it.
+
+Reasons for each: [appendix H](WRITEUP-APPENDIX.md#h-recommendation-by-scenario-in-full).
 
 ## 7. What this does not show
 

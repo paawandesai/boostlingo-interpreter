@@ -57,7 +57,7 @@ Commits are authored as Paawan. Every commit an agent made carries a `Co-Authore
 
 - **Some branches carry more than one task**, against the one-task-one-branch rule: the Vietnamese-onboarding branch also carries the eval summary, write-up draft and README; the output-checks branch carries six guardrail tasks; the final-audit branch carries 46 commits of fixes.
 - **`.gitignore` with `.env` arrived in the fifth commit**, the first code commit; the first four were docs only. No `.env` or key was ever committed.
-- **The container could not reach OpenAI's, ElevenLabs' or Deepgram's websites.** Endpoint and event names were checked against the `openai` npm package's type definitions and live API calls; prices and data terms were read from the official pages by Paawan.
+- **The container could not reach OpenAI's, ElevenLabs' or Deepgram's websites.** Endpoint and event names were checked against the `openai` npm package's type definitions and live API calls; prices and data terms were read on the official pages on 2026-10-16 by Paawan and by a browsing AI assistant Paawan directed, whose table Paawan checked; two prices came from a web search on 2026-10-17 and are labelled as such.
 
 ## What went wrong
 
