@@ -186,10 +186,11 @@ public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> optio
                 {
                     if (!_opts.ClientEndpointing) continue;
                     turns.ClientCommitted();
+                    // The endpoint goes out before the commit, so a fast transcript can never overtake it.
+                    await events.WriteAsync(new SttEndpoint(), ct);
                     await sendLock.WaitAsync(ct);
                     try { await WebSocketText.SendTextAsync(ws, """{"type":"input_audio_buffer.commit"}""", ct); }
                     finally { sendLock.Release(); }
-                    await events.WriteAsync(new SttEndpoint(), ct);
                     continue;
                 }
                 if (frame.Pcm16.IsEmpty) continue;
