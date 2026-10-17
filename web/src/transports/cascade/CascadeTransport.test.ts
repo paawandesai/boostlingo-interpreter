@@ -167,7 +167,7 @@ describe('CascadeTransport', () => {
     ws.server({ type: 'ready', t: 0 })
     const c1 = performance.now()
     ws.server({ type: 'pong', c: c1 - 10, t: 100_000 })
-    ws.drop(1011)
+    ws.drop()
     expect(events.at(-1)).toMatchObject({ type: 'error', kind: 'unavailable' })
 
     t.setSpeaker('B')
@@ -238,10 +238,41 @@ describe('CascadeTransport', () => {
     expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' })
   })
 
-  it('reports an abnormal close', async () => {
+  it('reports a server error close, ends the session and closes the mic', async () => {
     const { ws, events } = await started()
     ws.onclose!({ code: 1011 })
-    expect(events.at(-1)).toMatchObject({ type: 'error', kind: 'unavailable' })
+    await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' }))
+    expect(events.at(-2)).toMatchObject({ type: 'error', kind: 'unavailable' })
+    expect(capture.stop).toHaveBeenCalled()
+  })
+
+  it('treats a normal close the server sent without a message as an end the user sees', async () => {
+    const { ws, events } = await started()
+    ws.onclose!({ code: 1000 })
+    expect(events.find((e) => e.type === 'error')).toMatchObject({
+      message: expect.stringContaining('The server ended the cascade session (1000)'),
+    })
+    await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' }))
+  })
+
+  it('does not open a new server session on a speaker toggle after the server ended it (G19)', async () => {
+    const { t, ws, events } = await started()
+    ws.server({ type: 'ready', t: 0 })
+    ws.server({
+      type: 'error',
+      stage: 'session',
+      provider: 'workbench',
+      kind: 'Unavailable',
+      message: 'This session reached the 30-minute limit. Start a new session to continue.',
+      t: 1,
+    })
+    ws.onclose!({ code: 1000 })
+    await vi.waitFor(() => expect(events.at(-1)).toEqual({ type: 'state', state: 'closed' }))
+
+    t.setSpeaker('B')
+
+    expect(FakeSocket.all).toHaveLength(1)
+    expect(capture.stop).toHaveBeenCalled()
   })
 
   it("keeps the server's refusal reason instead of a generic close error", async () => {
@@ -263,6 +294,8 @@ describe('CascadeTransport', () => {
   it('shows the close reason when no error message arrived', async () => {
     const { ws, events } = await started()
     ws.onclose!({ code: 1008, reason: 'Unsupported language direction' })
-    expect(events.at(-1)).toMatchObject({ message: 'Cascade connection closed (1008): Unsupported language direction' })
+    expect(events.find((e) => e.type === 'error')).toMatchObject({
+      message: expect.stringContaining('(1008): Unsupported language direction'),
+    })
   })
 })

@@ -6,8 +6,10 @@
  * half-duplex mic gate. stop() releases all of them. A speaker switch sends a direction message over the
  * open socket and keeps capture and playback: the server finishes the turn in flight first, and everything
  * it sends before its direction ack is the old direction's, shown and played as usual (only a mode switch
- * drops an utterance, D12). The socket is only reopened when it dropped, because every upgrade spends one
- * of the server's per-client rate-limit permits.
+ * drops an utterance, D12). The socket is only reopened when it dropped (no close frame), because every
+ * upgrade spends one of the server's per-client rate-limit permits. A close the server sends (the session
+ * limit, an STT failure, a refusal or an internal error) ends the session: the mic closes, and a speaker
+ * toggle can't open a fresh server session behind the user's back.
  */
 import { contextMsToPerf, MicDeniedError, startCapture, type CaptureHandle } from '../../audio/capture'
 import { createMicGate, type MicGate } from '../../audio/micGate'
@@ -29,6 +31,8 @@ import { CascadeEventParser } from './events'
 /** Capture worklet output rate (D6). */
 const STT_RATE = 16000
 const TTS_RATE = 24000
+/** WebSocket close code for a connection lost without a close frame. */
+const ABNORMAL_CLOSURE = 1006
 /** STT audio time is reported to the store this often (T3.5), so an export taken before End has it. */
 const USAGE_REPORT_SECONDS = 5
 
@@ -169,14 +173,25 @@ export class CascadeTransport implements Transport {
     ws.onclose = (e) => {
       if (this.stopped || ws !== this.ws) return
       this.ready = false
-      if (e.code !== 1000 && !this.serverError) {
-        const reason = e.reason ? `: ${e.reason}` : ''
+      const reason = e.reason ? `: ${e.reason}` : ''
+      if (e.code === ABNORMAL_CLOSURE) {
+        // No close frame: the network or a proxy dropped the socket. A speaker toggle reconnects.
         this.emitter.emit({
           type: 'error',
           kind: 'unavailable',
           message: `Cascade connection closed (${e.code})${reason}`,
         })
+        return
       }
+      // The server closed the session. Its error message, if one came, already says why; a close with none
+      // (even a 1000) is still an end the user must see.
+      if (!this.serverError)
+        this.emitter.emit({
+          type: 'error',
+          kind: 'unavailable',
+          message: `The server ended the cascade session (${e.code})${reason}. Start a new session to continue.`,
+        })
+      void this.stop()
     }
   }
 
