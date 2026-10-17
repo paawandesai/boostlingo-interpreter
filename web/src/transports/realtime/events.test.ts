@@ -114,4 +114,37 @@ describe('RealtimeEventParser', () => {
     ])
     expect(events).toEqual([{ type: 'error', kind: 'rate_limited', message: 'slow down' }])
   })
+
+  it('finalizes an empty target line when a response ends with no output transcript (G15)', () => {
+    const events = runFixture([
+      { type: 'input_audio_buffer.committed', item_id: 'item_E1' },
+      { type: 'response.created', response: { id: 'resp_E1' } },
+      { type: 'response.done', response: { id: 'resp_E1', status: 'completed', output: [] } },
+    ])
+    expect(events.filter((e) => e.type === 'transcript')).toEqual([
+      { type: 'transcript', role: 'target', utteranceId: 'item_E1', text: '', final: true },
+    ])
+  })
+
+  it('finalizes the partial text of a cut-short response and reports it', () => {
+    const events = runFixture([
+      { type: 'input_audio_buffer.committed', item_id: 'item_E2' },
+      { type: 'response.created', response: { id: 'resp_E2' } },
+      { type: 'response.output_audio_transcript.delta', response_id: 'resp_E2', delta: 'Tome dos' },
+      { type: 'response.done', response: { id: 'resp_E2', status: 'incomplete' } },
+    ])
+    expect(events.filter((e) => e.type === 'transcript').at(-1)).toEqual({
+      type: 'transcript',
+      role: 'target',
+      utteranceId: 'item_E2',
+      text: 'Tome dos',
+      final: true,
+    })
+    expect(events.at(-1)).toMatchObject({ type: 'error', kind: 'unavailable', utteranceId: 'item_E2' })
+  })
+
+  it('does not finalize a line twice when the output transcript finished', () => {
+    const finals = out.filter((e) => e.type === 'transcript' && e.role === 'target' && e.final)
+    expect(finals).toHaveLength(1)
+  })
 })

@@ -15,6 +15,8 @@ export class RealtimeEventParser {
   private targetText = new Map<string, string>()
   private lastInputItem: string | null = null
   private responseToItem = new Map<string, string>()
+  /** Responses whose output transcript was finalized (output_audio_transcript.done). */
+  private finalized = new Set<string>()
   /** Input items whose endpoint mark was emitted (server VAD sends speech_stopped before committed). */
   private endpointed = new Set<string>()
   private readonly now: () => number
@@ -75,6 +77,7 @@ export class RealtimeEventParser {
       case 'response.output_audio_transcript.done': {
         const id = this.itemFor(e.response_id as string)
         this.targetText.delete(id)
+        if (e.response_id) this.finalized.add(e.response_id as string)
         return [
           {
             type: 'transcript',
@@ -87,14 +90,33 @@ export class RealtimeEventParser {
       }
       case 'response.done': {
         const response = (e.response as Json | undefined) ?? {}
-        const id = this.itemFor(response.id as string)
+        const responseId = response.id as string | undefined
+        const known = (responseId && this.responseToItem.has(responseId)) || this.lastInputItem !== null
+        const id = this.itemFor(responseId)
         const out: TransportEvent[] = []
+        // G15: a response that ended without a finished output transcript (the model said nothing, or the
+        // response was cancelled or cut short) still finalizes its line, so the output checks run and an
+        // omission is flagged with the handoff offer instead of a partial line that never resolves.
+        if (known && !(responseId && this.finalized.has(responseId))) {
+          const text = (this.targetText.get(id) ?? '').trim()
+          this.targetText.delete(id)
+          out.push({ type: 'transcript', role: 'target', utteranceId: id, text, final: true })
+        }
         const usage = toUsage(response.usage as Json | undefined)
         if (usage) out.push({ type: 'usage', utteranceId: id, usage })
-        if (response.status === 'failed') {
-          out.push({ type: 'error', kind: 'unavailable', message: 'Realtime response failed' })
+        const status = response.status
+        if (status === 'failed' || status === 'incomplete' || status === 'cancelled') {
+          out.push({
+            type: 'error',
+            kind: 'unavailable',
+            message: status === 'failed' ? 'Realtime response failed' : `Realtime response ${status}`,
+            utteranceId: known ? id : undefined,
+          })
         }
-        if (response.id) this.responseToItem.delete(response.id as string)
+        if (responseId) {
+          this.responseToItem.delete(responseId)
+          this.finalized.delete(responseId)
+        }
         return out
       }
       case 'error': {
