@@ -105,6 +105,17 @@ describe('useSession', () => {
     expect(created).toHaveLength(1)
   })
 
+  it('ignores a tap on the side already selected and forwards a real flip', async () => {
+    await act(() => session.start())
+    const t = created[0]
+    act(() => session.setSpeaker('A'))
+    expect(t.setSpeaker).not.toHaveBeenCalled()
+    act(() => session.setSpeaker('B'))
+    act(() => session.setSpeaker('B'))
+    expect(t.setSpeaker.mock.calls).toEqual([['B']])
+    expect(session.state.speaker).toBe('B')
+  })
+
   it('still switches modes when nothing interrupts the switch', async () => {
     await act(() => session.start())
     await act(() => session.switchMode('cascade'))

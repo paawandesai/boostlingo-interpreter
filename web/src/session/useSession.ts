@@ -68,6 +68,8 @@ export function useSession(languages: LanguagesResponse | null = null) {
   )
 
   const setSpeaker = useCallback((side: SpeakerSide) => {
+    // Tapping the side already selected changes nothing; in Cascade a direction message would split the turn.
+    if (side === stateRef.current.speaker) return
     dispatch({ type: 'configure', speaker: side })
     stateRef.current = { ...stateRef.current, speaker: side }
     transport.current?.setSpeaker(side)

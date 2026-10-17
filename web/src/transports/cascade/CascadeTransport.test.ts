@@ -170,6 +170,16 @@ describe('CascadeTransport', () => {
     expect(playbackStop).not.toHaveBeenCalled()
   })
 
+  it('sends no direction message when the side already selected is chosen again', async () => {
+    const { t, ws } = await started()
+    ws.server({ type: 'ready', t: 0 })
+    t.setSpeaker('A')
+    expect(ws.json().filter((m) => m.type === 'direction')).toEqual([])
+    t.setSpeaker('B')
+    t.setSpeaker('B')
+    expect(ws.json().filter((m) => m.type === 'direction')).toHaveLength(1)
+  })
+
   it('labels turns with the side flipped to while the socket was still connecting', async () => {
     const { t, events } = await fresh()
     await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
