@@ -157,6 +157,15 @@ describe('sessionReducer', () => {
     expect(s.error?.kind).toBe('tts_failed')
   })
 
+  it('marks the line audio-failed for a rate-limited speech synthesis and keeps the kind', () => {
+    const s = run([
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'error', kind: 'rate_limited', message: 'x', utteranceId: 'u1', audioFailed: true, retryAfterMs: 1000 },
+    ])
+    expect(utterances(s)[0]).toMatchObject({ audioFailed: true })
+    expect(s.error).toMatchObject({ kind: 'rate_limited', retryAfterMs: 1000 })
+  })
+
   it('shows a notice until the next finished turn', () => {
     let s = run([{ type: 'notice', message: 'retrying' }])
     expect(s.notice).toBe('retrying')

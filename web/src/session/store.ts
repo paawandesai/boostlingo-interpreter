@@ -234,7 +234,7 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
         error,
         incidents: [...state.incidents, { mode: state.mode, kind: e.kind, message: e.message }],
       }
-      return e.kind === 'tts_failed' && e.utteranceId
+      return (e.kind === 'tts_failed' || e.audioFailed) && e.utteranceId
         ? updateUtterance(next, e.utteranceId, (u) => ({ ...u, audioFailed: true }))
         : next
     }

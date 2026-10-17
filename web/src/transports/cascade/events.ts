@@ -120,6 +120,8 @@ export class CascadeEventParser {
             message: (e.message as string | undefined) ?? `Cascade ${stage} failed (${String(e.provider)})`,
             ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
             ...(u === undefined ? {} : { utteranceId: u }),
+            // A rate-limited or timed-out synthesis still leaves the line without audio; the kind stays for the banner.
+            ...(stage === 'tts' ? { audioFailed: true } : {}),
           },
         ]
       }
