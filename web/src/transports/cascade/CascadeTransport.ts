@@ -156,6 +156,8 @@ export class CascadeTransport implements Transport {
 
     ws.onopen = () => {
       const config = this.config!
+      // The start message carries the direction as of now; a flip while connecting is not acked.
+      this.legSide = config.speaker
       const [source, target] = direction(config, config.speaker)
       const history = config.history?.().slice(-HISTORY_PAIRS) ?? []
       ws.send(

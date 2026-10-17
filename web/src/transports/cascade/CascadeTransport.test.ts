@@ -170,6 +170,18 @@ describe('CascadeTransport', () => {
     expect(playbackStop).not.toHaveBeenCalled()
   })
 
+  it('labels turns with the side flipped to while the socket was still connecting', async () => {
+    const { t, events } = await fresh()
+    await t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    const ws = FakeSocket.all[0]
+    t.setSpeaker('B')
+    ws.open()
+    expect(ws.json()[0]).toMatchObject({ type: 'start', source: 'es', target: 'en' })
+    ws.server({ type: 'ready', t: 0 })
+    ws.server({ type: 'transcript.final', u: 1, text: 'Hola.', t: 1 })
+    expect(events.find((e) => e.type === 'transcript' && e.utteranceId === 'c1-1')).toMatchObject({ side: 'B' })
+  })
+
   it('reopens the socket on a speaker switch only after it dropped, with a fresh clock', async () => {
     const { t, ws, events } = await started()
     ws.server({ type: 'ready', t: 0 })

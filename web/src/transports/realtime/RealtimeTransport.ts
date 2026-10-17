@@ -193,6 +193,8 @@ export class RealtimeTransport implements Transport {
 
     await pc.setLocalDescription(await pc.createOffer())
     const { answer, info: used } = await exchangeSdpWithFreshSecret(info, pc.localDescription!.sdp, () => {
+      // The re-minted session runs the current direction, which a flip while connecting may have changed.
+      this.activeSide = this.config!.speaker
       const [source, target] = direction(this.config!, this.config!.speaker)
       return createRealtimeSession(source, target, this.config!.realtimeModel, undefined, this.config!.glossary)
     })
