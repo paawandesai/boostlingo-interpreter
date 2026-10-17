@@ -47,6 +47,12 @@ public static class CascadeEndpoints
     /// <summary>Commits closer together than this are ignored: the client VAD sends one per pause.</summary>
     private static readonly TimeSpan MinCommitInterval = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>
+    /// Most directions that may wait behind the running one. Each holds a speaker's audio and later opens its
+    /// own STT connection; past this many, the client is flooding switches and the session closes with 1008.
+    /// </summary>
+    public const int MaxQueuedDirections = 4;
+
     public static IEndpointRouteBuilder MapCascadeEndpoints(this IEndpointRouteBuilder app)
     {
         app.Map(Path, Handle).RequireRateLimiting(AccessControl.RateLimitPolicy);
@@ -89,6 +95,12 @@ public static class CascadeEndpoints
 
         public string Source { get; private set; }
         public string Target { get; private set; }
+
+        /// <summary>True once the leg runs.</summary>
+        public bool Started
+        {
+            get { lock (_gate) return _started; }
+        }
 
         /// <summary>Marks the leg as running; from here on its direction is fixed.</summary>
         public void Start()
@@ -468,8 +480,16 @@ public static class CascadeEndpoints
                         // double tap, changes nothing and must not split the turn in flight.
                         if (s == leg.Source && t == leg.Target) continue;
                         // A switch while the previous one still waits to run retargets it (last wins), so a
-                        // burst of switches opens at most one queued leg and STT connection.
+                        // burst of switches with no speech between them opens at most one queued leg and STT connection.
                         if (leg.TryRetarget(s, t)) continue;
+                        // A queued direction that holds audio keeps it, so alternating switches with a frame
+                        // between them would otherwise queue legs (and STT connections) without bound.
+                        if (all.Count(l => !l.Started) >= MaxQueuedDirections)
+                        {
+                            await Violate("direction flooding",
+                                "Too many speaker switches are waiting to be interpreted, so the session was closed.");
+                            break;
+                        }
                         var next = new Leg(s, t, limit.Token);
                         all.Add(next);
                         legs.Writer.TryWrite(next);

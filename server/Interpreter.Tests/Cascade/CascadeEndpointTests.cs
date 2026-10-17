@@ -766,6 +766,36 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
     }
 
     [Fact]
+    public async Task Alternating_switches_with_audio_between_them_close_the_session_at_the_queue_cap()
+    {
+        var stt = new FirstFrameStt();
+        var translator = new GatedTranslator();
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator, settings: Burst);
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+        await SendFrame(ws);
+        await translator.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        // The first turn stalls; each switch after a frame queues a leg that holds audio and can't be retargeted.
+        for (var i = 0; i < CascadeEndpoints.MaxQueuedDirections + 2 && ws.State == WebSocketState.Open; i++)
+        {
+            var (source, target) = i % 2 == 0 ? ("es", "en") : ("en", "es");
+            try
+            {
+                await Send(ws, new { type = "direction", source, target });
+                await SendFrame(ws);
+            }
+            catch (WebSocketException) { break; }
+        }
+        var messages = await ReadAll(ws);
+
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json)
+            .First(j => (string?)j["type"] == "error");
+        Assert.Contains("Too many speaker switches", (string?)error["message"]);
+        Assert.Equal((WebSocketCloseStatus.PolicyViolation, "direction flooding"), (messages[^1].Close, messages[^1].CloseReason));
+    }
+
+    [Fact]
     public async Task Carried_history_that_fails_the_output_checks_never_becomes_context()
     {
         var translator = new FakeTranslator();
