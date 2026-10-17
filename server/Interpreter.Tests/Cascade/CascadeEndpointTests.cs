@@ -386,6 +386,37 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
 
+    /// <summary>Fails the way an adapter bug does: not a ProviderException (a vendor payload it can't parse).</summary>
+    private sealed class BuggyTranslator : IStreamingTranslator
+    {
+        public string Name => "buggy-translator";
+
+        public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            throw new KeyNotFoundException("synthetic parse failure");
+#pragma warning disable CS0162 // an iterator needs a yield
+            yield break;
+#pragma warning restore CS0162
+        }
+    }
+
+    [Fact]
+    public async Task An_unexpected_adapter_error_is_reported_and_closes_the_socket_as_an_error()
+    {
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: new BuggyTranslator());
+        await Start(ws);
+
+        await SendFrame(ws);
+        var messages = await ReadAll(ws);
+
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Equal("session", (string?)error["stage"]);
+        Assert.DoesNotContain("synthetic parse failure", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, messages[^1].Close);
+    }
+
     [Fact]
     public async Task A_translation_that_fails_the_output_checks_is_not_carried_as_context()
     {

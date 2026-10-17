@@ -223,6 +223,25 @@ public class OpenAIRealtimeSttTests
     }
 
     [Fact]
+    public async Task An_unreadable_message_ends_the_stream_with_a_provider_error_instead_of_stalling()
+    {
+        await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>
+        {
+            await s.ReceiveUntil(ws, m => m.Text.Contains("session.update"));
+            // A completed event with no "transcript" field used to fault the receive loop silently.
+            await Send(ws, """{"type":"conversation.item.input_audio_transcription.completed","item_id":"a"}""");
+            await s.ReceiveUntil(ws, _ => false);
+        });
+
+        // Endless audio: the stream must end on the receive error, not on the audio running out.
+        var e = await Assert.ThrowsAsync<ProviderException>(() =>
+            Collect(Stt(server.BaseUrl).TranscribeAsync(Audio(int.MaxValue), new SttOptions("en"), TestContext.Current.CancellationToken))
+                .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        Assert.Equal(ProviderErrorKind.Unavailable, e.Kind);
+    }
+
+    [Fact]
     public async Task Failed_transcription_closes_the_turn_without_inventing_text()
     {
         await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>

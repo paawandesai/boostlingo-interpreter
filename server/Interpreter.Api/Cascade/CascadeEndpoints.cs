@@ -207,6 +207,9 @@ public static class CascadeEndpoints
         var nextUtterance = 1;
         var receive = ReceiveAsync(firstLeg);
         var pipeline = new CascadePipeline(stt, translator, tts, time);
+        // Anything but a normal end closes with an error status, so the client never takes it for a clean stop.
+        var closeStatus = WebSocketCloseStatus.NormalClosure;
+        var closeReason = "done";
         try
         {
             await foreach (var leg in legs.Reader.ReadAllAsync(stop.Token))
@@ -251,12 +254,31 @@ public static class CascadeEndpoints
         {
             log.LogInformation("Cascade session ended: socket dropped");
         }
+        catch (Exception e) when (e is not OperationCanceledException || !stop.IsCancellationRequested)
+        {
+            // An adapter or pipeline bug (a vendor payload it could not parse, say). The turn in flight is lost,
+            // so the client is told and the socket closes as an error. Only the exception type is logged:
+            // its message can carry vendor text.
+            log.LogError("Cascade session failed: {ExceptionType}", e.GetType().Name);
+            closeStatus = WebSocketCloseStatus.InternalServerError;
+            closeReason = "interpreter error";
+            try
+            {
+                await SendSessionError(
+                    "The interpreter stopped after an unexpected error, and the turn in progress was not interpreted. Start a new session to continue.",
+                    ProviderErrorKind.Unavailable);
+            }
+            catch (Exception sendFailure) when (sendFailure is WebSocketException or OperationCanceledException or ObjectDisposedException)
+            {
+                // The socket is already gone; the close below is best effort too.
+            }
+        }
         finally
         {
             await stop.CancelAsync();
             await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             foreach (var leg in all) leg.Dispose();
-            await WebSocketText.CloseQuietlyAsync(ws);
+            await WebSocketText.CloseQuietlyAsync(ws, closeReason, closeStatus);
         }
 
         /// <summary>
