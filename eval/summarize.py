@@ -413,7 +413,7 @@ def render(modes: dict, inputs: list[str]) -> str:
         *[f"- `{p}`" for p in inputs],
         "",
         "Synthetic or scripted audio only. References and glossary terms were written by the model and",
-        "reviewed by Paawan (all sampled outputs judged acceptable, no rubric scores); quality numbers are",
+        "reviewed by Paawan (16 of 21 sampled outputs judged acceptable, no rubric scores); quality numbers are",
         "a rough signal.",
         "",
         "## Latency (client ms)",

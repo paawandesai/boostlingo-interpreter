@@ -1,6 +1,10 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`. No **[VERIFY]** markers remain: a vendor fact
+> Every number comes from a file under `eval/results/`, or from re-running `eval/summarize.py <log> --out <file>`
+> (priced from `config/prices.json`) on a session log there: the 2026-10-16 costs and stage breakdowns
+> are computed that way and are not stored under `eval/results/`; the 2026-10-16 latency rows are in
+> `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI job ids are links in the project's
+> private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
 > not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
 > I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
 > browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).
@@ -15,15 +19,17 @@ translate* (`gpt-realtime-translate`, which takes only a target language). Realt
 deprecations page) but selectable, and I measured both. Stack: .NET 10 server, TypeScript SPA; the
 reasoning is in the README under "Why .NET + TypeScript" and in `docs/DECISIONS.md` D1–D2.
 
-The defaults are the ones tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
-speech end (client endpointing), cascade STT is `gpt-realtime-whisper` streaming, and cascade opens
+The measured configuration uses the defaults tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
+speech end (client endpointing), cascade STT is OpenAI transcription with its adapter's default model,
+`gpt-realtime-whisper`, streaming (`Cascade__Stt=openai`; the code default is Deepgram, see below), and cascade opens
 the TTS stream when translation starts. The STT streams text during speech, but translation starts
 per committed turn, on the STT final. Each run looped synthetic TTS clips of scripted English ↔
 Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
-its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode, en → es)
-and judged all 21 acceptable, without per-dimension scores
+its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
+and judged 16 of 21 acceptable, without per-dimension scores; the five failures are segmentation
+faults (cut-off turns, or a neighbouring line merged in), noted on their rows
 (`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
@@ -37,14 +43,15 @@ benchmarking, so every cascade number uses OpenAI transcription (method: appendi
 | Realtime translate (2026-10-15; text lag, source text → translated text) | 70 | 1984 | 5284 |
 
 Sources: `eval/results/latency-tuning-2026-10-16.md` (one row per run, each from
-`python3 eval/summarize.py <log>`) and the `soak-2026-10-16-*.json` reports beside it. Before the
+`python3 eval/summarize.py <log> --out /tmp/row.md`, so the committed summary is not overwritten) and the `soak-2026-10-16-*.json` reports beside it. Before the
 tuning, with server-side endpointing, cascade was 2540/4170 ms (2026-10-16 baseline run) and
 `gpt-realtime-2.1` 2251/3451 (2026-10-15, older replay).
 
 **Against the brief's targets.** Realtime meets 1.5 s at p50 with both models (1271 and 1150 ms).
 At p95 only `gpt-realtime` meets it (1490 ms, one run, just under the line); `gpt-realtime-2.1`
 misses (1602). Cascade meets 3 s at p50 and p95, and the 2 s target at p50 only (1940; p95 2319).
-Endpointing is now 490–550 ms at p50 in every mode; in cascade the next largest stage is STT
+Endpointing is now 490–550 ms at p50 in cascade and both Realtime models (Realtime translate was not
+re-run); in cascade the next largest stage is STT
 finalisation (1005 ms at p50 from speech end, about 0.5 s after the commit), and in Realtime the
 model's opaque time (560–675 ms). Stage breakdown: appendix B.
 
@@ -71,8 +78,10 @@ numbers of earlier drafts. Realtime translate was last run on 2026-10-15 with th
 glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
 because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
 Vietnamese onboarding run used Deepgram STT, so it has no published quality number
-(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic, and my
-blind review judged all 21 sampled outputs acceptable, so it does not separate the modes either.
+(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic. My
+blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one cut-off
+turn) and Realtime translate 3 of 7 (four cut-off turns or turns with a neighbouring
+line merged in). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
 
 ## 4. Cost per minute
 
@@ -125,5 +134,5 @@ Reasons for each: [appendix H](WRITEUP-APPENDIX.md#h-recommendation-by-scenario-
 - No Deepgram numbers; the `gpt-realtime-whisper` price behind the $0.0290 cascade figure is from a web search, not OpenAI's page.
 - Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%).
 - Cascade drops late audio to stay in sync: 6 drift skips and 16.0 s dropped on the defaults.
-- Quality references are model-written; one person reviewed them and the 21-row blind sheet, with
-  no per-dimension scores. The red-team labels have one labeller.
+- Quality references are model-written; one person reviewed them and the 21-row blind sheet (16 acceptable,
+  4 of the 5 failures in Realtime translate), with no per-dimension scores. The red-team labels have one labeller.

@@ -60,7 +60,7 @@ Hour budgets are caps: if a task overruns by 50%, stop and report before continu
 **Checked by the executor on 2026-10-14**
 - `gpt-realtime`, `gpt-realtime-2.1` and `gpt-realtime-translate` all appear in `GET /v1/models` for this project's key.
 - The `openai` npm package 7.33.0 types include `gpt-realtime-2.1` and the `/v1/realtime/translations` path.
-- **Not verified** (OpenAI's docs are blocked from the container): the deprecation and removal dates for `gpt-realtime`, and the $0.034/min price of `gpt-realtime-translate`. I confirm them on OpenAI's deprecations and pricing pages before the write-up cites them.
+- **Not verified** (OpenAI's docs are blocked from the container): the deprecation and removal dates for `gpt-realtime`, and the $0.034/min price of `gpt-realtime-translate`. I confirm them on OpenAI's deprecations and pricing pages before the write-up cites them. **Update 2026-10-16:** both confirmed by Paawan on OpenAI's own pages (deprecations page; `realtime-translate:openai` in `config/prices.json`; README "Known constraints").
 
 **Already met (MR !7 or earlier)**
 - `.env` ignored and `.env.example` committed.

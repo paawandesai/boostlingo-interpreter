@@ -78,7 +78,7 @@ Capture at the AudioContext's native rate (usually 48 kHz). The worklet downsamp
 **Trade-off:** swapping STT or TTS is a stronger proof, because those carry audio formats and streaming protocols. If time allows on Day 3, add OpenAI TTS as a second TTS adapter.
 **Rejected for MVP:** DeepL. It's strong on quality, but its API returns whole translations, not token streams (verify), which conflicts with "streaming at every stage". Mention it as a quality-first option.
 
-**Update 2026-10-16:** both "stretch" second providers were built. OpenAI realtime transcription is built and, since MR !37, the cascade STT default (`gpt-realtime-whisper`, `gpt-4o-transcribe` fallback; Deepgram stays an adapter with no published numbers). OpenAI TTS (`gpt-4o-mini-tts`) was added for BAA mode (D18) and passed a live test (CI job 234538); ElevenLabs stays the default TTS.
+**Update 2026-10-16:** both "stretch" second providers were built. OpenAI realtime transcription is built; since MR !37 its adapter's default model is `gpt-realtime-whisper` (`gpt-4o-transcribe` fallback). `Cascade:Stt` itself still defaults to `deepgram` in code, but because Deepgram has not consented to benchmarking, the demo, CI and every published number run with `Cascade__Stt=openai`, so they use `gpt-realtime-whisper`; Deepgram stays an adapter with no published numbers. OpenAI TTS (`gpt-4o-mini-tts`) was added for BAA mode (D18) and passed a live test (CI job 234538); ElevenLabs stays the default TTS.
 
 ### D8. Provider interfaces and error contract — Locked
 

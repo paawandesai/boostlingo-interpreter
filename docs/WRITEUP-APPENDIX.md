@@ -1,7 +1,8 @@
 # Write-up appendix: method and longer analyses
 
 Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it short. Every number comes from a file
-under `eval/results/`; as there, a vendor fact not read on the vendor's own page is labelled with its source.
+under `eval/results/` or from re-running `eval/summarize.py` on a log there, as WRITEUP.md explains; MR and
+CI job ids refer to the project's private GitLab instance. As there, a vendor fact not read on the vendor's own page is labelled with its source.
 
 ## A. Setup and method
 
@@ -26,8 +27,9 @@ under `eval/results/`; as there, a vendor fact not read on the vendor's own page
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
   (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
-  single-reference numbers. References were written by a model; I reviewed them and judged all 21 rows of the blind
-  sheet acceptable, without per-dimension scores (`eval/rating.py`).
+  single-reference numbers. References were written by a model; I reviewed them and judged 16 of the 21 rows of the blind
+  sheet acceptable, without per-dimension scores (`eval/rating.py`): the five failures are segmentation faults (cut-off turns, or a
+  neighbouring line merged in), four of them in Realtime translate.
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
@@ -36,7 +38,7 @@ under `eval/results/`; as there, a vendor fact not read on the vendor's own page
 ## B. Latency detail, sample sizes, stability and cost caveats
 
 Where the time goes on the 2026-10-16 defaults (p50/p95 ms, `eval/results/latency-tuning-2026-10-16.md`
-and `python3 eval/summarize.py` on each log). Cascade (`gpt-realtime-whisper`, OpenAI translator,
+and `python3 eval/summarize.py <log> --out /tmp/row.md` on each log, so the committed summary is not overwritten). Cascade (`gpt-realtime-whisper`, OpenAI translator,
 ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
 89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
 endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
@@ -109,7 +111,8 @@ times. Realtime translate's $0.034 excludes its source transcript: the session a
 `gpt-realtime-whisper` transcript of the source audio. A 2026-10-17 web search of OpenAI's pages
 didn't say whether that is billed on top; Realtime bills its input transcription separately, so the
 write-up assumes the same, at $0.017/min, for about $0.051/min, about 1.8 times the default cascade with STT
-($0.0290) and still about a quarter of Realtime.
+($0.0290), about a quarter of the 2026-10-15 `gpt-realtime-2.1` run ($0.2023) and about 45% of the
+2026-10-16 default `gpt-realtime-2.1` run ($0.1145).
 
 ## C. Cascade's sentence-tail loss
 
