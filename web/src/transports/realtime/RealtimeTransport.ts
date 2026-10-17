@@ -43,6 +43,11 @@ export class RealtimeTransport implements Transport {
   private turnInFlight = false
   /** The session.update of a speaker flip made during a turn in flight; sent once that turn's response is done. */
   private pendingUpdate: string | null = null
+  private pendingSide: SpeakerSide | null = null
+  /** The side whose instructions the session has now (changes when a flip's session.update is sent). */
+  private activeSide: SpeakerSide = 'A'
+  /** The side each input item was endpointed under, so a turn finished after a flip keeps its own. */
+  private itemSide = new Map<string, SpeakerSide>()
   /** Set when the session has no turn detection: the browser's VAD commits each turn (client endpointing). */
   private endpointer: ClientEndpointer | null = null
   /** Between response.created and response.done. */
@@ -61,6 +66,9 @@ export class RealtimeTransport implements Transport {
     this.responseQueued = false
     this.turnInFlight = false
     this.pendingUpdate = null
+    this.pendingSide = null
+    this.activeSide = config.speaker
+    this.itemSide.clear()
     this.responding = false
     this.commitDeferred = false
     this.parser = new RealtimeEventParser()
@@ -112,8 +120,13 @@ export class RealtimeTransport implements Transport {
     })
     // A turn whose response is still to come or still playing was spoken in the old direction: updating now
     // would interpret it the wrong way round. The update waits for its response.done; the last flip wins.
-    if (this.turnInFlight) this.pendingUpdate = update
-    else this.dc.send(update)
+    if (this.turnInFlight) {
+      this.pendingUpdate = update
+      this.pendingSide = side
+    } else {
+      this.dc.send(update)
+      this.activeSide = side
+    }
   }
 
   async stop(): Promise<void> {
@@ -228,8 +241,12 @@ export class RealtimeTransport implements Transport {
         this.dc.send(JSON.stringify({ type: 'response.create' }))
       } else {
         this.turnInFlight = false
-        if (this.pendingUpdate && this.dc?.readyState === 'open') this.dc.send(this.pendingUpdate)
+        if (this.pendingUpdate && this.dc?.readyState === 'open') {
+          this.dc.send(this.pendingUpdate)
+          if (this.pendingSide) this.activeSide = this.pendingSide
+        }
         this.pendingUpdate = null
+        this.pendingSide = null
       }
     }
     // Playback state drives half-duplex gating; these events only exist on WebRTC sessions.
@@ -237,7 +254,13 @@ export class RealtimeTransport implements Transport {
     if (json.type === 'output_audio_buffer.stopped' || json.type === 'output_audio_buffer.cleared') {
       this.gate?.setPlaybackActive(false)
     }
-    for (const ev of this.parser.parse(json as unknown as Record<string, unknown>)) {
+    for (const parsed of this.parser.parse(json as unknown as Record<string, unknown>)) {
+      if (parsed.type === 'mark' && parsed.name === 'endpoint' && parsed.utteranceId)
+        this.itemSide.set(parsed.utteranceId, this.activeSide)
+      const ev =
+        parsed.type === 'transcript'
+          ? { ...parsed, side: this.itemSide.get(parsed.utteranceId) ?? this.activeSide }
+          : parsed
       this.emitter.emit(ev)
       if (ev.type === 'mark' && ev.name === 'response.created') {
         const utteranceId = ev.utteranceId

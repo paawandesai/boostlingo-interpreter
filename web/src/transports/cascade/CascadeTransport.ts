@@ -57,6 +57,8 @@ export class CascadeTransport implements Transport {
   private samplesSent = 0
   private pingTimers: Array<ReturnType<typeof setTimeout>> = []
   private resyncTimer: ReturnType<typeof setInterval> | null = null
+  /** The side of the direction the server is interpreting now; it changes only at the server's direction ack. */
+  private legSide: SpeakerSide = 'A'
   /** Tells the server the speaker stopped; an STT adapter with client endpointing ends the turn on it. */
   private endpointer: ClientEndpointer | null = null
 
@@ -150,6 +152,7 @@ export class CascadeTransport implements Transport {
     // Keeping the old one put a reconnected socket's marks minutes off (found by the T3.6 soak).
     this.clock = new ClockSync()
     this.parser = new CascadeEventParser(this.clock, `c${++this.sockets}`)
+    this.legSide = this.config!.speaker
 
     ws.onopen = () => {
       const config = this.config!
@@ -209,9 +212,13 @@ export class CascadeTransport implements Transport {
     if (json.type === 'direction') {
       // The old direction's pipeline has delivered its last turn; whatever follows belongs to the new one.
       if (this.parser) this.parser.speaking = null
+      const source = (json as { source?: string }).source
+      if (this.config && source) this.legSide = source === this.config.langA ? 'A' : 'B'
       return
     }
-    for (const ev of this.parser?.parse(json) ?? []) this.emitter.emit(ev)
+    // Turns the server finishes after a flip were spoken in the old direction and keep its side.
+    for (const ev of this.parser?.parse(json) ?? [])
+      this.emitter.emit(ev.type === 'transcript' ? { ...ev, side: this.legSide } : ev)
   }
 
   private onAudio(data: ArrayBuffer): void {

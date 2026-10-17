@@ -96,6 +96,11 @@ export type TransportEvent =
       final: boolean
       /** STT confidence 0..1 when the provider reports one (lowest across segments). Absent means unknown. */
       confidence?: number
+      /**
+       * The side whose direction this turn was interpreted in, when the transport knows it. A turn that
+       * finishes after a speaker flip keeps it; absent means the side speaking when the turn first appeared.
+       */
+      side?: SpeakerSide
     }
   | { type: 'mark'; name: MarkName; t: number; utteranceId?: string }
   | { type: 'usage'; utteranceId?: string; usage: Usage }

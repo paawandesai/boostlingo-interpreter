@@ -144,6 +144,8 @@ describe('CascadeTransport', () => {
     expect(events).toContainEqual(
       expect.objectContaining({ type: 'transcript', role: 'source', utteranceId: 'c1-1', text: 'late', final: true }),
     )
+    // Finished after the flip, but spoken before it: it keeps side A.
+    expect(events.find((e) => e.type === 'transcript' && e.utteranceId === 'c1-1')).toMatchObject({ side: 'A' })
     expect(enqueue).toHaveBeenCalledTimes(1)
     expect(events).toContainEqual(
       expect.objectContaining({ type: 'mark', name: 'audio.first_out', utteranceId: 'c1-1' }),
@@ -154,7 +156,13 @@ describe('CascadeTransport', () => {
 
     ws.server({ type: 'direction', source: 'es', target: 'en', t: 6 })
     ws.server({ type: 'transcript.final', u: 2, text: 'Hola.', t: 7 })
-    expect(events.at(-1)).toMatchObject({ type: 'transcript', role: 'source', utteranceId: 'c1-2', text: 'Hola.' })
+    expect(events.at(-1)).toMatchObject({
+      type: 'transcript',
+      role: 'source',
+      utteranceId: 'c1-2',
+      text: 'Hola.',
+      side: 'B',
+    })
 
     for (let i = 0; i < 10; i++) t.setSpeaker(i % 2 ? 'B' : 'A')
     expect(FakeSocket.all).toHaveLength(1)

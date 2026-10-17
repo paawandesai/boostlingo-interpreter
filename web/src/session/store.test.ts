@@ -111,6 +111,20 @@ describe('sessionReducer', () => {
     expect(sessionReducer(s, { type: 'started' }).handoffRequested).toBe(false)
   })
 
+  it('keeps the side a transport reports for a turn finished after a speaker flip', () => {
+    let s = sessionReducer(initialState, { type: 'started' })
+    s = sessionReducer(s, { type: 'configure', speaker: 'B' })
+    s = run(
+      [
+        { type: 'mark', name: 'endpoint', t: 1, utteranceId: 'u1' },
+        { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Hello.', final: true, side: 'A' },
+        { type: 'transcript', role: 'source', utteranceId: 'u2', text: 'Hola.', final: true },
+      ],
+      s,
+    )
+    expect(utterances(s).map((u) => u.side)).toEqual(['A', 'B'])
+  })
+
   it('keeps the transcript after a handoff for export, and never carries it into the next session (G20)', () => {
     let s = run([
       { type: 'transcript', role: 'source', utteranceId: 'u1', text: 'Where is the pharmacy?', final: true },

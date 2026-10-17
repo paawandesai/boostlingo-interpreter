@@ -185,6 +185,29 @@ describe('RealtimeTransport', () => {
     expect(JSON.parse(pc.dc.sent[1]).session.instructions).toBe('EN to ES')
   })
 
+  it('keeps the side of a turn that finishes after a speaker flip', async () => {
+    const { t, pc, events } = await started()
+    pc.dc.open()
+    const server = (e: object) => pc.dc.onmessage?.({ data: JSON.stringify(e) })
+    server({ type: 'input_audio_buffer.speech_stopped', item_id: 'u1', audio_end_ms: 1 })
+
+    t.setSpeaker('B')
+    server({ type: 'response.created', response: { id: 'resp_1' } })
+    server({ type: 'response.output_audio_transcript.done', response_id: 'resp_1', transcript: 'Hola.' })
+    server({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'Hello.' })
+    server({ type: 'response.done', response: { id: 'resp_1', status: 'completed' } })
+    // The flip's update is sent now; the next turn is B's.
+    server({ type: 'input_audio_buffer.speech_stopped', item_id: 'u2', audio_end_ms: 2 })
+    server({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u2', transcript: 'Hola.' })
+
+    const sides = events.flatMap((e) => (e.type === 'transcript' ? [[e.utteranceId, e.role, e.side]] : []))
+    expect(sides).toEqual([
+      ['u1', 'target', 'A'],
+      ['u1', 'source', 'A'],
+      ['u2', 'source', 'B'],
+    ])
+  })
+
   it('queues a turn that ended during an active response instead of dropping it', async () => {
     const { t, pc, events } = await started()
     pc.dc.open()

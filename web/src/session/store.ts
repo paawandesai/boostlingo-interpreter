@@ -248,6 +248,7 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       const cleared = e.role === 'target' && e.final ? { ...state, notice: null } : state
       return updateUtterance(cleared, e.utteranceId, (u) => ({
         ...u,
+        side: e.side ?? u.side,
         [e.role]:
           e.role === 'source' && e.confidence !== undefined
             ? { text: e.text, final: e.final, confidence: e.confidence }
