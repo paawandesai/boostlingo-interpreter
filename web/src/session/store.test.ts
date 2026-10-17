@@ -148,6 +148,16 @@ describe('sessionReducer', () => {
     expect(s.pendingSpeechEnd).toBe(9000)
   })
 
+  it('does not flag a turn whose speech end an id-less endpoint claimed', () => {
+    const s = run([
+      { type: 'mark', name: 'speech.end', t: 1000 },
+      { type: 'mark', name: 'endpoint', t: 1200 },
+      { type: 'mark', name: 'speech.end', t: 9000 },
+    ])
+    expect(s.error).toBeNull()
+    expect(s.pendingSpeechEnd).toBe(9000)
+  })
+
   it('marks the utterance whose speech synthesis failed and keeps its text', () => {
     const s = run([
       { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },

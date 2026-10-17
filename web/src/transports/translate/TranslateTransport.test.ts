@@ -7,9 +7,13 @@ const capture = {
   setGated: vi.fn(),
   stop: vi.fn().mockResolvedValue(undefined),
 }
+const captureOpts: { onVad?: (kind: 'speech.start' | 'speech.end', t: number) => void } = {}
 vi.mock('../../audio/capture', () => ({
   MicDeniedError: class MicDeniedError extends Error {},
-  startCapture: vi.fn(async () => capture),
+  startCapture: vi.fn(async (opts: typeof captureOpts) => {
+    captureOpts.onVad = opts.onVad
+    return capture
+  }),
 }))
 
 class FakeDataChannel {
@@ -162,6 +166,35 @@ describe('TranslateTransport', () => {
     t.setSpeaker('A')
     pc.dc.open()
     expect(pc.dc.sent).toEqual([])
+  })
+
+  it('emits id-less speech-end marks for the empty-transcript check, claimed once input text arrives', async () => {
+    const { pc, events } = await started()
+    pc.dc.open()
+    const idless = () => events.flatMap((e) => (e.type === 'mark' && !e.utteranceId ? [e.name] : []))
+    // Speech with its text already in: claimed at once.
+    captureOpts.onVad?.('speech.start', 100)
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', delta: 'Hello.' }) })
+    captureOpts.onVad?.('speech.end', 900)
+    expect(idless()).toEqual(['speech.end', 'endpoint'])
+    // Speech with no text yet: unclaimed until text arrives.
+    captureOpts.onVad?.('speech.start', 5000)
+    captureOpts.onVad?.('speech.end', 6000)
+    expect(idless()).toEqual(['speech.end', 'endpoint', 'speech.end'])
+    pc.dc.onmessage?.({ data: JSON.stringify({ type: 'session.input_transcript.delta', delta: ' Bye.' }) })
+    expect(idless()).toEqual(['speech.end', 'endpoint', 'speech.end', 'endpoint'])
+  })
+
+  it('leaves a speech end with no recognised text unclaimed, so the store flags an empty turn', async () => {
+    const { sessionReducer, initialState } = await import('../../session/store')
+    const { pc, events } = await started()
+    pc.dc.open()
+    captureOpts.onVad?.('speech.start', 100)
+    captureOpts.onVad?.('speech.end', 1000)
+    captureOpts.onVad?.('speech.start', 8000)
+    captureOpts.onVad?.('speech.end', 9000)
+    const s = events.reduce((st, event) => sessionReducer(st, { type: 'transport', event }), initialState)
+    expect(s.error?.kind).toBe('empty_transcript')
   })
 
   it('ends the session at the duration limit and says why', async () => {

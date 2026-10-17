@@ -264,6 +264,8 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
       }
     case 'mark': {
       if (!e.utteranceId) {
+        // Speech was recognised but has no line of its own to claim the end (Realtime translate): nothing missed.
+        if (e.name === 'endpoint') return { ...state, pendingSpeechEnd: null }
         if (e.name !== 'speech.end') return state
         // The previous turn's speech end was never claimed by an endpoint: nothing was recognised (T3.4).
         const missed =
