@@ -42,6 +42,15 @@
     },
     {
       "key": "stt:openai",
+      "model": "gpt-realtime-whisper",
+      "perMinute": 0.017,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "checkedOn": "2026-10-17",
+      "checkedBy": "Web search 2026-10-17 at Paawan's request (the container cannot open OpenAI's pages); the search summary cites OpenAI's pricing page and its May 2026 launch post",
+      "note": "Default cascade STT since MR !37, billed per audio minute. Listed before gpt-4o-transcribe because cost lookups take the first stt:openai entry and logs do not record the STT model. Not read on the vendor page itself."
+    },
+    {
+      "key": "stt:openai",
       "model": "gpt-4o-transcribe (realtime transcription)",
       "perMinute": 0.006,
       "source": "https://developers.openai.com/api/docs/models/gpt-4o-transcribe",
@@ -62,10 +71,10 @@
       "key": "tts:openai",
       "model": "gpt-4o-mini-tts",
       "perThousandCharacters": null,
-      "note": "BAA-mode cascade TTS. Not checked yet; OpenAI may bill this model per token rather than per character.",
+      "note": "BAA-mode cascade TTS. Billed per token, not per character, so this per-character field stays null. A web search on 2026-10-17 (not the vendor page) gave $0.60 per M text input tokens and $12 per M audio output tokens, roughly $0.015 per minute of speech, and found no deprecation notice; aggregators disagree, so check OpenAI's pricing page before quoting.",
       "source": "https://developers.openai.com/api/docs/pricing",
-      "checkedOn": null,
-      "checkedBy": null
+      "checkedOn": "2026-10-17",
+      "checkedBy": "Web search 2026-10-17 (unconfirmed)"
     },
     {
       "key": "realtime:openai",

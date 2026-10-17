@@ -15,6 +15,8 @@ REGION=${AWS_REGION:?set AWS_REGION}
 TAG=${IMAGE_TAG:-$(git rev-parse --short HEAD)}
 SHUTDOWN_AT=${SHUTDOWN_AT:-$(date -u -d '+14 days' +%Y-%m-%dT%H:%M:%S)}
 [ -f web/dist/index.html ] || { echo "web/dist missing: run npm run build in web/ first" >&2; exit 1; }
+# The same bundle scan CI runs on web:build, so a local deploy cannot ship a key or key name.
+sh scripts/check-bundle-secrets.sh web/dist
 for v in OPENAI_API_KEY ELEVENLABS_API_KEY CLAUDE_TRANSLATOR_API_KEY DEMO_ACCESS_TOKEN; do
   [ -n "${!v:-}" ] || { echo "$v is not set" >&2; exit 1; }
 done

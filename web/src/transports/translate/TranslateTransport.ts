@@ -56,6 +56,8 @@ export class TranslateTransport implements Transport {
       const info = await createTranslationSession(target)
       if (this.stopped) return
 
+      await config.beforeCapture
+      if (this.stopped) return
       this.capture = await startCapture({
         stream: config.inputStream,
         onVad: (kind, t) => (kind === 'speech.start' ? this.onSpeechStart(t) : this.segmenter.speechEnd(t)),

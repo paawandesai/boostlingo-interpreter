@@ -19,7 +19,8 @@ public sealed class CascadeSttFallback(
     public void PostConfigure(string? name, CascadeOptions options)
     {
         if (options.Stt != "deepgram") return;
-        if (!string.IsNullOrWhiteSpace(deepgram.Value.ApiKey)) return;
+        // The .env.example placeholder counts as unset, so copying the file unchanged still runs.
+        if (!string.IsNullOrWhiteSpace(deepgram.Value.ApiKey) && deepgram.Value.ApiKey != "replace-me") return;
         if (string.IsNullOrWhiteSpace(openai.Value.ApiKey)) return;
         options.Stt = "openai";
         log.LogWarning(

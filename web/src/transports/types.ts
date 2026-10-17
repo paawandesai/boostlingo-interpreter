@@ -23,6 +23,11 @@ export interface SessionConfig {
    * and register. Read at connect time; the newest last.
    */
   history?: () => HistoryPair[]
+  /**
+   * Resolves when the mic may open (G7: the spoken AI notice plays first). The transport does its
+   * network setup (minting the session) while it waits, so the notice and the connection overlap.
+   */
+  beforeCapture?: Promise<unknown>
 }
 
 /** Source and target language for the side that is speaking. */

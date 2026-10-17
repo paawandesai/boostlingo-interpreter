@@ -1,6 +1,6 @@
 # Write-up appendix: method and longer analyses
 
-Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it at two pages. Every number comes from a file
+Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it short. Every number comes from a file
 under `eval/results/`; the same **[VERIFY]** rule applies.
 
 ## A. Setup and method
@@ -40,8 +40,9 @@ and `python3 eval/summarize.py` on each log). Cascade (`gpt-realtime-whisper`, O
 ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
 89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
 endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
-endpointing 546/629, response created 25/58, model + audio 560/901. Before the tuning (2026-10-15,
-server-side endpointing) cascade endpointing was 726/2056 and STT final 1195/2451, Realtime
+endpointing 546/629, response created 25/58, model + audio 560/901. Before the tuning (2026-10-15
+replay logs, server-side endpointing, older replay; the 2026-10-16 server-VAD cascade baseline is
+the first row of the tuning table) cascade endpointing was 726/2056 and STT final 1195/2451, Realtime
 endpointing 1266/1653; the two translators differed by less than the run-to-run spread (first token
 584 vs 576 at p50).
 
@@ -75,7 +76,8 @@ defaults. `gpt-realtime`'s run ended mid-turn (43 of 44 interpreted).
 
 A drift skip is the playback scheduler dropping the oldest queued interpreter audio once more than
 3 s is queued ahead of the play cursor (`web/src/audio/playback.ts`), so latency cannot creep up; in
-cascade that cost 16–26 s of interpreter speech per 5-minute run. Heap grew 8.2–21.7% from minute 1
+cascade that cost 11.9–25.6 s of interpreter speech per 5-minute run across the six 5-minute
+cascade runs of 2026-10-15 and 2026-10-16 (16.0 s on the defaults). Heap grew 8.2–21.7% from minute 1
 across all eight 2026-10-16 tuning runs (criterion < 10%; only one run passed); on 2026-10-15 it grew
 8.5–20% in the replay runs (only Realtime translate passed) and 10.1–21.2% in the red-team runs.
 One 6-minute local cascade probe (after 8c9eebd removed per-clip abort listeners from the replay
@@ -87,19 +89,23 @@ That is one local probe run, not a proven result.
 `config/prices.json`. The cascade figures in the write-up ($0.0149 Claude / $0.0193 OpenAI
 translator) are `eval/results/summary.md`, built from the 2026-10-15 replay logs, which carry no STT
 minutes (the browser emitted them only on End), so they leave STT out. Charging STT for the whole
-session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate) gives an
-upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
-the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes,
-but it prices them at that same `gpt-4o-transcribe` rate because `gpt-realtime-whisper` has no entry
-in `config/prices.json` yet, giving $0.0215/min: not the real cost **[VERIFY: price]**. Deepgram
+session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate; those logs
+used that model) gave an upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
+the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes;
+priced at `gpt-realtime-whisper`'s $0.017/min it comes to $0.0290/min
+(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`). That price
+is from a web search on 2026-10-17 summarising OpenAI's pricing page, not from the page itself; since
+`config/prices.json` lists it first, re-running `--stt-minutes-from-session` on the 2026-10-15 logs
+would now charge it to runs that used `gpt-4o-transcribe`. Deepgram
 Nova-3 streaming lists $0.0077/min ($0.0048 under a current promotion), but it has no numbers here.
 Realtime's separately billed input transcription (`gpt-4o-mini-transcribe`) is not in the logs and
 has no price entry, so the Realtime figures ($0.1145 `gpt-realtime-2.1`, $0.2104 `gpt-realtime`) are
 floors. Cached input tokens are priced at the cached rate; one cached count covers text and audio,
 so it is taken off text input first, then audio. Both Realtime models have the same audio-input
 price, but `gpt-realtime` got far less prompt caching in its run, so it cost almost twice as much.
-On the 2026-10-15 runs `gpt-realtime-2.1` cost $0.2023/min, about ten times either cascade, and
-Realtime translate ($0.034) about twice.
+On the 2026-10-15 runs `gpt-realtime-2.1` cost $0.2023/min, about 10.5 to 13.6 times the two
+cascades ($0.0193 and $0.0149, both without STT), and Realtime translate ($0.034) about 1.8 to 2.3
+times.
 
 ## C. Cascade's sentence-tail loss
 
@@ -113,7 +119,7 @@ turn's `audio.first_out` mark (computed from `marks` in `eval/results/logs/`), a
 gate then cut the clip when that interpretation started playing. The replay was fixed to wait for the
 reply to start (up to 8 s) and then to finish (MR !33). One cascade re-run with it on 2026-10-16
 (OpenAI STT, OpenAI translator, ElevenLabs, synthetic set, 5 minutes) gave 37 turns, STT WER 4.0%
-(was 33.9%), chrF 82.5 (was 58.0), 36 of 37 lines matched, total p50/p95 2540/4170 ms, heap +19.4%,
+(was 33.9%), chrF 89.0 (was 64.4; both multi-reference, as in the tuning table), 36 of 37 lines matched, total p50/p95 2540/4170 ms, heap +19.4%,
 10 drift skips, 0 disconnects (`eval/results/soak-2026-10-16-cascade-replay-openai-turntaking-synthetic.json`).
 Fewer turns fit in 5 minutes because each one now waits for its reply. The tuned runs of MR !37
 (cascade and both Realtime models) all used the fixed replay; the Claude-translator cascade, Realtime

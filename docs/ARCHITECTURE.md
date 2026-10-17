@@ -120,14 +120,15 @@ sequenceDiagram
   participant S as Backend
   participant O as OpenAI Realtime (default gpt-realtime-2.1)
   B->>S: POST /api/realtime/session {source, target, model?, glossary?} + X-Access-Token
-  S->>O: POST /v1/realtime/client_secrets (server API key; session: model, instructions, server VAD, input transcription, voice; expires_after 60 s)
+  S->>O: POST /v1/realtime/client_secrets (server API key; session: model, instructions, turn_detection null (client endpointing, server VAD only with Endpointing=server), input transcription, voice; expires_after 60 s)
   O-->>S: { value: "ek_...", expires_at, session }
   S-->>B: { clientSecret, expiresAt, model, transcriptionModel, callsUrl, instructions for both directions }
   B->>O: POST /v1/realtime/calls (SDP offer, Bearer ek_..., application/sdp)
   O-->>B: 201, SDP answer (Location: /v1/realtime/calls/rtc_...)
   Mic->>B: mic track (Opus over WebRTC)
   Note over Mic: client VAD mark: speech.end (headline start)
-  O-->>B: input_audio_buffer.speech_stopped (endpointing)
+  B->>O: input_audio_buffer.commit + response.create, 300 ms after speech.end (client endpointing)
+  O-->>B: input_audio_buffer.committed (endpoint)
   O-->>B: response.created
   O-->>B: remote audio track (translated speech)
   Note over B: AnalyserNode on remote track: first non-silent frame = audio.first_out
@@ -173,7 +174,7 @@ sequenceDiagram
   participant Mic as Mic + capture worklet
   participant B as Browser (Cascade transport)
   participant P as Backend pipeline
-  participant STT as IStreamingStt (Deepgram or OpenAI transcription)
+  participant STT as IStreamingStt (Deepgram or OpenAI transcription, default gpt-realtime-whisper)
   participant TR as IStreamingTranslator (OpenAI / Claude)
   participant FP as FlushPolicy
   participant TTS as IStreamingTts (ElevenLabs or OpenAI speech)
@@ -185,7 +186,9 @@ sequenceDiagram
   STT-->>P: Partial(text) ... Final(text)
   P-->>B: transcript.partial / transcript.final (server ts)
   Note over Mic: client VAD mark: speech.end
-  STT-->>P: UtteranceEnd / endpoint (endpointing)
+  B->>P: commit, 300 ms after speech.end (client endpointing)
+  P->>STT: input_audio_buffer.commit (OpenAI: the endpoint mark)
+  STT-->>P: Final for the turn (OpenAI) / UtteranceEnd (Deepgram)
   P->>TR: translate each Final segment (streaming, no tools, transcript as delimited data)
   TR-->>FP: token deltas (first token = translation TTFT)
   FP->>TTS: clause/sentence chunks (first flush)
@@ -195,7 +198,7 @@ sequenceDiagram
   Note over B: playback scheduler: first source.start(when) = audio.first_out
 ```
 
-Internals: `System.Threading.Channels` with bounded capacity between stages (back-pressure), one linked `CancellationToken` per session so teardown cancels every stage, and every adapter throws only `ProviderException { Kind, RetryAfter }` (D8). A speaker switch opens a new socket for the new direction and carries the last 6 turns as context (D5, G9).
+Internals: `System.Threading.Channels` with bounded capacity between stages (back-pressure), one linked `CancellationToken` per session so teardown cancels every stage, and every adapter throws only `ProviderException { Kind, RetryAfter }` (D8). A speaker switch is a `direction` message on the same socket: the pipeline finishes the turn in flight, starts the new direction and carries the last 6 turns as context (D5, G9). The cascade OpenAI STT is `gpt-realtime-whisper` by default (`gpt-4o-transcribe` with server endpointing is the fallback); it streams text during speech, but translation starts on the turn's final, after the commit.
 
 ## Latency mark points (D9)
 
@@ -204,7 +207,7 @@ All marks are on the client clock (`performance.now()`); server timestamps are c
 | Mark | Realtime | Cascade | Realtime translate |
 |---|---|---|---|
 | `speech.end` (headline start) | client energy VAD, back-dated to last voiced frame | same code | same code (`speech.start` too) |
-| `endpoint` | `input_audio_buffer.speech_stopped` | STT `UtteranceEnd` / endpoint final | n/a |
+| `endpoint` | `input_audio_buffer.committed` for the browser's commit (client endpointing; `speech_stopped` in server mode) | the browser's commit reaching the OpenAI STT adapter (client endpointing); Deepgram `UtteranceEnd` / endpoint final | n/a |
 | `stt.final` | n/a (transcription runs on a separate model) | STT final for the utterance | n/a |
 | `translation.first_token` | opaque | translator first delta | n/a |
 | `tts.first_flush` | opaque | FlushPolicy first emit | n/a |
