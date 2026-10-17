@@ -153,9 +153,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         glossary: locked ? state.glossary : (action.glossary ?? state.glossary),
       }
     }
-    case 'started':
+    case 'started': {
+      // G20: a new session after an ended one starts empty. Only a handoff leaves a transcript behind (for
+      // export on that screen); it must never reach the next session's context or its export.
+      const base = state.status === 'ended' ? discardTranscript(state) : state
       return {
-        ...state,
+        ...base,
         status: 'connecting',
         error: null,
         notice: null,
@@ -163,9 +166,10 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         handoffRequested: false,
         segments:
           action.at === undefined
-            ? state.segments
-            : [...state.segments, { mode: state.mode, startedAt: action.at, endedAt: null }],
+            ? base.segments
+            : [...base.segments, { mode: base.mode, startedAt: action.at, endedAt: null }],
       }
+    }
     case 'segmentEnded':
       return {
         ...state,
@@ -175,8 +179,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       // G20: transcripts live only for the session view; export before End to keep them.
       return { ...discardTranscript(state), status: 'ended', level: 0, gated: false }
     case 'handoff':
+      // The transcript stays for this screen only, so it can still be exported after the handoff; the next
+      // start discards it (G20).
       return {
-        ...discardTranscript(state),
+        ...state,
+        pendingSpeechEnd: null,
+        notice: null,
         status: 'ended',
         level: 0,
         gated: false,
