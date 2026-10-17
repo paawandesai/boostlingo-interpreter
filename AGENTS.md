@@ -51,7 +51,7 @@ python3 eval/summarize.py eval/results/logs/2026-10-15-*-replay-*.json   # p50/p
 
 ## Attribution in history
 
-Commits are authored as Paawan. Every commit an agent made carries a `Co-Authored-By` trailer naming the model and a `Claude-Session` trailer (a private link to the session that made it), and about half of the commits on `main` have Claude as committer. [AI_USAGE.md](AI_USAGE.md) lists which artifacts were model-generated and which were checked.
+Commits are authored as Paawan. Every commit an agent made carries a `Co-Authored-By` trailer naming the model (36 from the evening of 2026-10-16 name only "Claude") and a `Claude-Session` trailer (a private link to the session that made it), and about half of the commits on `main` have Claude as committer. [AI_USAGE.md](AI_USAGE.md) lists which artifacts were model-generated and which were checked.
 
 ## What the history shows, honestly
 
