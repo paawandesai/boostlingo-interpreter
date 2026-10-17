@@ -66,7 +66,7 @@ Notes on reading the evidence lines:
 
 - [x] **Agentic assistant + Git with iterative history**  
   Where it's satisfied: §0 commit rules; no squash  
-  Evidence: `git log --oneline origin/main` (2026-10-16): 263 commits, 39 merge commits (none squashed), 224 agent-written commits carrying a `Co-Authored-By` trailer, 120 with Claude as committer; `commitlint.config.js` on the `.husky/commit-msg` hook enforces Conventional Commits.
+  Evidence: `git log --oneline origin/main`, as of 2026-10-17 (c46defa): 281 commits, 44 merge commits (none squashed), 237 agent-written commits carrying a `Co-Authored-By` trailer, 133 with Claude as committer; `commitlint.config.js` on the `.husky/commit-msg` hook enforces Conventional Commits.
 
 - [x] **Per-stage latency in UI**  
   Where it's satisfied: M7  
