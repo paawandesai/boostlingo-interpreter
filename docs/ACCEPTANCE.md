@@ -54,7 +54,7 @@ Notes on reading the evidence lines:
 
 - [x] **Provider abstractions, swaps contained**  
   Where it's satisfied: T2.1 interfaces + DI config; T2.4 second translator proves it  
-  Evidence: `server/Interpreter.Tests/Architecture/DependencyRulesTests.cs` (`Core_references_no_provider_or_api_assembly`, `Providers_do_not_reference_each_other_or_the_api`, `Cascade_interfaces_expose_no_vendor_types`). `server/Interpreter.Tests/Providers/TranslatorContractTests.cs` is one abstract contract run against the OpenAI and the Anthropic adapter. A swap is configuration: `Cascade__Translator=anthropic`, `Cascade__Stt=openai` (README "Keys"). The commit that added the second translator, 1fb16c9, touched only `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, the tests and LICENSES.md: no line in Core or Api.
+  Evidence: `server/Interpreter.Tests/Architecture/DependencyRulesTests.cs` (`Core_references_no_provider_or_api_assembly`, `Providers_do_not_reference_each_other_or_the_api`, `Cascade_interfaces_expose_no_vendor_types`). `server/Interpreter.Tests/Providers/TranslatorContractTests.cs` is one abstract contract run against the OpenAI and the Anthropic adapter. A swap is configuration: `Cascade__Translator=anthropic`, `Cascade__Stt=openai` (README "Keys"). The commit that added the second translator, 1fb16c9, touched only `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, the tests, LICENSES.md and scripts/licenses.py: no line in Core or Api.
 
 - [x] **Streaming throughout cascade**  
   Where it's satisfied: T2.2 pipeline + M3 test  
@@ -65,7 +65,7 @@ Notes on reading the evidence lines:
   Evidence: `AGENTS.md` (roles, source-of-truth order, workflow, what went wrong) and `CLAUDE.md` (session start rules) exist. By my decision of 2026-10-16 they are kept agent-written, checked for accuracy, and say so (`AGENTS.md` line 3); the GitLab host name is removed. This deviates from the guardrail's own-voice rule by my choice (G13; README "Known constraints", last row).
 
 - [x] **Agentic assistant + Git with iterative history**  
-  Where it's satisfied: §0 commit rules; no squash  
+  Where it's satisfied: AGENTS.md "Rules for agents in this repo" (commit rules); no squash  
   Evidence: `git log --oneline origin/main`, as of 2026-10-17 (c46defa): 281 commits, 44 merge commits (none squashed), 237 agent-written commits carrying a `Co-Authored-By` trailer, 133 with Claude as committer; `commitlint.config.js` on the `.husky/commit-msg` hook enforces Conventional Commits.
 
 - [x] **Per-stage latency in UI**  
@@ -103,7 +103,7 @@ Notes on reading the evidence lines:
   Evidence: `README.md` (f2b28c5, 093c096): Prerequisites, Run locally, Keys, Test, Evaluation, Architecture, Why .NET + TypeScript, CI, Public demo (AWS), Layout, "What this does not do", Known constraints.
 
 - [x] **Logical commits, meaningful messages**  
-  Enforcement: §0 + commitlint  
+  Enforcement: AGENTS.md "Rules for agents in this repo" + commitlint  
   Evidence: as 1b "Agentic assistant + Git": scoped Conventional messages (`feat(realtime):`, `fix(web):`, `docs(acceptance):`, …) checked by `commitlint.config.js` on `commit-msg`; one task per MR, merged with a merge commit; `git log main` shows the iteration (for example 13536c2 → 95256a4 on the translate segmenter, 88f976e on the Realtime active-response fix).
 
 ## 1d. Performance benchmarks (brief §Performance Benchmarks)
@@ -158,7 +158,7 @@ Notes on reading the evidence lines:
 - [ ] **Provider flexibility**  
   Evidence produced: Hours to add the 2nd translator (git timestamps); lines changed outside the adapter (target: config only); both pass the same contract tests; side-by-side latency/quality/cost  
   Task: T2.4, T4.3  
-  Evidence: (a) Both translators landed in one commit, 1fb16c9, after the shared prompt commit 5e1f7bc, so the history cannot time the second adapter on its own. (b) Lines outside the adapters: 0 in Core or Api (the commit touched `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, tests, LICENSES.md); the swap is the `Cascade__Translator` setting. (c) `TranslatorContractTests` pass for both. (d) Side by side in `eval/results/summary.md`: p50 2440 vs 2521 ms, chrF 64.4 vs 64.3, output-check flags none vs 5, cost per minute $0.0193 vs $0.0149 (prices filled 2026-10-16; both exclude STT, which has no quantity in the logs).
+  Evidence: (a) Both translators landed in one commit, 1fb16c9, after the shared prompt commit 5e1f7bc, so the history cannot time the second adapter on its own. (b) Lines outside the adapters: 0 in Core or Api (the commit touched `Interpreter.Providers.OpenAI`, `Interpreter.Providers.Anthropic`, tests, LICENSES.md and scripts/licenses.py); the swap is the `Cascade__Translator` setting. (c) `TranslatorContractTests` pass for both. (d) Side by side in `eval/results/summary.md`: p50 2440 vs 2521 ms, chrF 64.4 vs 64.3, output-check flags none vs 5, cost per minute $0.0193 vs $0.0149 (prices filled 2026-10-16; both exclude STT, which has no quantity in the logs).
 
 - [x] **Time to onboard a new pair**  
   Evidence produced: Timed EN↔VI onboarding: minutes, config lines, code changes (target 0); Haitian Creole Realtime probe for coverage  
