@@ -3,6 +3,8 @@ import type { PriceList } from './cost'
 
 export interface CascadeProviders {
   stt: string
+  /** The OpenAI transcription model when `stt` is openai; null for other vendors and in older logs. */
+  sttModel?: string | null
   translator: string
   tts: string
 }

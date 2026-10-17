@@ -7,6 +7,7 @@ using Interpreter.Core.Cascade;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Languages;
 using Interpreter.Core.Net;
+using Interpreter.Providers.OpenAI;
 using Microsoft.Extensions.Options;
 
 namespace Interpreter.Api.Cascade;
@@ -38,8 +39,15 @@ public static class CascadeEndpoints
     {
         app.Map(Path, Handle).RequireRateLimiting(AccessControl.RateLimitPolicy);
         // Which vendors a cascade session will send audio and text to, for the consent notice (G7). No live calls.
-        app.MapGet("/api/cascade/providers", (IOptions<CascadeOptions> o) =>
-            Results.Ok(new { stt = o.Value.Stt, translator = o.Value.Translator, tts = o.Value.Tts }));
+        // sttModel lets the cost meter price the transcription model in use (prices differ per OpenAI model).
+        app.MapGet("/api/cascade/providers", (IOptions<CascadeOptions> o, IOptions<OpenAITranscriptionOptions> stt) =>
+            Results.Ok(new
+            {
+                stt = o.Value.Stt,
+                sttModel = o.Value.Stt == "openai" ? stt.Value.Model : null,
+                translator = o.Value.Translator,
+                tts = o.Value.Tts,
+            }));
         return app;
     }
 

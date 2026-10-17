@@ -47,11 +47,11 @@
       "source": "https://developers.openai.com/api/docs/pricing",
       "checkedOn": "2026-10-17",
       "checkedBy": "Web search 2026-10-17 at Paawan's request (the container cannot open OpenAI's pages); the search summary cites OpenAI's pricing page and its May 2026 launch post",
-      "note": "Default cascade STT since MR !37, billed per audio minute. Listed before gpt-4o-transcribe because cost lookups take the first stt:openai entry and logs do not record the STT model. Not read on the vendor page itself."
+      "note": "Default cascade STT since MR !37, billed per audio minute. Cost lookups match it by the model /api/cascade/providers names (sttModel); logs from before 2026-10-17 do not record the model, so lookups for them take the first stt:openai entry, this one. Not read on the vendor page itself."
     },
     {
       "key": "stt:openai",
-      "model": "gpt-4o-transcribe (realtime transcription)",
+      "model": "gpt-4o-transcribe",
       "perMinute": 0.006,
       "source": "https://developers.openai.com/api/docs/models/gpt-4o-transcribe",
       "checkedOn": "2026-10-16",

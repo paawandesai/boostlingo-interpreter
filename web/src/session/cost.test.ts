@@ -52,6 +52,24 @@ describe('computeCost', () => {
     expect(r.unpriced).toEqual([])
   })
 
+  it('prices STT by the transcription model when the server names it', () => {
+    const list = {
+      ...prices,
+      entries: [
+        { key: 'stt:openai', model: 'gpt-realtime-whisper', perMinute: 0.017, source: 's', checkedOn: 'd' },
+        ...prices.entries,
+      ],
+    } as PriceList
+    const r = (sttModel: string) =>
+      computeCost(
+        { mode: 'cascade', minutes: 1, usage: [], sttAudioSeconds: 60, providers: { stt: 'openai', sttModel } },
+        list,
+      ).lines[0].unitPrice
+    expect(r('gpt-realtime-whisper')).toBe(0.017)
+    expect(r('x')).toBe(0.006)
+    expect(r('some-other-model')).toBeNull()
+  })
+
   it('reports an unchecked price as unpriced and gives no per-minute figure', () => {
     const r = computeCost(
       {

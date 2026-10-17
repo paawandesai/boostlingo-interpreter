@@ -228,6 +228,23 @@ class SummarizeTests(unittest.TestCase):
         modes = summarize.summarize([log("openai", modes=[block])], SCRIPTS, PRICES)
         self.assertIn("| $0.0850 |", summarize.render(modes, []))
 
+    def test_prices_stt_by_the_model_the_log_names(self) -> None:
+        prices = {
+            **PRICES,
+            "entries": [entry("stt:openai", "stt-new", perMinute=0.017)]
+            + PRICES["entries"],
+        }
+        line = cost_line("STT (openai)", 2.0, "min")
+        named = summarize.reprice(
+            mode_block("cascade", 2.0, line)["cost"], prices, 2.0, "stt-model"
+        )
+        self.assertAlmostEqual(named["lines"][0]["cost"], 0.012)
+        # A log without the model (before 2026-10-17) takes the first entry for the vendor.
+        unnamed = summarize.reprice(
+            mode_block("cascade", 2.0, line)["cost"], prices, 2.0
+        )
+        self.assertAlmostEqual(unnamed["lines"][0]["cost"], 0.034)
+
     def test_matches_realtime_prices_by_model(self) -> None:
         block = mode_block(
             "realtime",
