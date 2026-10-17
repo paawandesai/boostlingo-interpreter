@@ -5,6 +5,7 @@ using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Cascade;
 using Interpreter.Core.Errors;
+using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
 using Interpreter.Core.Net;
 using Interpreter.Providers.OpenAI;
@@ -266,13 +267,18 @@ public static class CascadeEndpoints
         async Task RunLegAsync(Leg leg)
         {
             var terms = start.Glossary ? glossary.For(leg.Source, leg.Target) : null;
+            // G15: a translation that failed the output checks is shown (flagged) but never becomes context.
+            var sourceChecks = languages.Find(leg.Source)?.OutputChecks;
+            var targetChecks = languages.Find(leg.Target)?.OutputChecks;
+            bool Keep(string s, string t) => OutputCheck.FitForContext(s, t, sourceChecks, targetChecks);
             var settings = new CascadeSettings(
                 leg.Source, languages.Find(leg.Source)!.Name, leg.Target, languages.Find(leg.Target)!.Name,
                 Voice: opts.Voices.GetValueOrDefault(leg.Target),
                 Keyterms: terms?.Keys.ToList(),
                 Glossary: terms,
                 History: history.TakeLast(CascadeProtocol.MaxHistoryPairs).ToList(),
-                FirstUtterance: nextUtterance);
+                FirstUtterance: nextUtterance,
+                KeepInContext: Keep);
             await foreach (var e in pipeline.RunAsync(leg.Audio.Reader.ReadAllAsync(stop.Token), settings, stop.Token, clock))
             {
                 nextUtterance = Math.Max(nextUtterance, e.Utterance + 1);
@@ -281,7 +287,7 @@ public static class CascadeEndpoints
                     case SourceFinal: activity.Success($"stt:{stt.Name}"); break;
                     case TranslationFinal f:
                         activity.Success($"translator:{translator.Name}");
-                        if (f.Text.Length > 0) history.Add((f.Source, f.Text));
+                        if (Keep(f.Source, f.Text)) history.Add((f.Source, f.Text));
                         if (history.Count > CascadeProtocol.MaxHistoryPairs) history.RemoveAt(0);
                         break;
                     case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;

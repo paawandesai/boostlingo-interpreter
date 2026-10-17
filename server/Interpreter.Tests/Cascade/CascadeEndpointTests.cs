@@ -31,7 +31,7 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         }
     }
 
-    private sealed class FakeTranslator : IStreamingTranslator
+    private sealed class FakeTranslator(string reply = "Hola.") : IStreamingTranslator
     {
         public readonly List<TranslationRequest> Requests = [];
         public string Name => "fake-translator";
@@ -40,7 +40,7 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         {
             lock (Requests) Requests.Add(request);
             await Task.Yield();
-            yield return "Hola.";
+            yield return reply;
         }
     }
 
@@ -384,6 +384,31 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Equal(("Spanish", "English"), (translator.Requests[1].SourceLanguage, translator.Requests[1].TargetLanguage));
         Assert.Equal([("Hello.", "Hola.")], translator.Requests[1].Context!);
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task A_translation_that_fails_the_output_checks_is_not_carried_as_context()
+    {
+        // G15: the line is still delivered (and flagged by the client), but the next leg never sees it as an
+        // earlier answer of its own.
+        var translator = new FakeTranslator("I'm sorry, but I can't help with that.");
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: translator);
+        await Start(ws);
+
+        await SendFrame(ws);
+        var first = await ReadThrough(ws, "utterance.done");
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await ReadUntil(ws, "direction");
+        await SendFrame(ws);
+        await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        var shown = first.Where(m => m.Type == WebSocketMessageType.Text).Select(Json)
+            .Single(j => (string?)j["type"] == "translation.final");
+        Assert.Equal("I'm sorry, but I can't help with that.", (string?)shown["text"]);
+        Assert.Equal(2, translator.Requests.Count);
+        Assert.Empty(translator.Requests[1].Context!);
     }
 
     [Fact]

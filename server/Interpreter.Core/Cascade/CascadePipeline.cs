@@ -11,6 +11,9 @@ namespace Interpreter.Core.Cascade;
 /// this one. Context only, never re-translated.</param>
 /// <param name="FirstUtterance">Id of the first utterance. A direction change on one connection starts a new
 /// run, and its ids continue where the last one stopped so the client never sees an id twice.</param>
+/// <param name="KeepInContext">Decides whether a finished (source, translation) pair may serve as context for
+/// later turns; the endpoint passes the output checks (G15), so a pair that failed one is left out. Null keeps
+/// every non-empty translation.</param>
 public sealed record CascadeSettings(
     string SourceCode,
     string SourceName,
@@ -23,7 +26,8 @@ public sealed record CascadeSettings(
     IReadOnlyDictionary<string, string>? Glossary = null,
     RetryOptions? Retry = null,
     IReadOnlyList<(string Source, string Target)>? History = null,
-    int FirstUtterance = 1);
+    int FirstUtterance = 1,
+    Func<string, string, bool>? KeepInContext = null);
 
 /// <summary>
 /// Retries for a translation that fails with a rate limit or timeout before its first token (T3.4).
@@ -382,6 +386,8 @@ public sealed class CascadePipeline(
         private void Remember(string source, string target)
         {
             if (_s.ContextPairs <= 0 || target.Length == 0) return;
+            // A translation that failed the output checks would read as the translator's own earlier answer.
+            if (_s.KeepInContext is { } keep && !keep(source, target)) return;
             _context.Enqueue((source, target));
             while (_context.Count > _s.ContextPairs) _context.Dequeue();
         }
