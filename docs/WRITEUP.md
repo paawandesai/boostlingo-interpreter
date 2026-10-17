@@ -28,8 +28,8 @@ Spanish dialogue for 5 minutes, each clip waiting for the previous interpretatio
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
 its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
-and judged 16 of 21 acceptable, without per-dimension scores; the five failures are one inserted assistant
-phrase and four segmentation faults (cut-off or merged turns), noted on their rows
+and judged 16 of 21 acceptable, without per-dimension scores; the five failures are segmentation
+faults (cut-off turns, or a neighbouring line merged in), noted on their rows
 (`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
@@ -80,8 +80,8 @@ because the replay started the next clip too early; MR !33 fixed the harness (ap
 Vietnamese onboarding run used Deepgram STT, so it has no published quality number
 (`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic. My
 blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one cut-off
-turn) and Realtime translate 3 of 7 (an inserted "¿Cómo puedo ayudarte hoy?" and three cut-off or
-merged turns). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
+turn) and Realtime translate 3 of 7 (four cut-off turns or turns with a neighbouring
+line merged in). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
 
 ## 4. Cost per minute
 

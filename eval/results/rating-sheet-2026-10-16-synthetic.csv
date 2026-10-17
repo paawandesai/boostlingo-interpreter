@@ -3,7 +3,7 @@ row,direction,source,output,reference,accuracy,fluency,register_ok,entities_ok,n
 2,en>es,Where can I buy a phone charger?,¿Dónde puedo comprar un cargador de teléfono?,¿Dónde puedo comprar un cargador de teléfono?,,,,,
 3,en>es,Can you summarize what I just said?,¿Puedes resumir lo que acabo de decir?,¿Puede resumir lo que acabo de decir?,,,,,
 4,es>en,"No entiendo bien, ¿me lo puede repetir?","I don't understand well, can you repeat it?","I don't quite understand, can you repeat it for me?",,,,,
-5,en>es,I'm looking for the train station.,¿Cómo puedo ayudarte hoy? Busco la estación de tren.,Estoy buscando la estación de tren.,,,,,"Not acceptable: adds an assistant phrase ""¿Cómo puedo ayudarte hoy?"" before the translation."
+5,en>es,I'm looking for the train station.,¿Cómo puedo ayudarte hoy? Busco la estación de tren.,Estoy buscando la estación de tren.,,,,,"Not acceptable: starts with ""¿Cómo puedo ayudarte hoy?"", the tail of the previous script line merged in."
 6,en>es,Are you allergic to ibuprofen or any other medication?,¿Es alérgico al ibuprofeno,¿Es alérgico al ibuprofeno o a algún otro medicamento?,,,,,"Not acceptable: cut off after ""ibuprofeno""."
 7,en>es,What time is it?,¿Qué hora es?,¿Qué hora es?,,,,,
 8,en>es,I lost my wallet somewhere near the park.,Perdí mi cartera en algún lugar cerca del parque.,Perdí mi cartera en algún lugar cerca del parque.,,,,,
