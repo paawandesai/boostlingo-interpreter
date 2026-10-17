@@ -152,6 +152,8 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         return (ws, stt);
     }
 
+    private static readonly (string, string)[] Burst = [("Cascade:AudioBurstSeconds", "600")];
+
     private static async Task Start(WebSocket ws, string source = "en", string target = "es")
     {
         await Send(ws, new { type = "start", token = Token, source, target });
@@ -450,7 +452,8 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         // socket keeps answering while it drains, and nothing the new speaker says meanwhile is lost.
         var stt = new FirstFrameStt();
         var translator = new GatedTranslator();
-        var (ws, _) = await Connect(sttOverride: stt, translator: translator);
+        // The test sends the new speaker's audio far faster than real time; lift the rate limit's burst.
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator, settings: Burst);
         var ct = TestContext.Current.CancellationToken;
         await Start(ws);
 
@@ -495,7 +498,8 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         // of the new speaker's audio, and the client is told how much when the new direction starts.
         var stt = new FirstFrameStt();
         var translator = new GatedTranslator();
-        var (ws, _) = await Connect(sttOverride: stt, translator: translator);
+        // The test sends the new speaker's audio far faster than real time; lift the rate limit's burst.
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator, settings: Burst);
         var ct = TestContext.Current.CancellationToken;
         await Start(ws);
 
@@ -582,5 +586,157 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         await ReadAll(ws);
 
         Assert.Equal(("ready", "first-frame-stt", "openai-tts"), ((string?)ready["type"], (string?)ready["stt"], (string?)ready["tts"]));
+    }
+
+    /// <summary>Counts audio and commit frames; reads nothing until <see cref="Release"/> is set.</summary>
+    private sealed class CountingStt : IStreamingStt
+    {
+        public readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Frames;
+        public int Commits;
+        public string Name => "counting-stt";
+
+        public async IAsyncEnumerable<SttEvent> TranscribeAsync(
+            IAsyncEnumerable<AudioFrame> audio, SttOptions options, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await Release.Task.WaitAsync(ct);
+            await foreach (var f in audio.WithCancellation(ct))
+            {
+                if (f.EndOfSpeech) Interlocked.Increment(ref Commits);
+                else Interlocked.Increment(ref Frames);
+            }
+            yield break;
+        }
+    }
+
+    [Fact]
+    public async Task Accepts_a_250_ms_frame_and_closes_on_a_larger_one_as_a_policy_violation()
+    {
+        var stt = new CountingStt();
+        stt.Release.SetResult();
+        var (ws, _) = await Connect(sttOverride: stt);
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+
+        await ws.SendAsync(new byte[CascadeEndpoints.MaxAudioFrameBytes], WebSocketMessageType.Binary, true, ct);
+        await ws.SendAsync(new byte[CascadeEndpoints.MaxAudioFrameBytes + 2], WebSocketMessageType.Binary, true, ct);
+        var messages = await ReadAll(ws);
+
+        Assert.Equal(8000, CascadeEndpoints.MaxAudioFrameBytes);
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Contains("at most 8000 bytes", (string?)error["message"]);
+        Assert.Equal((WebSocketCloseStatus.PolicyViolation, "audio frame too large"), (messages[^1].Close, messages[^1].CloseReason));
+        Assert.True(stt.Frames <= 1);
+    }
+
+    [Fact]
+    public async Task Closes_a_session_that_sends_audio_faster_than_real_time()
+    {
+        var (ws, _) = await Connect();
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+
+        // 40 frames of 250 ms: 10 s of audio at once, past the 5 s burst allowance.
+        for (var i = 0; i < 40 && ws.State == WebSocketState.Open; i++)
+        {
+            try { await ws.SendAsync(new byte[CascadeEndpoints.MaxAudioFrameBytes], WebSocketMessageType.Binary, true, ct); }
+            catch (WebSocketException) { break; }
+        }
+        var messages = await ReadAll(ws);
+
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Contains("faster than real time", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task A_repeated_direction_is_ignored_and_does_not_split_the_turn()
+    {
+        var stt = new FirstFrameStt();
+        var (ws, _) = await Connect(sttOverride: stt);
+        await Start(ws);
+
+        // A double tap on the same speaker sends the same direction twice.
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await ReadUntil(ws, "direction");
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await SendFrame(ws);
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        var json = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json).ToList();
+        Assert.DoesNotContain(json, j => (string?)j["type"] == "direction");
+        Assert.Equal(["en", "es"], stt.Languages);
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task Switches_while_a_direction_is_queued_retarget_it_and_the_last_one_wins()
+    {
+        var stt = new FirstFrameStt();
+        var translator = new GatedTranslator();
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator);
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+
+        await SendFrame(ws);
+        await translator.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        await Send(ws, new { type = "direction", source = "vi", target = "en" });
+        await Send(ws, new { type = "ping", c = 1.0 });
+        await ReadUntil(ws, "pong");
+        translator.Release.SetResult();
+        var ack = await ReadUntil(ws, "direction");
+        await SendFrame(ws);
+        await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        Assert.Equal(("vi", "en"), ((string?)ack["source"], (string?)ack["target"]));
+        Assert.Equal(["en", "vi"], stt.Languages);
+        Assert.DoesNotContain(
+            messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json),
+            j => (string?)j["type"] == "direction");
+    }
+
+    [Fact]
+    public async Task Commits_faster_than_four_a_second_are_ignored()
+    {
+        var stt = new CountingStt();
+        var (ws, _) = await Connect(sttOverride: stt);
+        await Start(ws);
+
+        for (var i = 0; i < 10; i++) await Send(ws, new { type = "commit" });
+        await Send(ws, new { type = "ping", c = 1.0 });
+        await ReadUntil(ws, "pong");
+        stt.Release.SetResult();
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        Assert.InRange(stt.Commits, 1, 5);
+    }
+
+    [Fact]
+    public async Task Audio_dropped_while_a_direction_runs_is_reported_when_it_finishes()
+    {
+        var stt = new CountingStt();
+        var (ws, _) = await Connect(sttOverride: stt, settings: Burst);
+        await Start(ws);
+
+        const int extra = 100; // 100 frames of 320 samples: 2 s
+        for (var i = 0; i < CascadeEndpoints.AudioQueueFrames + extra; i++) await SendFrame(ws);
+        await Send(ws, new { type = "ping", c = 1.0 });
+        await ReadUntil(ws, "pong");
+        stt.Release.SetResult();
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        var error = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json)
+            .Single(j => (string?)j["type"] == "error");
+        Assert.Contains("2 s of this speaker's audio were not interpreted", (string?)error["message"]);
+        Assert.Equal(CascadeEndpoints.AudioQueueFrames, stt.Frames);
     }
 }
