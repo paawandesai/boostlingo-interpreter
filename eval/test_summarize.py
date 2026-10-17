@@ -188,8 +188,34 @@ class SummarizeTests(unittest.TestCase):
         agg = modes["cascade:openai"]
         self.assertEqual(agg["latency_withheld"], 1)
         self.assertEqual(dict(agg["stages"]), {})
-        self.assertNotIn("wer", summarize.quality(agg["matched"], "cascade:openai"))
-        self.assertIn("withheld (Deepgram)", summarize.render(modes, []))
+        q = summarize.quality(agg["matched"], "cascade:openai")
+        self.assertNotIn("wer", q)
+        # chrF is a Deepgram benchmark too: withheld, like WER.
+        self.assertNotIn("chrf", q)
+        row = next(
+            x for x in summarize.render(modes, []).splitlines() if x.startswith("| Cascade")
+        )
+        self.assertEqual(row.count("withheld (Deepgram)"), 2)
+
+    def test_skips_lines_whose_source_text_was_removed(self) -> None:
+        removed = utterance("cascade", "", "¿Dónde está la farmacia?")
+        removed["source"]["text"] = None
+        modes = summarize.summarize([log("deepgram", removed)], SCRIPTS)
+        agg = modes["cascade:openai"]
+        self.assertEqual(agg["finals"], 1)
+        self.assertEqual(agg["matched"], [])
+
+    def test_quotes_the_review_only_for_the_four_replay_logs(self) -> None:
+        modes = summarize.summarize([], SCRIPTS)
+        replay = [f"eval/results/logs/{n}" for n in sorted(summarize.REVIEWED_LOGS)]
+        self.assertIn("reviewed by Paawan", summarize.render(modes, replay))
+        for inputs in (
+            [],
+            replay[:3],
+            [*replay, "eval/results/logs/2026-10-15-cascade-en-vi-synthetic.json"],
+            ["eval/results/logs/2026-10-15-cascade-vi-en-synthetic.json"],
+        ):
+            self.assertNotIn("reviewed by Paawan", summarize.render(modes, inputs))
 
     def test_never_scores_realtime_source_as_recognition(self) -> None:
         modes = summarize.summarize(
