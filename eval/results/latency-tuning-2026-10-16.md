@@ -32,6 +32,6 @@ Limits:
 - n stays below the soak's 50 turns because each turn waits for its reply.
 - Heap grew 8–22% from minute 1, against a criterion of under 10%.
 - The 150 ms delay split sentences at short pauses, which shows as the WER and chrF drop, so 300 ms is the default.
-- gpt-realtime-whisper has no price in `config/prices.json` yet, so the cascade cost column here is not its real cost.
+- This table has no cost column; the cascade cost on the default row ($0.0290/min with STT) is in `docs/WRITEUP.md` §4, with gpt-realtime-whisper priced at $0.017/min from a 2026-10-17 web search, not OpenAI's page.
 - gpt-realtime-whisper takes no prompt, so glossary terms reach only the translator.
 - Its HIPAA eligibility has not been checked beyond the `/v1/realtime` route.
