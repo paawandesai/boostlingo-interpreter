@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
 using Microsoft.Extensions.Options;
@@ -37,7 +38,7 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
 
     public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, $"{AnthropicTranslationOptions.ApiKeyEnv} (or {AnthropicTranslationOptions.FallbackApiKeyEnv}) is not configured on the server");
 
         using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, "messages"))
@@ -47,31 +48,54 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
         msg.Headers.Add("x-api-key", _opts.ApiKey);
         msg.Headers.Add("anthropic-version", _opts.ApiVersion);
         using var res = await HttpErrors.SendAsync(http, msg, Provider, "Anthropic translation", ct);
-        await using var stream = await res.Content.ReadAsStreamAsync(ct);
+        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "Anthropic translation", _opts.StreamIdleTimeout);
 
-        int? inputTokens = null, outputTokens = null;
+        var tokens = new Tokens();
         await foreach (var e in ServerSentEvents.ReadAsync(stream, ct))
         {
-            using var doc = JsonDocument.Parse(e.Data);
+            var (text, stop) = Read(e.Data, tokens);
+            if (text is { Length: > 0 }) yield return text;
+            if (stop)
+            {
+                if (tokens.Input is { } i && tokens.Output is { } o) request.OnUsage?.Invoke(new TokenUsage(i, o));
+                yield break;
+            }
+        }
+    }
+
+    private sealed class Tokens
+    {
+        public int? Input;
+        public int? Output;
+    }
+
+    /// <summary>
+    /// Reads one stream event: records usage and returns its text delta and whether the message ended.
+    /// A truncated or malformed event (a connection dropped mid-line) is a provider error, not an exception
+    /// that ends the session.
+    /// </summary>
+    private static (string? Text, bool Stop) Read(string data, Tokens tokens)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(data);
             var root = doc.RootElement;
             switch (root.GetProperty("type").GetString())
             {
                 case "message_start" when root.GetProperty("message").TryGetProperty("usage", out var startUsage):
-                    if (startUsage.TryGetProperty("input_tokens", out var it)) inputTokens = it.GetInt32();
-                    if (startUsage.TryGetProperty("output_tokens", out var ot0)) outputTokens = ot0.GetInt32();
+                    if (startUsage.TryGetProperty("input_tokens", out var it)) tokens.Input = it.GetInt32();
+                    if (startUsage.TryGetProperty("output_tokens", out var ot0)) tokens.Output = ot0.GetInt32();
                     break;
                 case "message_delta" when root.TryGetProperty("usage", out var deltaUsage):
                     // Output tokens here are cumulative for the message.
-                    if (deltaUsage.TryGetProperty("output_tokens", out var ot)) outputTokens = ot.GetInt32();
+                    if (deltaUsage.TryGetProperty("output_tokens", out var ot)) tokens.Output = ot.GetInt32();
                     break;
                 case "content_block_delta":
                     var delta = root.GetProperty("delta");
-                    if (delta.GetProperty("type").GetString() == "text_delta" && delta.GetProperty("text").GetString() is { Length: > 0 } text)
-                        yield return text;
+                    if (delta.GetProperty("type").GetString() == "text_delta") return (delta.GetProperty("text").GetString(), false);
                     break;
                 case "message_stop":
-                    if (inputTokens is { } i && outputTokens is { } o) request.OnUsage?.Invoke(new TokenUsage(i, o));
-                    yield break;
+                    return (null, true);
                 case "error":
                     var type = root.GetProperty("error").GetProperty("type").GetString();
                     throw new ProviderException(
@@ -83,6 +107,11 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
                         },
                         Provider, $"Anthropic translation stream error ({type})");
             }
+            return (null, false);
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
+        {
+            throw new ProviderException(ProviderErrorKind.Unavailable, Provider, "Anthropic translation sent an unreadable stream event", inner: e);
         }
     }
 }

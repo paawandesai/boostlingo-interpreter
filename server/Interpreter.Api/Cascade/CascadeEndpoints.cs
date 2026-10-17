@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Interpreter.Api.Health;
 using Interpreter.Api.Security;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Interpretation;
 using Interpreter.Core.Languages;
@@ -36,6 +37,16 @@ public static class CascadeEndpoints
     /// </summary>
     public const int AudioQueueFrames = 1500;
 
+    /// <summary>
+    /// Largest audio frame accepted: 250 ms of 16 kHz PCM16 mono. The browser sends 20 ms frames (640 bytes);
+    /// a larger frame closes the session as a policy violation, so one session can't fill memory with a few
+    /// huge frames.
+    /// </summary>
+    public const int MaxAudioFrameBytes = SttRate * 2 / 4;
+
+    /// <summary>Commits closer together than this are ignored: the client VAD sends one per pause.</summary>
+    private static readonly TimeSpan MinCommitInterval = TimeSpan.FromMilliseconds(250);
+
     public static IEndpointRouteBuilder MapCascadeEndpoints(this IEndpointRouteBuilder app)
     {
         app.Map(Path, Handle).RequireRateLimiting(AccessControl.RateLimitPolicy);
@@ -62,6 +73,8 @@ public static class CascadeEndpoints
     {
         private readonly CancellationTokenRegistration _onLimit;
         private long _droppedSamples;
+        private readonly Lock _gate = new();
+        private bool _started;
 
         public Leg(string source, string target, CancellationToken limit)
         {
@@ -74,8 +87,29 @@ public static class CascadeEndpoints
             _onLimit = limit.Register(() => Audio.Writer.TryComplete());
         }
 
-        public string Source { get; }
-        public string Target { get; }
+        public string Source { get; private set; }
+        public string Target { get; private set; }
+
+        /// <summary>Marks the leg as running; from here on its direction is fixed.</summary>
+        public void Start()
+        {
+            lock (_gate) _started = true;
+        }
+
+        /// <summary>
+        /// Last wins for a direction that has not started yet: a second switch while the previous direction still
+        /// drains retargets the queued leg (whose audio is already the newest speaker's) instead of queuing
+        /// another leg and STT connection. False once the leg runs.
+        /// </summary>
+        public bool TryRetarget(string source, string target)
+        {
+            lock (_gate)
+            {
+                if (_started) return false;
+                (Source, Target) = (source, target);
+                return true;
+            }
+        }
 
         public Channel<AudioFrame> Audio { get; }
 
@@ -87,6 +121,9 @@ public static class CascadeEndpoints
 
         /// <summary>Seconds of audio dropped from a full queue so far.</summary>
         public double DroppedSeconds => Interlocked.Read(ref _droppedSamples) / (double)SttRate;
+
+        /// <summary>Of <see cref="DroppedSeconds"/>, how much the client has been told about.</summary>
+        public double ReportedDroppedSeconds;
 
         public void Dispose() => _onLimit.Dispose();
     }
@@ -189,6 +226,7 @@ public static class CascadeEndpoints
         }
 
         await SendJson(new { type = "ready", stt = stt.Name, translator = translator.Name, tts = tts.Name, t = Now() });
+        var readyAt = time.GetTimestamp();
         log.LogInformation("Cascade session started: {Source}>{Target} stt={Stt} translator={Translator} tts={Tts}",
             source, target, stt.Name, translator.Name, tts.Name);
 
@@ -199,12 +237,17 @@ public static class CascadeEndpoints
         using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(opts.MaxSessionSeconds), time);
         var legs = Channel.CreateUnbounded<Leg>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         var firstLeg = new Leg(source, target, limit.Token);
+        // The first direction is the one the session started in; a switch never retargets it.
+        firstLeg.Start();
         var all = new List<Leg> { firstLeg };
         legs.Writer.TryWrite(firstLeg);
         // Finished turns on this socket (after the ones the client carried over), context for the next leg (G9).
         var history = new List<(string Source, string Target)>(CascadeProtocol.History(start));
         // Utterance ids keep counting across legs, so the client never sees one twice.
         var nextUtterance = 1;
+        // Set by the receive loop when the client broke an abuse limit; the session then closes with 1008.
+        // Declared before the loop starts, which can run synchronously up to a violation.
+        string? violation = null;
         var receive = ReceiveAsync(firstLeg);
         var pipeline = new CascadePipeline(stt, translator, tts, time);
         // Anything but a normal end closes with an error status, so the client never takes it for a clean stop.
@@ -214,13 +257,14 @@ public static class CascadeEndpoints
         {
             await foreach (var leg in legs.Reader.ReadAllAsync(stop.Token))
             {
+                leg.Start();
                 if (leg != firstLeg)
                 {
                     // Sent once the previous leg has delivered its last turn: everything after this belongs to
                     // the new direction.
                     await SendJson(new { type = "direction", source = leg.Source, target = leg.Target, t = Now() });
                     log.LogInformation("Cascade direction changed: {Source}>{Target}", leg.Source, leg.Target);
-                    var dropped = leg.DroppedSeconds;
+                    var dropped = leg.ReportedDroppedSeconds = leg.DroppedSeconds;
                     if (dropped > 0)
                     {
                         // The previous direction took longer to finish than this queue holds (a stalled
@@ -233,6 +277,16 @@ public static class CascadeEndpoints
                     }
                 }
                 await RunLegAsync(leg);
+                var late = leg.DroppedSeconds - leg.ReportedDroppedSeconds;
+                if (late > 0)
+                {
+                    // Dropped while this direction ran (STT fell more than a queue behind): the turn is incomplete.
+                    log.LogWarning("Cascade direction {Source}>{Target} dropped {Seconds:0.0} s of audio while it ran",
+                        leg.Source, leg.Target, late);
+                    await SendSessionError(
+                        $"The interpreter fell behind: {late:0.#} s of this speaker's audio were not interpreted.",
+                        ProviderErrorKind.Unavailable);
+                }
                 // After a switch the next leg is already queued. Otherwise the audio ended with the session
                 // (stop, close or the limit) or STT failed, and the session ends as before.
                 if (!leg.Switched) break;
@@ -245,6 +299,10 @@ public static class CascadeEndpoints
                 log.LogInformation("Cascade session ended: duration limit");
             }
             else log.LogInformation("Cascade session ended normally");
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested && violation is not null)
+        {
+            log.LogWarning("Cascade session closed: abuse limit");
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -278,6 +336,11 @@ public static class CascadeEndpoints
             await stop.CancelAsync();
             await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             foreach (var leg in all) leg.Dispose();
+            if (violation is not null)
+            {
+                closeStatus = WebSocketCloseStatus.PolicyViolation;
+                closeReason = violation;
+            }
             await WebSocketText.CloseQuietlyAsync(ws, closeReason, closeStatus);
         }
 
@@ -329,6 +392,17 @@ public static class CascadeEndpoints
 
         async Task ReceiveAsync(Leg leg)
         {
+            long samplesReceived = 0;
+            long? lastCommit = null;
+
+            // Tells the client which limit it broke and ends the session at once; it closes with 1008.
+            async Task Violate(string reason, string message)
+            {
+                violation = reason;
+                await SendSessionError(message, ProviderErrorKind.Unavailable);
+                await stop.CancelAsync();
+            }
+
             try
             {
                 while (true)
@@ -342,6 +416,20 @@ public static class CascadeEndpoints
                     }
                     if (msg.Type == WebSocketMessageType.Binary)
                     {
+                        if (msg.Data.Length > MaxAudioFrameBytes)
+                        {
+                            await Violate("audio frame too large",
+                                $"Audio frames must be at most {MaxAudioFrameBytes} bytes (250 ms of 16 kHz PCM16).");
+                            break;
+                        }
+                        samplesReceived += msg.Data.Length / 2;
+                        var allowed = time.GetElapsedTime(readyAt).TotalSeconds * opts.AudioRateFactor + opts.AudioBurstSeconds;
+                        if (samplesReceived / (double)SttRate > allowed)
+                        {
+                            await Violate("audio faster than real time",
+                                "The client sent audio faster than real time, so the session was closed.");
+                            break;
+                        }
                         if (limit.IsCancellationRequested) continue;
                         // Copy: the next receive reuses nothing, but the frame outlives this loop iteration.
                         // TryWrite never waits (a full queue drops its oldest frame, counted on the leg), so this
@@ -353,7 +441,13 @@ public static class CascadeEndpoints
                     if (control?.Type == "ping") await SendJson(new { type = "pong", c = control.C, t = Now() });
                     else if (control?.Type == "stop") break;
                     // The browser's VAD heard the speaker stop; an adapter with client endpointing ends the turn now.
-                    else if (control?.Type == "commit") leg.Audio.Writer.TryWrite(AudioFrame.SpeechEnded(SttRate));
+                    else if (control?.Type == "commit")
+                    {
+                        // At most one per MinCommitInterval: each one asks the STT adapter to close a turn.
+                        if (lastCommit is { } last && time.GetElapsedTime(last) < MinCommitInterval) continue;
+                        lastCommit = time.GetTimestamp();
+                        leg.Audio.Writer.TryWrite(AudioFrame.SpeechEnded(SttRate));
+                    }
                     else if (control?.Type == "direction")
                     {
                         if (control.Source is not { } s || control.Target is not { } t || !languages.IsSupportedDirection(s, t))
@@ -362,6 +456,12 @@ public static class CascadeEndpoints
                             await SendSessionError("Unsupported language direction", ProviderErrorKind.Unavailable);
                             continue;
                         }
+                        // The direction the client last asked for (queued or running): a repeat, such as a
+                        // double tap, changes nothing and must not split the turn in flight.
+                        if (s == leg.Source && t == leg.Target) continue;
+                        // A switch while the previous one still waits to run retargets it (last wins), so a
+                        // burst of switches opens at most one queued leg and STT connection.
+                        if (leg.TryRetarget(s, t)) continue;
                         var next = new Leg(s, t, limit.Token);
                         all.Add(next);
                         legs.Writer.TryWrite(next);

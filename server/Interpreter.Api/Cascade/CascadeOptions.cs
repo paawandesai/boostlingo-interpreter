@@ -24,4 +24,13 @@ public sealed class CascadeOptions
     /// and closes, so a forgotten or looping session can't run up the bill.
     /// </summary>
     public int MaxSessionSeconds { get; set; } = 1800;
+
+    /// <summary>
+    /// Abuse limit: a session may send audio at most this many times faster than real time, plus
+    /// <see cref="AudioBurstSeconds"/>, before it is closed as a policy violation. A real mic sends 1x.
+    /// </summary>
+    public double AudioRateFactor { get; set; } = 1.25;
+
+    /// <summary>Seconds of audio a session may send ahead of real time (network bursts) before the rate limit applies.</summary>
+    public double AudioBurstSeconds { get; set; } = 5;
 }

@@ -47,10 +47,18 @@ const LANG_MIN_WORDS = 4
 
 const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
 const squash = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
-const hasAny = (text: string, patterns: string[] = []) => {
-  const t = text.toLowerCase().replace(/[’]/g, "'")
-  return patterns.some((p) => t.includes(p))
-}
+/**
+ * True when a sentence starts with one of the patterns (after leading punctuation such as quotes or ¿).
+ * Only sentence starts count: a model's refusal or assistant preamble opens a sentence, while the same
+ * words inside a faithful line ("he said I won't...") do not.
+ */
+const hasAny = (text: string, patterns: string[] = []) =>
+  text
+    .toLowerCase()
+    .replace(/[’]/g, "'")
+    .split(/(?<=[.!?…])\s+|\n+/u)
+    .map((sentence) => sentence.replace(/^[^\p{L}\p{N}]+/u, ''))
+    .some((sentence) => patterns.some((p) => sentence.startsWith(p)))
 
 export function checkContext(
   languages: LanguagesResponse | null,
@@ -77,7 +85,13 @@ export function checkSegment(source: string, target: string, sourceFinal: boolea
     if (sourceFinal && sourceWords.length >= 3) flags.push('omission')
     return flags
   }
-  if (hasAny(target, tgt?.refusalPatterns) || hasAny(target, src?.refusalPatterns)) flags.push('refusal')
+  // A refusal the speaker said ("No puedo ayudarle con eso") translates to one; that is not the model declining.
+  if (
+    (hasAny(target, tgt?.refusalPatterns) || hasAny(target, src?.refusalPatterns)) &&
+    !hasAny(source, src?.refusalPatterns) &&
+    !hasAny(source, tgt?.refusalPatterns)
+  )
+    flags.push('refusal')
   if (ctx.canary && squash(target).includes(squash(ctx.canary))) flags.push('prompt_leak')
   if (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) flags.push('assistant_reply')
   if (targetWords.length >= LANG_MIN_WORDS && tgt && src) {

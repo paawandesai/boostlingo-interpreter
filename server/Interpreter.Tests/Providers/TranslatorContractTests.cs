@@ -16,7 +16,7 @@ namespace Interpreter.Tests.Providers;
 /// </summary>
 public abstract class TranslatorContractTests
 {
-    protected abstract IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key");
+    protected abstract IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null);
 
     /// <summary>A successful vendor stream that yields these text deltas.</summary>
     protected abstract string Stream(params string[] deltas);
@@ -126,12 +126,108 @@ public abstract class TranslatorContractTests
         Assert.NotEqual(ProviderErrorKind.Auth, e.Kind);
     }
 
+    /// <summary>Returns <paramref name="prefix"/>, then fails the next read as a dropped connection would.</summary>
+    private sealed class FailingStream(string prefix, Exception failure) : MemoryStream(Encoding.UTF8.GetBytes(prefix))
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            return read > 0 ? read : throw failure;
+        }
+    }
+
+    private static StubHttpHandler Body(Stream body) =>
+        new(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) });
+
+    public static TheoryData<string> ReadFailures => ["io", "http-io", "http-request"];
+
+    [Theory]
+    [MemberData(nameof(ReadFailures))]
+    public async Task A_connection_dropped_mid_stream_is_an_unavailable_error_after_the_text_so_far(string failure)
+    {
+        Exception error = failure switch
+        {
+            "io" => new IOException("The response ended prematurely."),
+            "http-io" => new HttpIOException(HttpRequestError.ResponseEnded),
+            _ => new HttpRequestException("reset"),
+        };
+        var full = Stream("Tome ", "dos ");
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var d in Create(Body(new FailingStream(full[..full.LastIndexOf("dos ", StringComparison.Ordinal)], error))).TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal((ProviderErrorKind.Unavailable, Create(Sse("")).Name), (e.Kind, e.Provider));
+        Assert.Same(error, e.InnerException);
+    }
+
     [Fact]
-    public async Task Missing_key_fails_without_calling_the_vendor()
+    public async Task A_truncated_event_is_an_unavailable_error_after_the_text_so_far()
+    {
+        var full = Stream("Tome ", "dos ");
+        var cut = full.LastIndexOf("dos ", StringComparison.Ordinal);
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            // The body ends in the middle of the second delta's JSON.
+            await foreach (var d in Create(Sse(full[..cut])).TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal(ProviderErrorKind.Unavailable, e.Kind);
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(e.InnerException);
+    }
+
+    /// <summary>Returns <paramref name="prefix"/>, then never sends another byte, as a stalled provider would.</summary>
+    private sealed class StallingStream(string prefix) : MemoryStream(Encoding.UTF8.GetBytes(prefix))
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            if (read > 0) return read;
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+    }
+
+    [Fact]
+    public async Task A_stalled_stream_is_a_timeout_error_after_the_text_so_far()
+    {
+        var full = Stream("Tome ", "dos ");
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            var translator = Create(Body(new StallingStream(full[..full.LastIndexOf("dos ", StringComparison.Ordinal)])), idle: TimeSpan.FromMilliseconds(100));
+            await foreach (var d in translator.TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal(ProviderErrorKind.Timeout, e.Kind);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_of_a_stalled_stream_is_a_cancellation_not_a_timeout()
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Collect(Create(Body(new StallingStream(""))).TranslateAsync(Request, cts.Token)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("replace-me")] // the .env.example placeholder is never sent to the vendor
+    public async Task Missing_key_fails_without_calling_the_vendor(string? key)
     {
         var handler = Sse(Stream("x"));
         var e = await Assert.ThrowsAsync<ProviderException>(() =>
-            Collect(Create(handler, apiKey: null).TranslateAsync(Request, TestContext.Current.CancellationToken)));
+            Collect(Create(handler, apiKey: key).TranslateAsync(Request, TestContext.Current.CancellationToken)));
 
         Assert.Equal(ProviderErrorKind.Auth, e.Kind);
         Assert.Empty(handler.Requests);
@@ -140,8 +236,12 @@ public abstract class TranslatorContractTests
 
 public class OpenAITranslatorTests : TranslatorContractTests
 {
-    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key") =>
-        new OpenAITranslator(new HttpClient(handler), Options.Create(new OpenAITranslationOptions { ApiKey = apiKey }));
+    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null) =>
+        new OpenAITranslator(new HttpClient(handler), Options.Create(new OpenAITranslationOptions
+        {
+            ApiKey = apiKey,
+            StreamIdleTimeout = idle ?? ProviderBodyStream.DefaultIdleTimeout,
+        }));
 
     private static string Chunk(string text) =>
         "data: " + JsonSerializer.Serialize(new { choices = new[] { new { index = 0, delta = new { content = text } } } }) + "\n\n";
@@ -181,8 +281,12 @@ public class OpenAITranslatorTests : TranslatorContractTests
 
 public class AnthropicTranslatorTests : TranslatorContractTests
 {
-    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key") =>
-        new AnthropicTranslator(new HttpClient(handler), Options.Create(new AnthropicTranslationOptions { ApiKey = apiKey }));
+    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null) =>
+        new AnthropicTranslator(new HttpClient(handler), Options.Create(new AnthropicTranslationOptions
+        {
+            ApiKey = apiKey,
+            StreamIdleTimeout = idle ?? ProviderBodyStream.DefaultIdleTimeout,
+        }));
 
     private static string Event(string name, object data) => $"event: {name}\ndata: {JsonSerializer.Serialize(data)}\n\n";
 

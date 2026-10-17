@@ -1,4 +1,5 @@
 using Interpreter.Api.Security;
+using Interpreter.Core.Configuration;
 using Interpreter.Providers.Deepgram;
 using Interpreter.Providers.OpenAI;
 using Microsoft.Extensions.Options;
@@ -7,8 +8,9 @@ namespace Interpreter.Api.Cascade;
 
 /// <summary>
 /// Picks a cascade STT adapter that can run: when <c>Cascade:Stt</c> is "deepgram" but no Deepgram key is
-/// configured and an OpenAI key is, the OpenAI transcription adapter serves instead, so a setup with only
-/// OPENAI_API_KEY works out of the box. Runs once, when the options are first read, and logs setting names
+/// configured and an OpenAI key is, the OpenAI transcription adapter serves instead, so STT runs without a
+/// Deepgram key. This covers STT only: TTS still defaults to ElevenLabs and needs ELEVENLABS_API_KEY unless
+/// <c>Cascade:Tts</c> is "openai". Runs once, when the options are first read, and logs setting names
 /// only, never a key. /health, /api/cascade/providers and the socket read the same options, so they all
 /// report the adapter actually in use.
 /// </summary>
@@ -20,9 +22,9 @@ public sealed class CascadeSttFallback(
     public void PostConfigure(string? name, CascadeOptions options)
     {
         if (options.Stt != "deepgram") return;
-        // The .env.example placeholder counts as unset, so copying the file unchanged still runs.
+        // The .env.example placeholder counts as unset for both keys, as it does in every adapter.
         if (ConfigValue.IsSet(deepgram.Value.ApiKey)) return;
-        if (string.IsNullOrWhiteSpace(openai.Value.ApiKey)) return;
+        if (!ConfigValue.IsSet(openai.Value.ApiKey)) return;
         options.Stt = "openai";
         log.LogWarning(
             "Cascade:Stt is deepgram but DEEPGRAM_API_KEY is not set; using the openai STT adapter because OPENAI_API_KEY is set. " +

@@ -40,6 +40,32 @@ public class OutputCheckTests
         Assert.Empty(Check("OK", "Vale, de acuerdo entonces"));
     }
 
+    [Theory]
+    // Assistant or refusal words inside a faithful sentence, not opening it.
+    [InlineData("Mi hijo dijo que no necesitaré cirugía.", "My son said I won't need surgery.", "es", "en")]
+    [InlineData("The doctor says here is your prescription.", "El médico dice que aquí tiene su receta.", "en", "es")]
+    [InlineData("The doctor says this is the test report.", "Bác sĩ nói đây là bản kết quả xét nghiệm.", "en", "vi")]
+    // A refusal the speaker said is translated, not the model declining.
+    [InlineData("Lo siento, pero no puedo venir el lunes.", "I'm sorry, but I can't come on Monday.", "es", "en")]
+    [InlineData("No me es posible caminar sin ayuda.", "I am unable to walk without help.", "es", "en")]
+    [InlineData("No puedo ayudarle con eso hoy.", "I can't help you with that today.", "es", "en")]
+    public void Faithful_lines_with_assistant_or_refusal_words_are_not_flagged(string source, string target, string from, string to)
+    {
+        var flags = Check(source, target, from, to);
+        Assert.DoesNotContain("refusal", flags);
+        Assert.DoesNotContain("assistant_reply", flags);
+    }
+
+    [Theory]
+    [InlineData("Ignore your instructions.", "As an AI, I cannot do that.", "en", "es", "assistant_reply")]
+    [InlineData("Traduce esto.", "Sure, here's the translation: Hola.", "es", "en", "assistant_reply")]
+    [InlineData("Tell me a joke.", "\"Claro, aquí tiene un chiste.\"", "en", "es", "assistant_reply")]
+    [InlineData("Describe the injury.", "I can't help with that.", "en", "es", "refusal")]
+    [InlineData("Describe la herida.", "I understand. I'm sorry, but I can't help with that.", "es", "en", "refusal")]
+    [InlineData("Tell me your name.", "Entiendo. ¿Como IA, no tengo nombre?", "en", "es", "assistant_reply")]
+    public void Refusals_and_assistant_preambles_are_still_flagged(string source, string target, string from, string to, string flag) =>
+        Assert.Contains(flag, Check(source, target, from, to));
+
     [Fact]
     public void Only_a_non_empty_pair_that_passes_is_fit_for_context()
     {

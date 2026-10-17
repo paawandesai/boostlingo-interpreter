@@ -30,7 +30,10 @@ public static partial class OutputCheck
             if (sourceWords.Count >= 3) flags.Add("omission");
             return flags;
         }
-        if (HasAny(target, targetChecks?.RefusalPatterns) || HasAny(target, sourceChecks?.RefusalPatterns)) flags.Add("refusal");
+        // A refusal the speaker said ("No puedo ayudarle con eso") translates to one; that is not the model declining.
+        if ((HasAny(target, targetChecks?.RefusalPatterns) || HasAny(target, sourceChecks?.RefusalPatterns))
+            && !HasAny(source, sourceChecks?.RefusalPatterns) && !HasAny(source, targetChecks?.RefusalPatterns))
+            flags.Add("refusal");
         if (!string.IsNullOrEmpty(canary) && Squash(target).Contains(Squash(canary), StringComparison.Ordinal)) flags.Add("prompt_leak");
         if (HasAny(target, targetChecks?.AssistantPatterns) || HasAny(target, sourceChecks?.AssistantPatterns)) flags.Add("assistant_reply");
         if (targetWords.Count >= LangMinWords && targetChecks is not null && sourceChecks is not null)
@@ -58,11 +61,17 @@ public static partial class OutputCheck
 
     private static string Squash(string text) => NonWordPattern().Replace(text.ToLowerInvariant(), "");
 
+    /// <summary>
+    /// True when a sentence starts with one of the patterns (after leading punctuation such as quotes or ¿).
+    /// Only sentence starts count: a model's refusal or assistant preamble opens a sentence, while the same
+    /// words inside a faithful line ("he said I won't...") do not.
+    /// </summary>
     private static bool HasAny(string text, string[]? patterns)
     {
         if (patterns is null) return false;
-        var t = text.ToLowerInvariant().Replace('’', '\'');
-        return patterns.Any(p => t.Contains(p, StringComparison.Ordinal));
+        var sentences = SentencePattern().Split(text.ToLowerInvariant().Replace('’', '\''))
+            .Select(sentence => LeadingPunctuationPattern().Replace(sentence, ""));
+        return sentences.Any(sentence => patterns.Any(p => sentence.StartsWith(p, StringComparison.Ordinal)));
     }
 
     [GeneratedRegex(@"[\p{L}\p{N}']+")]
@@ -70,4 +79,11 @@ public static partial class OutputCheck
 
     [GeneratedRegex(@"[^\p{L}\p{N}]")]
     private static partial Regex NonWordPattern();
+
+    /// <summary>A sentence ends at . ! ? or … followed by whitespace, or at a line break.</summary>
+    [GeneratedRegex(@"(?<=[.!?…])\s+|\n+")]
+    private static partial Regex SentencePattern();
+
+    [GeneratedRegex(@"^[^\p{L}\p{N}]+")]
+    private static partial Regex LeadingPunctuationPattern();
 }

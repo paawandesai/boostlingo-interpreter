@@ -221,7 +221,7 @@ describe('sessionReducer', () => {
     const languages = {
       languages: [
         { code: 'en', outputChecks: { markers: [], assistantPatterns: [], refusalPatterns: [] } },
-        { code: 'es', outputChecks: { markers: [], assistantPatterns: ['aquí tiene'], refusalPatterns: [] } },
+        { code: 'es', outputChecks: { markers: [], assistantPatterns: ['claro, aquí'], refusalPatterns: [] } },
       ],
       canary: null,
     } as unknown as LanguagesResponse
