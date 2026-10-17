@@ -97,15 +97,16 @@ public static class CascadeEndpoints
         }
 
         /// <summary>
-        /// Last wins for a direction that has not started yet: a second switch while the previous direction still
-        /// drains retargets the queued leg (whose audio is already the newest speaker's) instead of queuing
-        /// another leg and STT connection. False once the leg runs.
+        /// Last wins for a direction that has not started yet and holds no audio: a second switch while the
+        /// previous direction still drains retargets the queued leg instead of queuing another leg and STT
+        /// connection. False once the leg runs, or once a speaker has talked into it: that audio stays in its
+        /// own language, and the new direction queues behind it.
         /// </summary>
         public bool TryRetarget(string source, string target)
         {
             lock (_gate)
             {
-                if (_started) return false;
+                if (_started || Audio.Reader.Count > 0) return false;
                 (Source, Target) = (source, target);
                 return true;
             }
@@ -242,7 +243,14 @@ public static class CascadeEndpoints
         var all = new List<Leg> { firstLeg };
         legs.Writer.TryWrite(firstLeg);
         // Finished turns on this socket (after the ones the client carried over), context for the next leg (G9).
-        var history = new List<(string Source, string Target)>(CascadeProtocol.History(start));
+        // The carried pairs are client text, so they pass the same output checks (G15) as turns finished here.
+        // A pair carries no direction, so it is kept when it passes in either one.
+        var startSourceChecks = languages.Find(source)?.OutputChecks;
+        var startTargetChecks = languages.Find(target)?.OutputChecks;
+        var history = CascadeProtocol.History(start)
+            .Where(p => OutputCheck.FitForContext(p.Source, p.Target, startSourceChecks, startTargetChecks)
+                || OutputCheck.FitForContext(p.Source, p.Target, startTargetChecks, startSourceChecks))
+            .ToList();
         // Utterance ids keep counting across legs, so the client never sees one twice.
         var nextUtterance = 1;
         // Set by the receive loop when the client broke an abuse limit; the session then closes with 1008.

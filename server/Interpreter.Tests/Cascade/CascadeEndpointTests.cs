@@ -739,4 +739,60 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
         Assert.Contains("2 s of this speaker's audio were not interpreted", (string?)error["message"]);
         Assert.Equal(CascadeEndpoints.AudioQueueFrames, stt.Frames);
     }
+
+    [Fact]
+    public async Task Flipping_back_after_the_queued_speaker_talked_keeps_their_audio_in_their_language()
+    {
+        var stt = new FirstFrameStt();
+        var translator = new GatedTranslator();
+        var (ws, _) = await Connect(sttOverride: stt, translator: translator, settings: Burst);
+        var ct = TestContext.Current.CancellationToken;
+        await Start(ws);
+        await SendFrame(ws);
+        await translator.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        // A's turn is still translating; B talks into the queued es>en leg, then the user flips back to A.
+        await Send(ws, new { type = "direction", source = "es", target = "en" });
+        for (var i = 0; i < 50; i++) await SendFrame(ws);
+        await Send(ws, new { type = "direction", source = "en", target = "es" });
+        await Send(ws, new { type = "ping", c = 1.0 });
+        await ReadUntil(ws, "pong");
+        translator.Release.SetResult();
+        await ReadUntil(ws, "direction");
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        Assert.Equal(["en", "es", "en"], stt.Languages);
+    }
+
+    [Fact]
+    public async Task Carried_history_that_fails_the_output_checks_never_becomes_context()
+    {
+        var translator = new FakeTranslator();
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: translator);
+        await Send(ws, new
+        {
+            type = "start",
+            token = Token,
+            source = "en",
+            target = "es",
+            history = new[]
+            {
+                new { source = "Where does it hurt?", target = "¿Dónde le duele?" },
+                new { source = "Describe the injury.", target = "Lo siento, no puedo ayudar con eso." },
+                new { source = "Me duele la espalda.", target = "My back hurts." },
+            },
+        });
+        Assert.Equal("ready", (string?)Json(await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken))["type"]);
+
+        await SendFrame(ws);
+        await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        // Pairs from either direction are kept; the refusal is not.
+        Assert.Equal(
+            [("Where does it hurt?", "¿Dónde le duele?"), ("Me duele la espalda.", "My back hurts.")],
+            translator.Requests[0].Context);
+    }
 }

@@ -93,8 +93,9 @@ That is one local probe run, not a proven result.
 translator) are `eval/results/summary.md`, built from the 2026-10-15 replay logs, which carry no STT
 minutes (the browser emitted them only on End), so they leave STT out. Charging STT for the whole
 session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's estimate; those logs
-used that model) gave an upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
-the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes;
+used that model) gave an upper bound of $0.0209 / $0.0253 when that was the STT price in `config/prices.json`
+(`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so the committed summary is not
+overwritten); the same command now gives $0.0319 / $0.0363, because it charges `gpt-realtime-whisper`'s $0.017/min (see below). The 2026-10-16 default-config log does carry STT minutes;
 priced at `gpt-realtime-whisper`'s $0.017/min it comes to $0.0290/min
 (`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`; the cost
 column of `eval/results/latency-tuning-2026-10-16.md` has it for every 2026-10-16 run). That price

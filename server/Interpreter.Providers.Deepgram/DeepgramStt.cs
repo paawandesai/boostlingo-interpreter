@@ -171,7 +171,7 @@ public sealed class DeepgramStt(IOptions<DeepgramOptions> options) : IStreamingS
                     events.TryComplete(status is WebSocketCloseStatus.NormalClosure or WebSocketCloseStatus.Empty
                         ? null
                         : new ProviderException(ProviderErrorKind.Unavailable, Provider,
-                            $"Deepgram closed the stream ({(int)status} {msg.CloseReason})"));
+                            $"Deepgram closed the stream ({(int)status})"));
                     return;
                 }
                 if (msg.Type == WebSocketMessageType.Text && Parse(msg.Data.Span) is { } e)

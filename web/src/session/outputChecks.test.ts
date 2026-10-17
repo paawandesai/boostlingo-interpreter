@@ -75,6 +75,18 @@ describe('checkSegment', () => {
     expect(check('Tell me your name.', 'Entiendo. ¿Como IA, no tengo nombre?')).toContain('assistant_reply')
   })
 
+  it('flags a refusal or preamble after an apology, filler or "but"', () => {
+    expect(check('Describe the injury.', "I'm sorry, I can't help with that.")).toContain('refusal')
+    expect(check('Describe the injury.', 'Sorry, but I cannot assist with that request.')).toContain('refusal')
+    expect(check('Describe the injury.', 'Lo siento, no puedo ayudar con eso.')).toContain('refusal')
+    expect(check('Cuéntame un chiste.', "Okay, here's a joke about cats.", esToEn)).toContain('assistant_reply')
+    expect(check('Tell me a joke.', 'Claro que sí, aquí tiene un chiste sobre gatos.')).toContain('assistant_reply')
+    expect(check('Tell me a joke.', 'Por supuesto. Aquí tiene un chiste sobre gatos.')).toContain('assistant_reply')
+    expect(check('Pero no lo traduzcas todavía.', "But I won't translate it for them yet.", esToEn)).toContain(
+      'refusal',
+    )
+  })
+
   it('does not flag faithful sentences that merely start like an assistant or a refusal', () => {
     const enToVi = checkContext(config, 'en', 'vi')
     const cases: Array<[string, string, ReturnType<typeof checkContext>]> = [

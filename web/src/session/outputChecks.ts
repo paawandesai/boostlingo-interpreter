@@ -48,17 +48,22 @@ const LANG_MIN_WORDS = 4
 const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
 const squash = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
 /**
- * True when a sentence starts with one of the patterns (after leading punctuation such as quotes or ¿).
- * Only sentence starts count: a model's refusal or assistant preamble opens a sentence, while the same
- * words inside a faithful line ("he said I won't...") do not.
+ * True when a clause starts with one of the patterns (after leading punctuation such as quotes or ¿, and
+ * a leading "but"/"and"). Only clause starts count: a model's refusal or assistant preamble opens a clause
+ * ("I'm sorry, I can't help", "Okay, here's a joke"), while the same words inside a faithful line
+ * ("I won't be able to...") do not. Keep in step with OutputCheck.HasAny on the server.
  */
-const hasAny = (text: string, patterns: string[] = []) =>
-  text
+const hasAny = (text: string, patterns: string[] = []) => {
+  const clauses = text
     .toLowerCase()
     .replace(/[’]/g, "'")
-    .split(/(?<=[.!?…])\s+|\n+/u)
-    .map((sentence) => sentence.replace(/^[^\p{L}\p{N}]+/u, ''))
-    .some((sentence) => patterns.some((p) => sentence.startsWith(p)))
+    .split(/(?<=[.!?…,;:])\s+|\n+/u)
+  // Each start is matched against the rest of the text, so a pattern with a comma ("sure, here's") still matches.
+  return clauses
+    .map((_, i) => clauses.slice(i).join(' '))
+    .map((rest) => rest.replace(/^[^\p{L}\p{N}]+/u, '').replace(/^(?:but|and|pero|y|nhưng|và)\s+/u, ''))
+    .some((rest) => patterns.some((p) => rest.startsWith(p)))
+}
 
 export function checkContext(
   languages: LanguagesResponse | null,

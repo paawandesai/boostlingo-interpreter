@@ -31,9 +31,18 @@ internal static class SyntheticSpeech
     public static async IAsyncEnumerable<AudioFrame> Frames(byte[] pcm, int rate, [EnumeratorCancellation] CancellationToken ct)
     {
         var frameBytes = rate / 50 * 2;
+        // The browser's VAD sends an end-of-speech frame after its hangover; client endpointing (the default)
+        // commits the turn only on that frame, so send one 300 ms into the trailing silence.
+        var endOfSpeechAt = pcm.Length + rate * 2 * 3 / 10;
         var padded = pcm.Concat(new byte[rate * 2 * 3 / 2]).ToArray();
+        var sentEndOfSpeech = false;
         for (var i = 0; i < padded.Length; i += frameBytes)
         {
+            if (!sentEndOfSpeech && i >= endOfSpeechAt)
+            {
+                sentEndOfSpeech = true;
+                yield return new AudioFrame(ReadOnlyMemory<byte>.Empty, rate, EndOfSpeech: true);
+            }
             yield return new AudioFrame(padded.AsMemory(i, Math.Min(frameBytes, padded.Length - i)), rate);
             await Task.Delay(10, ct); // faster than real time is fine for both providers; keep it gentle
         }
