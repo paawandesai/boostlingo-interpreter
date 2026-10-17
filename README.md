@@ -178,6 +178,10 @@ infra/    demo.yml (CloudFormation), deploy.sh and teardown.sh for the public de
 docs/     spec, architecture, UI spec, tasks, acceptance, decisions, guardrails, write-up and its appendix
 ```
 
+## Privacy
+
+The public demo is run by the author. Realtime and Realtime translate send audio to OpenAI; cascade sends audio and text to up to three of OpenAI, Deepgram, Anthropic and ElevenLabs, as configured, and the setup screen names them. The app saves no audio. Transcripts stay in browser memory only, until **End**, unless you save them with **Export log**. Providers may retain data under their own terms (see [LICENSES.md](LICENSES.md)). The access token is stored in the browser's `localStorage`.
+
 ## What this does not do (yet), and what is unverified
 
 This is an evaluation workbench, not a product. [docs/GUARDRAILS.md](docs/GUARDRAILS.md) outranks the brief; where they conflict, the conflict is listed under "Known constraints" below.
