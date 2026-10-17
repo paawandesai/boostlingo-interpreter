@@ -19,7 +19,7 @@
 | vi → en (the 5 onboarding lines, looped) | 8 | 8 | 0 | 0 |
 | en → vi (5 conversation lines, and a sixth that was never finalised) | 6 | 5 | 0 | 0 |
 
-Example: "Tôi bị đau đầu từ hôm qua." → "I've had a headache since yesterday."; "I'm looking for the train station." → "Tôi đang tìm ga tàu."
+Example (script line → translation): "Tôi bị đau đầu từ hôm qua." → "I've had a headache since yesterday."; "I'm looking for the train station." → "Tôi đang tìm ga tàu."
 
 **Not done or not verified**
 - No latency numbers: this run used Deepgram, whose terms bar benchmarking (docs/GUARDRAILS.md), and was a functional check only.
@@ -37,6 +37,6 @@ four English ↔ Spanish replay runs:
 python3 eval/summarize.py --out /tmp/onboarding-vi-summary.md eval/results/logs/2026-10-15-cascade-en-vi-synthetic.json eval/results/logs/2026-10-15-cascade-vi-en-synthetic.json
 ```
 
-`--out` keeps it from overwriting the committed `eval/results/summary.md`. On 2026-10-16 it reported 13 of the 14 lines final and translated (8 vi → en from the 5 onboarding lines looped, 6 en → vi, the last of which never became final), with no output-check flags, and $0.0140/min excluding STT (the log has no STT quantity).
+`--out` keeps it from overwriting the committed `eval/results/summary.md`. On 2026-10-16 it reported (and on 2026-10-17, after the source text was removed, still reports) 13 of the 14 lines final and translated (8 vi → en from the 5 onboarding lines looped, 6 en → vi, the last of which never became final), with no output-check flags, and $0.0140/min excluding STT (the log has no STT quantity).
 
-No latency, WER or chrF is published for this run. It used Deepgram STT, whose terms bar benchmarking without written consent (docs/GUARDRAILS.md), so it counts as a functional check that the pair works end to end, not a measurement. The Vietnamese references were also written by the model and no Vietnamese speaker has checked them.
+No latency, WER or chrF is published for this run. It used Deepgram STT, whose terms bar benchmarking without written consent (docs/GUARDRAILS.md), so it counts as a functional check that the pair works end to end, not a measurement. For the same reason the committed logs carry no Deepgram output: on 2026-10-17 each line's source text was set to null and its STT confidence removed (a note in the log's `notes` says so), leaving the translations. The script therefore matches none of their lines to a script line, and it reports chrF and WER as withheld. The Vietnamese references were also written by the model and no Vietnamese speaker has checked them.

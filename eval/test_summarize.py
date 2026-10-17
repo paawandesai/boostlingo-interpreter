@@ -204,6 +204,10 @@ class SummarizeTests(unittest.TestCase):
         agg = modes["cascade:openai"]
         self.assertEqual(agg["finals"], 1)
         self.assertEqual(agg["matched"], [])
+        row = next(
+            x for x in summarize.render(modes, []).splitlines() if x.startswith("| Cascade")
+        )
+        self.assertEqual(row.count("withheld (Deepgram)"), 2)
 
     def test_quotes_the_review_only_for_the_four_replay_logs(self) -> None:
         modes = summarize.summarize([], SCRIPTS)

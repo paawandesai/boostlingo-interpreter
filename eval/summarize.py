@@ -487,16 +487,18 @@ def render(modes: dict, inputs: list[str]) -> str:
     ]
     for mode, agg in sorted(modes.items()):
         q = quality(agg["matched"], mode)
+        # Deepgram lines whose source text was removed match no script line, but are still withheld.
+        deepgram = bool(q.get("chrf_withheld") or agg["latency_withheld"])
         if "chrf" in q:
             chrf = f"{q['chrf']:.1f}"
         else:
-            chrf = "withheld (Deepgram)" if q.get("chrf_withheld") else "–"
+            chrf = "withheld (Deepgram)" if deepgram else "–"
         if not mode.startswith("cascade"):
             wer = "n/a (not STT)"
         elif "wer" in q:
             wer = f"{q['wer']:.1%}"
         else:
-            wer = "withheld (Deepgram)" if q.get("wer_withheld") else "–"
+            wer = "withheld (Deepgram)" if deepgram else "–"
         hit, total = agg["glossary"]
         gloss = f"{hit}/{total}" if total else "–"
         flags = ", ".join(f"{k} {v}" for k, v in sorted(agg["flags"].items())) or "none"

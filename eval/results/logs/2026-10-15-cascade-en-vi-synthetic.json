@@ -65,9 +65,8 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "Good morning. How can I help you today?",
-    "final": true,
-    "confidence": 1
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Chào buổi sáng. Hôm nay tôi có thể giúp gì cho bạn?",
@@ -88,9 +87,8 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "I'm looking for the train station.",
-    "final": true,
-    "confidence": 0.9995117
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Tôi đang tìm ga tàu.",
@@ -111,9 +109,8 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "Could you speak a little more slowly, please?",
-    "final": true,
-    "confidence": 1
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Bạn có thể nói chậm hơn một chút được không?",
@@ -134,9 +131,8 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "My flight leaves at 07:30 tomorrow morning.",
-    "final": true,
-    "confidence": 1
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Chuyến bay của tôi khởi hành lúc 07:30 sáng mai.",
@@ -157,9 +153,8 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "How much does a ticket to the city center cost?",
-    "final": true,
-    "confidence": 1
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Vé đi trung tâm thành phố giá bao nhiêu?",
@@ -180,7 +175,7 @@
    "mode": "cascade",
    "side": "A",
    "source": {
-    "text": "I lost my wallet.",
+    "text": null,
     "final": false
    },
    "target": {
@@ -203,6 +198,7 @@
   "Realtime input-transcription usage is billed separately and is not captured here.",
   "Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.",
   "A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.",
-  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md)."
+  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md).",
+  "Source text and confidence removed (text set to null) on 2026-10-17: they are Deepgram STT output, and Deepgram's terms bar publishing benchmark output. Target translations are kept."
  ]
 }
