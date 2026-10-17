@@ -122,7 +122,8 @@ eligible list. Rates, examples and the data-flow table: [appendix G](WRITEUP-APP
 - **Personal or health data, not itself clinical or legal:** Realtime, or cascade on OpenAI STT +
   Claude + OpenAI TTS, with BAA mode on and the BAAs signed; never Realtime translate.
 - **Pairs Realtime translate lacks, or a glossary or register is needed:** cascade; a new pair is
-  configuration only (Vietnamese took about 5 minutes).
+  configuration only (Vietnamese took about 5 minutes of configuration and no application code,
+  timed by the AI agent that did it).
 - **Quality on a rare pair:** cascade for low-stakes use only; unverified without a native speaker.
 - **Medical and legal:** a qualified human interpreter; AI only with a human reviewing it.
 
