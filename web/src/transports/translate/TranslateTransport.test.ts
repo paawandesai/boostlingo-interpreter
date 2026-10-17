@@ -125,6 +125,45 @@ describe('TranslateTransport', () => {
     })
   })
 
+  it('applies a speaker flip made before the session is minted once the data channel opens', async () => {
+    let mint!: (r: Response) => void
+    fetchMock.mockReset()
+    fetchMock
+      .mockReturnValueOnce(new Promise<Response>((r) => (mint = r)))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    const { TranslateTransport } = await import('./TranslateTransport')
+    const t = new TranslateTransport()
+    const starting = t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    t.setSpeaker('B')
+    mint(new Response(JSON.stringify(session)))
+    await starting
+    const pc = FakePeer.last
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([
+      { type: 'session.update', session: { audio: { output: { language: 'en' } } } },
+    ])
+  })
+
+  it('applies a speaker flip made after the mint but before the data channel opens', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    expect(pc.dc.sent.map((m) => JSON.parse(m))).toEqual([
+      { type: 'session.update', session: { audio: { output: { language: 'en' } } } },
+    ])
+  })
+
+  it('sends nothing on open when a flip while connecting was undone', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    t.setSpeaker('A')
+    pc.dc.open()
+    expect(pc.dc.sent).toEqual([])
+  })
+
   it('ends the session at the duration limit and says why', async () => {
     vi.useFakeTimers()
     const { pc, events } = await started()

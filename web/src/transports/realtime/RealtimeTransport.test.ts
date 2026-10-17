@@ -184,6 +184,45 @@ describe('RealtimeTransport', () => {
     expect(update.session.audio.input.transcription).toEqual({ model: 'gpt-4o-mini-transcribe', language: 'es' })
   })
 
+  it('applies a speaker flip made before the session is minted once the data channel opens', async () => {
+    let mint!: (r: Response) => void
+    fetchMock.mockReset()
+    fetchMock
+      .mockReturnValueOnce(new Promise<Response>((r) => (mint = r)))
+      .mockResolvedValueOnce(new Response('v=0 answer', { status: 201 }))
+    const { RealtimeTransport } = await import('./RealtimeTransport')
+    const t = new RealtimeTransport()
+    const starting = t.start({ langA: 'en', langB: 'es', speaker: 'A' })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    t.setSpeaker('B')
+    mint(new Response(JSON.stringify(session)))
+    await starting
+    const pc = FakePeer.last
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    const sent = pc.dc.sent.map((m) => JSON.parse(m))
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ type: 'session.update', session: { instructions: 'ES to EN' } })
+  })
+
+  it('applies a speaker flip made after the mint but before the data channel opens', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    expect(pc.dc.sent).toEqual([])
+    pc.dc.open()
+    const sent = pc.dc.sent.map((m) => JSON.parse(m))
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ type: 'session.update', session: { instructions: 'ES to EN' } })
+  })
+
+  it('sends nothing on open when a flip while connecting was undone', async () => {
+    const { t, pc } = await started()
+    t.setSpeaker('B')
+    t.setSpeaker('A')
+    pc.dc.open()
+    expect(pc.dc.sent).toEqual([])
+  })
+
   it('defers a speaker flip made during a turn in flight until its response is done', async () => {
     const { t, pc } = await started()
     pc.dc.open()

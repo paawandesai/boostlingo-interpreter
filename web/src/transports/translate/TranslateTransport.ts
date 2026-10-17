@@ -45,6 +45,8 @@ export class TranslateTransport implements Transport {
   private limitTimer: ReturnType<typeof setTimeout> | null = null
   private ticker: ReturnType<typeof setInterval> | null = null
   private pendingStart: number | null = null
+  /** The side whose output language the session has now (a flip while connecting is sent on open). */
+  private activeSide: SpeakerSide = 'A'
 
   static connectTimeoutMs = 15000
 
@@ -53,6 +55,7 @@ export class TranslateTransport implements Transport {
   async start(config: SessionConfig): Promise<void> {
     this.config = config
     this.stopped = false
+    this.activeSide = config.speaker
     // A fresh prefix per connection so a reconnect never reuses an earlier line's id.
     this.segmenter = new TranslateSegmenter(`tr${Date.now().toString(36)}-`)
     this.emitter.emit({ type: 'state', state: 'connecting' })
@@ -80,10 +83,12 @@ export class TranslateTransport implements Transport {
   /** Only the output language changes; the model detects whoever is speaking. */
   setSpeaker(side: SpeakerSide): void {
     if (!this.config) return
+    // Stored even while connecting: the data channel's onopen sends the update for whatever side is current.
     this.config = { ...this.config, speaker: side }
     const [, target] = direction(this.config, side)
     if (this.dc?.readyState !== 'open') return
     this.dc.send(JSON.stringify({ type: 'session.update', session: { audio: { output: { language: target } } } }))
+    this.activeSide = side
   }
 
   async stop(): Promise<void> {
@@ -114,6 +119,8 @@ export class TranslateTransport implements Transport {
     dc.onmessage = (m) => this.onServerEvent(m.data as string)
     dc.onopen = () => {
       this.clearConnectTimer()
+      // A flip made while connecting: the session was minted for the side before it.
+      if (this.config && this.config.speaker !== this.activeSide) this.setSpeaker(this.config.speaker)
       this.emitter.emit({ type: 'state', state: 'live' })
       this.ticker = setInterval(() => this.emitAll(this.segmenter.tick(performance.now())), TICK_MS)
       const max = info.maxSessionSeconds
@@ -149,9 +156,11 @@ export class TranslateTransport implements Transport {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
-    const { answer } = await exchangeSdpWithFreshSecret(info, pc.localDescription!.sdp, () =>
-      createTranslationSession(direction(this.config!, this.config!.speaker)[1]),
-    )
+    const { answer } = await exchangeSdpWithFreshSecret(info, pc.localDescription!.sdp, () => {
+      // The re-minted session runs the current direction, which a flip while connecting may have changed.
+      this.activeSide = this.config!.speaker
+      return createTranslationSession(direction(this.config!, this.config!.speaker)[1])
+    })
     if (this.stopped) return
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
   }
