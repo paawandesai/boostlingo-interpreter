@@ -1,20 +1,20 @@
 # Latency tuning runs (2026-10-16)
 
-Each run is a 5-minute soak on the synthetic clip set (`eval/replay/synth.py`, TTS voices, not people), with the turn-taking replay (MR !33): each clip waits for the previous clip's interpretation. Latency is measured client-side, from the browser VAD's speech end to the first audible output (D9). The measurement is the same in every row. chrF is multi-reference (reference plus `alternatives`, model-drafted and unverified). WER is cascade STT only. Rows come from `python3 eval/summarize.py <log> --out /tmp/row.md` on the files named (`--out` keeps the committed `summary.md` from being overwritten).
+Each run is a 5-minute soak on the synthetic clip set (`eval/replay/synth.py`, TTS voices, not people), with the turn-taking replay (MR !33): each clip waits for the previous clip's interpretation. Latency is measured client-side, from the browser VAD's speech end to the first audible output (D9). The measurement is the same in every row. chrF is multi-reference (reference plus `alternatives`, model-drafted and unverified). WER is cascade STT only. Rows come from `python3 eval/summarize.py <log> --out /tmp/row.md` on the files named (`--out` keeps the committed `summary.md` from being overwritten). Cost/min is the same command's cost column, priced from `config/prices.json` (the default `--prices`) as of 2026-10-17: the `gpt-realtime-whisper` STT is priced at $0.017/min from a 2026-10-17 web search, not OpenAI's page; the baseline cascade log has no STT quantity, and no Realtime log has an input-transcription quantity, so those rows exclude them.
 
 Cascade rows ran in the cloud container. Realtime rows ran on the CI runner (job ids in brackets). Realtime is `gpt-realtime-2.1` except the `gpt-realtime` row, which ran with the same defaults afterwards. The cascade translator is OpenAI and the TTS is ElevenLabs.
 
-| Run | Endpointing | STT | Commit delay | n | p50 ms | p95 ms | Lines interpreted | chrF | WER | File |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Cascade baseline | server VAD 500 ms | gpt-4o-transcribe | – | 37 | 2540 | 4170 | 37/37 | 89.0 | 4.0% | `logs/2026-10-16-cascade-replay-openai-turntaking-synthetic.json` |
-| Cascade | client | gpt-realtime-whisper | 150 ms | 54 | 2071 | 2722 | 57/57 | 78.8 | 19.2% | `logs/2026-10-16-cascade-whisper-client150-openai-synthetic.json` |
-| Cascade | client | gpt-realtime-whisper | 300 ms | 45 | 2061 | 3058 | 46/47 | 88.6 | 7.7% | `logs/2026-10-16-cascade-whisper-client300-openai-synthetic.json` |
-| Cascade + early TTS connect | client | gpt-realtime-whisper | 300 ms | 36 | **1940** | **2319** | 37/37 | 89.1 | 8.3% | `logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json` |
-| Realtime baseline (2026-10-15, old replay) | server VAD 500 ms | – | – | 19 | 2251 | 3451 | 27/29 | – | – | `logs/2026-10-15-realtime-replay-synthetic.json` |
-| Realtime [234661] | client | – | 150 ms | 41 | 1404 | 1754 | 43/53 | 75.0 | – | `logs/2026-10-16-realtime-client150-synthetic.json` |
-| Realtime [234781] | client | – | 300 ms | 37 | 1459 | 1908 | 41/46 | 81.8 | – | `logs/2026-10-16-realtime-client300-synthetic.json` |
-| Realtime + held commit [234812] | client | – | 300 ms | 38 | **1271** | **1602** | 48/48 | 82.9 | – | `logs/2026-10-16-realtime-client300-held-synthetic.json` |
-| Realtime `gpt-realtime`, same defaults [234887] | client | – | 300 ms | 36 | 1150 | 1490 | 43/44 | 83.3 | – | `logs/2026-10-16-realtime-gpt-realtime-client300-synthetic.json` |
+| Run | Endpointing | STT | Commit delay | n | p50 ms | p95 ms | Lines interpreted | chrF | WER | Cost/min | File |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Cascade baseline | server VAD 500 ms | gpt-4o-transcribe | – | 37 | 2540 | 4170 | 37/37 | 89.0 | 4.0% | $0.0147 excl. STT (no quantity in the log) | `logs/2026-10-16-cascade-replay-openai-turntaking-synthetic.json` |
+| Cascade | client | gpt-realtime-whisper | 150 ms | 54 | 2071 | 2722 | 57/57 | 78.8 | 19.2% | $0.0284 | `logs/2026-10-16-cascade-whisper-client150-openai-synthetic.json` |
+| Cascade | client | gpt-realtime-whisper | 300 ms | 45 | 2061 | 3058 | 46/47 | 88.6 | 7.7% | $0.0289 | `logs/2026-10-16-cascade-whisper-client300-openai-synthetic.json` |
+| Cascade + early TTS connect | client | gpt-realtime-whisper | 300 ms | 36 | **1940** | **2319** | 37/37 | 89.1 | 8.3% | **$0.0290** | `logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json` |
+| Realtime baseline (2026-10-15, old replay) | server VAD 500 ms | – | – | 19 | 2251 | 3451 | 27/29 | – | – | $0.2023 excl. input transcription | `logs/2026-10-15-realtime-replay-synthetic.json` |
+| Realtime [234661] | client | – | 150 ms | 41 | 1404 | 1754 | 43/53 | 75.0 | – | $0.1493 excl. input transcription | `logs/2026-10-16-realtime-client150-synthetic.json` |
+| Realtime [234781] | client | – | 300 ms | 37 | 1459 | 1908 | 41/46 | 81.8 | – | $0.1263 excl. input transcription | `logs/2026-10-16-realtime-client300-synthetic.json` |
+| Realtime + held commit [234812] | client | – | 300 ms | 38 | **1271** | **1602** | 48/48 | 82.9 | – | **$0.1145** excl. input transcription | `logs/2026-10-16-realtime-client300-held-synthetic.json` |
+| Realtime `gpt-realtime`, same defaults [234887] | client | – | 300 ms | 36 | 1150 | 1490 | 43/44 | 83.3 | – | $0.2104 excl. input transcription | `logs/2026-10-16-realtime-gpt-realtime-client300-synthetic.json` |
 
 Against the brief:
 - Realtime under 1.5 s is met at p50 (1271 ms) but not at p95 (1602 ms).
@@ -32,6 +32,20 @@ Limits:
 - n stays below the soak's 50 turns because each turn waits for its reply.
 - Heap grew 8–22% from minute 1, against a criterion of under 10%.
 - The 150 ms delay split sentences at short pauses, which shows as the WER and chrF drop, so 300 ms is the default.
-- This table has no cost column; the cascade cost on the default row ($0.0290/min with STT) is in `docs/WRITEUP.md` §4, with gpt-realtime-whisper priced at $0.017/min from a 2026-10-17 web search, not OpenAI's page.
 - gpt-realtime-whisper takes no prompt, so glossary terms reach only the translator.
 - Its HIPAA eligibility has not been checked beyond the `/v1/realtime` route.
+
+Where the time goes on the three default rows (p50 / p95 ms, from the same command; final lines only, so n can be one below the soak report's):
+
+| Stage | Cascade + early TTS connect | Realtime + held commit | Realtime `gpt-realtime` |
+|---|---|---|---|
+| Total (speech end → first audio) | 1940 / 2319 (n 36) | 1271 / 1602 (n 38) | 1150 / 1490 (n 36) |
+| Endpointing | 489 / 545 (n 36) | 543 / 650 (n 39) | 546 / 629 (n 37) |
+| STT final | 1005 / 1200 (n 36) | – | – |
+| Translation first token | 578 / 817 (n 37) | – | – |
+| First flush | 89 / 136 (n 37) | – | – |
+| TTS first byte | 173 / 213 (n 37) | – | – |
+| Network | 22 / 74 (n 37) | – | – |
+| Playback buffer | 58 / 1539 (n 37) | – | – |
+| Response created | – | 23 / 61 (n 48) | 25 / 58 (n 43) |
+| Model + audio (opaque) | – | 675 / 1035 (n 47) | 560 / 901 (n 42) |

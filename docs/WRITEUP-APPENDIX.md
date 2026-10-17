@@ -96,7 +96,8 @@ session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's
 used that model) gave an upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
 the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes;
 priced at `gpt-realtime-whisper`'s $0.017/min it comes to $0.0290/min
-(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`). That price
+(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`; the cost
+column of `eval/results/latency-tuning-2026-10-16.md` has it for every 2026-10-16 run). That price
 is from a web search on 2026-10-17 summarising OpenAI's pricing page, not from the page itself; since
 `config/prices.json` lists it first, re-running `--stt-minutes-from-session` on the 2026-10-15 logs
 would now charge it to runs that used `gpt-4o-transcribe`. Deepgram

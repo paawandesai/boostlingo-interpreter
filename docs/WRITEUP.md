@@ -1,10 +1,9 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`, or from re-running `eval/summarize.py <log> --out <file>`
-> (priced from `config/prices.json`) on a session log there: the 2026-10-16 costs and stage breakdowns
-> are computed that way and are not stored under `eval/results/`; the 2026-10-16 latency rows are in
-> `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI job ids are links in the project's
-> private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
+> Every number comes from a file under `eval/results/`, each re-creatable by running `eval/summarize.py <log> --out <file>`
+> (priced from `config/prices.json`) on a session log there: the 2026-10-16 latency rows, costs per
+> minute and stage breakdowns are in `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI
+> job ids refer to the project's private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
 > not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
 > I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
 > browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).
@@ -91,8 +90,9 @@ line merged in). Seven rows per mode is a small sample, but the failures cluster
 | Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | per M tokens: audio $32 in / $64 out, text $4 in, cached input $0.40 (both models); text out $24 (`gpt-realtime-2.1`) / $16 (`gpt-realtime`) | `gpt-realtime-2.1` $0.1145, `gpt-realtime` $0.2104, both excluding input transcription |
 | Realtime translate | minutes of audio | $0.034/min | about $0.051 with the source transcript (assumed billed); $0.034 without |
 
-Cascade and Realtime translate are from `eval/results/summary.md` (2026-10-15 logs); Realtime is
-from the 2026-10-16 logs, priced from `config/prices.json`. Same audio-input price, but
+The cascade figures excluding STT and Realtime translate are from `eval/results/summary.md` (2026-10-15
+logs); the $0.0290 cascade figure with STT and Realtime are from the 2026-10-16 logs
+(`eval/results/latency-tuning-2026-10-16.md`), all priced from `config/prices.json`. Same audio-input price, but
 `gpt-realtime` got far less prompt caching than `gpt-realtime-2.1`, so it cost almost twice as much.
 Realtime costs about six to fourteen times cascade excluding cascade STT, or about four to seven
 times the default cascade with STT ($0.0290). The `gpt-realtime-whisper` price comes from a web search
