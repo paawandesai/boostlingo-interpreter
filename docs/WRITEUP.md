@@ -1,6 +1,10 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`. No **[VERIFY]** markers remain: a vendor fact
+> Every number comes from a file under `eval/results/`, or from re-running `eval/summarize.py <log> --out <file>`
+> (priced from `config/prices.json`) on a session log there: the 2026-10-16 costs and stage breakdowns
+> are computed that way and are not stored under `eval/results/`; the 2026-10-16 latency rows are in
+> `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI job ids are links in the project's
+> private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
 > not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
 > I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
 > browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).

@@ -1,7 +1,8 @@
 # Write-up appendix: method and longer analyses
 
 Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it short. Every number comes from a file
-under `eval/results/`; as there, a vendor fact not read on the vendor's own page is labelled with its source.
+under `eval/results/` or from re-running `eval/summarize.py` on a log there, as WRITEUP.md explains; MR and
+CI job ids refer to the project's private GitLab instance. As there, a vendor fact not read on the vendor's own page is labelled with its source.
 
 ## A. Setup and method
 
