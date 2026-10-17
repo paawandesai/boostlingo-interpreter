@@ -234,6 +234,21 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
     }
 
     [Fact]
+    public async Task The_env_example_placeholder_token_counts_as_not_configured()
+    {
+        var (ws, stt) = await Connect(serverToken: "replace-me");
+
+        await Send(ws, new { type = "start", token = "replace-me", source = "en", target = "es" });
+        var messages = await ReadAll(ws);
+
+        var error = Json(messages[0]);
+        Assert.Equal("Auth", (string?)error["kind"]);
+        Assert.Contains("not configured", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, messages[^1].Close);
+        Assert.Equal(0, stt.Frames);
+    }
+
+    [Fact]
     public async Task Runs_a_turn_end_to_end_and_answers_pings_on_the_same_clock()
     {
         var (ws, stt) = await Connect();

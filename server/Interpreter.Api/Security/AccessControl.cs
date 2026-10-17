@@ -33,7 +33,12 @@ public static class AccessControl
     {
         services.AddOptions<AccessOptions>()
             .Bind(config.GetSection(AccessOptions.Section))
-            .PostConfigure(o => o.Token ??= config["DEMO_ACCESS_TOKEN"]);
+            .PostConfigure(o =>
+            {
+                o.Token ??= config["DEMO_ACCESS_TOKEN"];
+                // The .env.example placeholder is public, so it counts as no token: the gate refuses (503).
+                if (!ConfigValue.IsSet(o.Token)) o.Token = null;
+            });
 
         var opts = config.GetSection(AccessOptions.Section).Get<AccessOptions>() ?? new AccessOptions();
         services.AddRateLimiter(limiter =>
@@ -72,12 +77,12 @@ public static class AccessControl
     private static async ValueTask<object?> CheckToken(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {
         var expected = ctx.HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<AccessOptions>>().Value.Token;
-        if (string.IsNullOrEmpty(expected))
+        if (!ConfigValue.IsSet(expected))
             return Results.Problem("Server access token is not configured. Set DEMO_ACCESS_TOKEN on the server.",
                 statusCode: StatusCodes.Status503ServiceUnavailable, extensions: Kind("Auth"));
 
         var supplied = ctx.HttpContext.Request.Headers[HeaderName].ToString();
-        if (!TokensMatch(supplied, expected))
+        if (!TokensMatch(supplied, expected!))
             return Results.Problem("Missing or wrong access token.", statusCode: StatusCodes.Status401Unauthorized, extensions: Kind("Auth"));
 
         return await next(ctx);

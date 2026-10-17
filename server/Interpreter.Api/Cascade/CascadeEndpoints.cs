@@ -154,12 +154,12 @@ public static class CascadeEndpoints
         }
 
         var expected = access.Value.Token;
-        if (string.IsNullOrEmpty(expected))
+        if (!ConfigValue.IsSet(expected))
         {
             await Refuse("Server access token is not configured. Set DEMO_ACCESS_TOKEN on the server.", ProviderErrorKind.Auth);
             return;
         }
-        if (!AccessControl.TokensMatch(start.Token ?? "", expected))
+        if (!AccessControl.TokensMatch(start.Token ?? "", expected!))
         {
             await Refuse("Missing or wrong access token.", ProviderErrorKind.Auth);
             return;
