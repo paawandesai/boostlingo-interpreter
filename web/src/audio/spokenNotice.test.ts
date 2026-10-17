@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { speakNotice } from './spokenNotice'
+import { cancelNotice, speakNotice } from './spokenNotice'
 
 function fakeSynth(voices: Array<{ lang: string; localService: boolean; name: string }> = []) {
   const spoken: Array<{ text: string; lang: string; voice?: unknown }> = []
@@ -57,5 +57,42 @@ describe('speakNotice', () => {
     await expect(done).resolves.toBe(true)
     expect(synth.cancel).toHaveBeenCalled()
     vi.useRealTimers()
+  })
+
+  it('gives a line written without spaces time by its length, not its word count', async () => {
+    vi.useFakeTimers()
+    const synth = { getVoices: () => [], cancel: vi.fn(), speak: vi.fn() }
+    void speakNotice(
+      [{ text: 'これはAI通訳です。第三者のAIサービスがこの音声を処理します。', lang: 'ja' }],
+      synth,
+      make,
+    )
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(synth.cancel).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('stops at cancelNotice and starts no further line', async () => {
+    const spoken: string[] = []
+    let current: SpeechSynthesisUtterance | null = null
+    const synth = {
+      getVoices: () => [],
+      cancel: vi.fn(() => current?.onerror?.(new Event('error') as SpeechSynthesisErrorEvent)),
+      speak: (u: SpeechSynthesisUtterance) => {
+        spoken.push(u.text)
+        current = u
+      },
+    }
+    const done = speakNotice(
+      [
+        { text: 'one', lang: 'en' },
+        { text: 'two', lang: 'es' },
+      ],
+      synth,
+      make,
+    )
+    cancelNotice(synth)
+    await done
+    expect(spoken).toEqual(['one'])
   })
 })

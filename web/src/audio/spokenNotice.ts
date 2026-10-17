@@ -13,8 +13,17 @@ type Synth = Pick<SpeechSynthesis, 'speak' | 'cancel' | 'getVoices'>
 type MakeUtterance = (text: string) => SpeechSynthesisUtterance
 
 // Some browsers never fire onend for a network voice, so the wait per line is about how long the
-// line takes to say (2.5 words a second) plus slack, not a flat 15 s that would stall the start.
-const lineTimeoutMs = (text: string) => Math.min(15_000, 3_000 + 400 * text.split(/\s+/).length)
+// line takes to say plus slack, not a flat 15 s that would stall the start. Counted in characters,
+// not words, so a language written without spaces still gets the time it needs.
+const lineTimeoutMs = (text: string) => Math.min(15_000, 3_000 + 70 * text.length)
+
+let generation = 0
+
+/** Stops a notice in progress (End, a human handoff): the current line is cut and no further line starts. */
+export function cancelNotice(synth: Synth | undefined = globalThis.speechSynthesis): void {
+  generation++
+  synth?.cancel()
+}
 
 export async function speakNotice(
   lines: NoticeLine[],
@@ -22,7 +31,9 @@ export async function speakNotice(
   make: MakeUtterance = (text) => new SpeechSynthesisUtterance(text),
 ): Promise<boolean> {
   if (!synth) return false
+  const gen = ++generation
   for (const line of lines) {
+    if (gen !== generation) break
     await new Promise<void>((resolve) => {
       const u = make(line.text)
       u.lang = line.lang

@@ -1,6 +1,7 @@
 import { MODE_LABEL } from './modes'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { createReplay, type ReplayClip, type ReplayHandle } from '../audio/replay'
+import { cancelNotice } from '../audio/spokenNotice'
 import { createTransport } from '../transports'
 import { HISTORY_PAIRS } from '../transports/types'
 import type { Mode, SpeakerSide, Transport } from '../transports/types'
@@ -25,6 +26,9 @@ export function useSession(languages: LanguagesResponse | null = null) {
   const unsubscribe = useRef<(() => void) | null>(null)
   const replay = useRef<ReplayHandle | null>(null)
   const startGen = useRef(0)
+  // The spoken notice still playing (G7). Every start waits for it, a mode switch included, so no
+  // transport opens the mic while the notice can still be heard.
+  const pendingNotice = useRef<Promise<unknown> | undefined>(undefined)
   const stateRef = useRef(state)
   useEffect(() => {
     stateRef.current = state
@@ -60,6 +64,14 @@ export function useSession(languages: LanguagesResponse | null = null) {
   const start = useCallback(
     async (opts: { replay?: ReplayClip[]; replayGapMs?: number; beforeCapture?: Promise<unknown> } = {}) => {
       const gen = ++startGen.current
+      if (opts.beforeCapture) {
+        const notice = opts.beforeCapture
+        pendingNotice.current = notice
+        void notice.finally(() => {
+          if (pendingNotice.current === notice) pendingNotice.current = undefined
+        })
+      }
+      const beforeCapture = pendingNotice.current
       await teardown()
       // A newer start (a quick second mode switch) began while this one waited; let it win.
       if (gen !== startGen.current) return
@@ -79,7 +91,9 @@ export function useSession(languages: LanguagesResponse | null = null) {
         })
         replay.current = r
         // Clips play into the capture, so they wait for it too.
-        void Promise.resolve(opts.beforeCapture).then(() => r.run())
+        void Promise.resolve(beforeCapture)
+          .then(() => (replay.current === r ? r.run() : undefined))
+          .catch(() => {})
       }
       // A teardown while gated leaves the replay track disabled; the new capture starts ungated.
       const inputStream = replay.current?.stream
@@ -97,7 +111,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
         glossary,
         inputStream,
         history: () => recentPairs(stateRef.current, languagesRef.current),
-        beforeCapture: opts.beforeCapture,
+        beforeCapture,
       })
     },
     [teardown, stopReplay, setSpeaker],
@@ -141,6 +155,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
   )
 
   const end = useCallback(async () => {
+    cancelNotice()
     await teardown()
     await stopReplay()
     dispatch({ type: 'ended' })
@@ -155,6 +170,7 @@ export function useSession(languages: LanguagesResponse | null = null) {
 
   /** Ends the AI session at once and records that a human interpreter was asked for (G7). */
   const requestHuman = useCallback(async () => {
+    cancelNotice()
     await teardown()
     await stopReplay()
     dispatch({ type: 'handoff' })
