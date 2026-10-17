@@ -9,8 +9,12 @@ namespace Interpreter.Tests.Providers;
 
 public class OpenAISpeechTtsTests
 {
-    private static OpenAISpeechTts Tts(StubHttpHandler handler, string? key = "test-placeholder") =>
-        new(new HttpClient(handler), Options.Create(new OpenAISpeechOptions { ApiKey = key }));
+    private static OpenAISpeechTts Tts(StubHttpHandler handler, string? key = "test-placeholder", TimeSpan? idle = null) =>
+        new(new HttpClient(handler), Options.Create(new OpenAISpeechOptions
+        {
+            ApiKey = key,
+            StreamIdleTimeout = idle ?? ProviderBodyStream.DefaultIdleTimeout,
+        }));
 
     private static async IAsyncEnumerable<string> Texts(params string[] texts)
     {
@@ -104,5 +108,46 @@ public class OpenAISpeechTtsTests
         Assert.Equal((ProviderErrorKind.Unavailable, "openai-tts"), (e.Kind, e.Provider));
         Assert.IsType<IOException>(e.InnerException);
         Assert.Equal(4, chunks.Sum(c => c.Pcm16.Length));
+    }
+
+    /// <summary>Returns <paramref name="before"/> bytes, then never sends another, as a stalled provider would.</summary>
+    private sealed class StallingStream(int before) : MemoryStream(new byte[before])
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            if (read > 0) return read;
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+    }
+
+    [Fact]
+    public async Task Maps_a_stalled_body_to_a_timeout_error()
+    {
+        var handler = new StubHttpHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream(4)) });
+
+        var chunks = new List<AudioChunk>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var c in Tts(handler, idle: TimeSpan.FromMilliseconds(100)).SynthesizeAsync(Texts("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken))
+                chunks.Add(c);
+        });
+
+        Assert.Equal((ProviderErrorKind.Timeout, "openai-tts"), (e.Kind, e.Provider));
+        Assert.Equal(4, chunks.Sum(c => c.Pcm16.Length));
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_of_a_stalled_body_is_a_cancellation_not_a_timeout()
+    {
+        var handler = new StubHttpHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream(0)) });
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in Tts(handler).SynthesizeAsync(Texts("Hola."), new TtsOptions("es"), cts.Token)) { }
+        });
     }
 }

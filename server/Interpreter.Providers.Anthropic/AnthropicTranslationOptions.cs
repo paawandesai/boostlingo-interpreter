@@ -1,3 +1,4 @@
+using Interpreter.Core.Errors;
 using Microsoft.Extensions.Configuration;
 
 namespace Interpreter.Providers.Anthropic;
@@ -25,6 +26,9 @@ public sealed class AnthropicTranslationOptions
     private static string? NonEmpty(string? v) => string.IsNullOrWhiteSpace(v) ? null : v;
 
     public Uri BaseUrl { get; set; } = new("https://api.anthropic.com/v1/");
+
+    /// <summary>Longest wait for the next piece of the streamed body before the call fails as a timeout.</summary>
+    public TimeSpan StreamIdleTimeout { get; set; } = ProviderBodyStream.DefaultIdleTimeout;
 
     /// <summary>The small, fast Claude tier (D7). Checked live 2026-10-14 by the fidelity smoke tests.</summary>
     public string Model { get; set; } = "claude-haiku-5-5";

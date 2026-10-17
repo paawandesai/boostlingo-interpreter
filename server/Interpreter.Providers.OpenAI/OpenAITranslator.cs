@@ -49,7 +49,7 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
         };
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opts.ApiKey);
         using var res = await HttpErrors.SendAsync(http, msg, Provider, "OpenAI translation", ct);
-        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "OpenAI translation");
+        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "OpenAI translation", _opts.StreamIdleTimeout);
 
         await foreach (var e in ServerSentEvents.ReadAsync(stream, ct))
         {

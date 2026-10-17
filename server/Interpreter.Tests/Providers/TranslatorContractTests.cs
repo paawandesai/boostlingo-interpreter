@@ -16,7 +16,7 @@ namespace Interpreter.Tests.Providers;
 /// </summary>
 public abstract class TranslatorContractTests
 {
-    protected abstract IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key");
+    protected abstract IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null);
 
     /// <summary>A successful vendor stream that yields these text deltas.</summary>
     protected abstract string Stream(params string[] deltas);
@@ -182,6 +182,44 @@ public abstract class TranslatorContractTests
         Assert.IsAssignableFrom<System.Text.Json.JsonException>(e.InnerException);
     }
 
+    /// <summary>Returns <paramref name="prefix"/>, then never sends another byte, as a stalled provider would.</summary>
+    private sealed class StallingStream(string prefix) : MemoryStream(Encoding.UTF8.GetBytes(prefix))
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            if (read > 0) return read;
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+    }
+
+    [Fact]
+    public async Task A_stalled_stream_is_a_timeout_error_after_the_text_so_far()
+    {
+        var full = Stream("Tome ", "dos ");
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            var translator = Create(Body(new StallingStream(full[..full.LastIndexOf("dos ", StringComparison.Ordinal)])), idle: TimeSpan.FromMilliseconds(100));
+            await foreach (var d in translator.TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal(ProviderErrorKind.Timeout, e.Kind);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_of_a_stalled_stream_is_a_cancellation_not_a_timeout()
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Collect(Create(Body(new StallingStream(""))).TranslateAsync(Request, cts.Token)));
+    }
+
     [Fact]
     public async Task Missing_key_fails_without_calling_the_vendor()
     {
@@ -196,8 +234,12 @@ public abstract class TranslatorContractTests
 
 public class OpenAITranslatorTests : TranslatorContractTests
 {
-    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key") =>
-        new OpenAITranslator(new HttpClient(handler), Options.Create(new OpenAITranslationOptions { ApiKey = apiKey }));
+    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null) =>
+        new OpenAITranslator(new HttpClient(handler), Options.Create(new OpenAITranslationOptions
+        {
+            ApiKey = apiKey,
+            StreamIdleTimeout = idle ?? ProviderBodyStream.DefaultIdleTimeout,
+        }));
 
     private static string Chunk(string text) =>
         "data: " + JsonSerializer.Serialize(new { choices = new[] { new { index = 0, delta = new { content = text } } } }) + "\n\n";
@@ -237,8 +279,12 @@ public class OpenAITranslatorTests : TranslatorContractTests
 
 public class AnthropicTranslatorTests : TranslatorContractTests
 {
-    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key") =>
-        new AnthropicTranslator(new HttpClient(handler), Options.Create(new AnthropicTranslationOptions { ApiKey = apiKey }));
+    protected override IStreamingTranslator Create(HttpMessageHandler handler, string? apiKey = "test-key", TimeSpan? idle = null) =>
+        new AnthropicTranslator(new HttpClient(handler), Options.Create(new AnthropicTranslationOptions
+        {
+            ApiKey = apiKey,
+            StreamIdleTimeout = idle ?? ProviderBodyStream.DefaultIdleTimeout,
+        }));
 
     private static string Event(string name, object data) => $"event: {name}\ndata: {JsonSerializer.Serialize(data)}\n\n";
 

@@ -47,7 +47,7 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
         msg.Headers.Add("x-api-key", _opts.ApiKey);
         msg.Headers.Add("anthropic-version", _opts.ApiVersion);
         using var res = await HttpErrors.SendAsync(http, msg, Provider, "Anthropic translation", ct);
-        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "Anthropic translation");
+        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "Anthropic translation", _opts.StreamIdleTimeout);
 
         var tokens = new Tokens();
         await foreach (var e in ServerSentEvents.ReadAsync(stream, ct))

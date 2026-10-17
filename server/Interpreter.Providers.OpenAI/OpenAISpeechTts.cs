@@ -54,7 +54,7 @@ public sealed class OpenAISpeechTts(HttpClient http, IOptions<OpenAISpeechOption
             };
             msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opts.ApiKey);
             using var res = await HttpErrors.SendAsync(http, msg, Provider, "OpenAI speech", ct);
-            await using var body = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "OpenAI speech");
+            await using var body = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "OpenAI speech", _opts.StreamIdleTimeout);
 
             // A read can end mid-sample; carry the odd byte into the next chunk so every chunk is whole PCM16.
             var buffer = new byte[8192];

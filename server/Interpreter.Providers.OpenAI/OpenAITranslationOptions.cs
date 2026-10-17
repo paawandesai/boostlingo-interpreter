@@ -1,3 +1,5 @@
+using Interpreter.Core.Errors;
+
 namespace Interpreter.Providers.OpenAI;
 
 /// <summary>Cascade translator settings (Chat Completions, streaming).</summary>
@@ -9,6 +11,9 @@ public sealed class OpenAITranslationOptions
     public string? ApiKey { get; set; }
 
     public Uri BaseUrl { get; set; } = new("https://api.openai.com/v1/");
+
+    /// <summary>Longest wait for the next piece of the streamed body before the call fails as a timeout.</summary>
+    public TimeSpan StreamIdleTimeout { get; set; } = ProviderBodyStream.DefaultIdleTimeout;
 
     /// <summary>A small, fast model (D7). Listed by GET /v1/models on 2026-10-14.</summary>
     public string Model { get; set; } = "gpt-5.4-mini";

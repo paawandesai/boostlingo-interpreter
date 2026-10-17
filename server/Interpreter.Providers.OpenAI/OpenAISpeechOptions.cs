@@ -1,3 +1,5 @@
+using Interpreter.Core.Errors;
+
 namespace Interpreter.Providers.OpenAI;
 
 /// <summary>
@@ -12,6 +14,9 @@ public sealed class OpenAISpeechOptions
     public string? ApiKey { get; set; }
 
     public Uri BaseUrl { get; set; } = new("https://api.openai.com/v1/");
+
+    /// <summary>Longest wait for the next piece of the streamed body before the call fails as a timeout.</summary>
+    public TimeSpan StreamIdleTimeout { get; set; } = ProviderBodyStream.DefaultIdleTimeout;
 
     /// <summary>The model the live tests and eval/replay/synth.py already call with response_format "pcm".</summary>
     public string Model { get; set; } = "gpt-4o-mini-tts";
