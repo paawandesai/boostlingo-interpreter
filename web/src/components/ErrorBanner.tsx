@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { SessionState } from '../session/store'
 
 /** Recoverable states are amber; the session stopping or refusing is red (screen C). */
@@ -30,17 +31,29 @@ export function ErrorBanner({
 }) {
   const m = messages[error.kind] ?? messages.unavailable
   const retries = m.action !== 'Dismiss'
+  // Seconds left before the provider's Retry-After allows another try, ticked for the error it belongs to.
+  const [tick, setTick] = useState<{ error: typeof error; left: number } | null>(null)
+  useEffect(() => {
+    const ms = error.retryAfterMs
+    if (!ms) return
+    const until = Date.now() + ms
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.ceil((until - Date.now()) / 1000))
+      setTick({ error, left })
+      if (left === 0) clearInterval(id)
+    }, 250)
+    return () => clearInterval(id)
+  }, [error])
+  const waitS = !error.retryAfterMs ? 0 : tick?.error === error ? tick.left : Math.ceil(error.retryAfterMs / 1000)
+  const waiting = retries && waitS > 0
   return (
     <div role="alert" className={WARN_KINDS.has(error.kind) ? 'banner warn' : 'banner'}>
       <div>
         <strong>{m.title}</strong>
-        <span className="meta">
-          {error.message}
-          {error.retryAfterMs ? ` · retry after ${Math.ceil(error.retryAfterMs / 1000)} s` : ''}
-        </span>
+        <span className="meta">{error.message}</span>
       </div>
-      <button type="button" className="end" onClick={retries ? onRetry : onDismiss}>
-        {m.action}
+      <button type="button" className="end" disabled={waiting} onClick={retries ? onRetry : onDismiss}>
+        {waiting ? `${m.action} in ${waitS} s` : m.action}
       </button>
     </div>
   )
