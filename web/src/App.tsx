@@ -172,7 +172,8 @@ export default function App() {
                     ))}
                   </dl>
                   <p className="meta">
-                    No audio is stored. Transcripts stay in this tab and are discarded at End unless you export them.
+                    This app saves no audio; providers may retain it under their terms. Transcripts stay in this tab and
+                    are discarded at End unless you export them.
                   </p>
                 </section>
               </aside>

@@ -3,7 +3,7 @@ export function AiBanner() {
   return (
     <p role="note" className="ai-banner">
       <strong>AI interpretation, not a qualified human interpreter.</strong> Not for clinical, legal or other critical
-      decisions. Demo — synthetic data only; no audio is saved.
+      decisions. Demo — synthetic data only. This app saves no audio; providers may retain it under their terms.
     </p>
   )
 }
