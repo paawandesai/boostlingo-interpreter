@@ -125,6 +125,8 @@ public sealed class ElevenLabsTts(IOptions<ElevenLabsOptions> options) : IStream
 
     private static async Task ReceiveAsync(WebSocket ws, ChannelWriter<AudioChunk> audio, CancellationToken ct)
     {
+        // A decoded chunk can end mid-sample; carry the odd byte into the next so every chunk is whole PCM16.
+        byte? carry = null;
         try
         {
             while (true)
@@ -145,7 +147,12 @@ public sealed class ElevenLabsTts(IOptions<ElevenLabsOptions> options) : IStream
                 var root = doc.RootElement;
                 if (root.TryGetProperty("audio", out var b64) && b64.ValueKind == JsonValueKind.String
                     && b64.GetString() is { Length: > 0 } data)
-                    await audio.WriteAsync(new AudioChunk(Convert.FromBase64String(data), Rate), ct);
+                {
+                    var pcm = Convert.FromBase64String(data);
+                    if (carry is { } b) pcm = [b, .. pcm];
+                    carry = pcm.Length % 2 == 1 ? pcm[^1] : null;
+                    if (pcm.Length > 1) await audio.WriteAsync(new AudioChunk(pcm.AsMemory(0, pcm.Length & ~1), Rate), ct);
+                }
                 if (root.TryGetProperty("isFinal", out var final) && final.ValueKind == JsonValueKind.True)
                 {
                     audio.TryComplete();
@@ -165,6 +172,12 @@ public sealed class ElevenLabsTts(IOptions<ElevenLabsOptions> options) : IStream
         catch (WebSocketException e)
         {
             audio.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "ElevenLabs stream dropped", inner: e));
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // A message that is not JSON or carries bad base64: end the stream with an error instead of
+            // faulting this task and leaving the turn waiting for audio that never completes.
+            audio.TryComplete(new ProviderException(ProviderErrorKind.Unavailable, Provider, "Unreadable message from ElevenLabs", inner: e));
         }
     }
 

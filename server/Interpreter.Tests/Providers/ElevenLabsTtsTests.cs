@@ -63,7 +63,7 @@ public class ElevenLabsTtsTests
         await foreach (var c in Tts(server.BaseUrl).SynthesizeAsync(Text("Hola,", "  ", "¿cómo está?"), new TtsOptions("es"), TestContext.Current.CancellationToken))
             chunks.Add(c);
 
-        Assert.Equal(["pcm-1", "pcm-2"], chunks.Select(c => Encoding.UTF8.GetString(c.Pcm16.Span)));
+        Assert.Equal("pcm-1pcm-2", string.Concat(chunks.Select(c => Encoding.UTF8.GetString(c.Pcm16.Span))));
         Assert.All(chunks, c => Assert.Equal(24000, c.SampleRate));
         Assert.Equal("test-key", server.Headers!["xi-api-key"]);
         Assert.Equal([" ", "Hola, ", "¿cómo está? ", ""], server.Received.Select(m => (string)JsonNode.Parse(m.Text)!["text"]!));
@@ -96,5 +96,43 @@ public class ElevenLabsTtsTests
             await foreach (var _ in Tts(server.BaseUrl).SynthesizeAsync(Text("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken)) { }
         });
         Assert.Equal(ProviderErrorKind.Auth, e.Kind);
+    }
+
+    [Fact]
+    public async Task Odd_sized_chunks_are_forwarded_as_whole_samples()
+    {
+        await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>
+        {
+            await s.ReceiveUntil(ws, m => m.Text == """{"text":""}""");
+            await WebSocketText.SendTextAsync(ws, Audio("abc"), default);
+            await WebSocketText.SendTextAsync(ws, Audio("d"), default);
+            await WebSocketText.SendTextAsync(ws, Audio("efg"), default);
+            await WebSocketText.SendTextAsync(ws, """{"isFinal":true}""", default);
+        });
+
+        var chunks = new List<AudioChunk>();
+        await foreach (var c in Tts(server.BaseUrl).SynthesizeAsync(Text("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken))
+            chunks.Add(c);
+
+        Assert.Equal(["ab", "cd", "ef"], chunks.Select(c => Encoding.UTF8.GetString(c.Pcm16.Span)));
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{"audio":"!!not-base64!!"}""")]
+    public async Task An_unreadable_message_ends_the_stream_with_a_provider_error_instead_of_stalling(string message)
+    {
+        await using var server = await FakeWebSocketServer.StartAsync(async (ws, s) =>
+        {
+            await s.ReceiveUntil(ws, m => m.Text.Contains("Hola"));
+            await WebSocketText.SendTextAsync(ws, message, default);
+            await s.ReceiveUntil(ws, _ => false);
+        });
+
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var _ in Tts(server.BaseUrl).SynthesizeAsync(Text("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken)) { }
+        }).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal((ProviderErrorKind.Unavailable, "elevenlabs"), (e.Kind, e.Provider));
     }
 }
