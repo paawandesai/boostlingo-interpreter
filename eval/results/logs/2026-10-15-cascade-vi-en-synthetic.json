@@ -65,9 +65,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Xin chào, tôi cần gặp bác sĩ hôm nay.",
-    "final": true,
-    "confidence": 0.9873047
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Hello, I need to see a doctor today.",
@@ -88,9 +87,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Nhà thuốc gần nhất ở đâu?",
-    "final": true,
-    "confidence": 0.99609375
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Where is the nearest pharmacy?",
@@ -111,9 +109,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Tôi bị đau đầu từ hôm qua,",
-    "final": true,
-    "confidence": 0.9980469
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "I've had a headache since yesterday,",
@@ -134,9 +131,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Bạn có thể nói chậm hơn được không?",
-    "final": true,
-    "confidence": 0.99902344
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Can you speak more slowly, please?",
@@ -157,9 +153,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Cảm ơn bạn rất nhiều vì đã giúp tôi.",
-    "final": true,
-    "confidence": 0.99853516
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Thank you so much for helping me.",
@@ -180,9 +175,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Xin chào, tôi cần gặp bác sĩ hôm nay.",
-    "final": true,
-    "confidence": 0.9873047
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Hello, I need to see a doctor today.",
@@ -203,9 +197,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Nhà thuốc gần nhất ở đâu?",
-    "final": true,
-    "confidence": 0.99609375
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "Where is the nearest pharmacy?",
@@ -226,9 +219,8 @@
    "mode": "cascade",
    "side": "B",
    "source": {
-    "text": "Tôi bị đau đầu từ hôm qua.",
-    "final": true,
-    "confidence": 0.9970703
+    "text": null,
+    "final": true
    },
    "target": {
     "text": "I've had a headache since yesterday.",
@@ -254,6 +246,7 @@
   "Realtime input-transcription usage is billed separately and is not captured here.",
   "Cascade STT usage is audio seconds streamed by this browser, which includes silence between turns.",
   "A cost line with unitPrice null has no checked price in config/prices.json; the total excludes it.",
-  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md)."
+  "Timing marks removed: this run used Deepgram STT, whose terms bar benchmarking (docs/GUARDRAILS.md).",
+  "Source text and confidence removed (text set to null) on 2026-10-17: they are Deepgram STT output, and Deepgram's terms bar publishing benchmark output. Target translations are kept."
  ]
 }

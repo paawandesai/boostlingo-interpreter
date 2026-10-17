@@ -3,7 +3,8 @@
 
 Run from the repo root after `npm ci` in ./ and ./web and `dotnet restore server`:
 
-    python3 scripts/licenses.py
+    python3 scripts/licenses.py           # rewrite LICENSES.md
+    python3 scripts/licenses.py --check   # diff against LICENSES.md, write nothing
 
 npm licences come from license-checker-rseidelsohn (the maintained fork of
 license-checker; the original has had no release since 2019). NuGet licences
@@ -13,6 +14,8 @@ the committed packages.lock.json files (direct and transitive).
 
 from __future__ import annotations
 
+import argparse
+import difflib
 import json
 import os
 import re
@@ -49,6 +52,46 @@ PROVIDERS = """\
 """
 
 
+def allowed(expr: str) -> bool:
+    """True when an SPDX-style expression may ship without review: every part of an AND must be
+    permissive, any one part of an OR is enough (AND binds tighter; parentheses group)."""
+    tokens = re.findall(r"\(|\)|[^\s()]+", expr)
+    pos = 0
+
+    def parse_or() -> bool:
+        nonlocal pos
+        ok = parse_and()
+        while pos < len(tokens) and tokens[pos] == "OR":
+            pos += 1
+            ok = parse_and() or ok
+        return ok
+
+    def parse_and() -> bool:
+        nonlocal pos
+        ok = parse_atom()
+        while pos < len(tokens) and tokens[pos] == "AND":
+            pos += 1
+            ok = parse_atom() and ok
+        return ok
+
+    def parse_atom() -> bool:
+        nonlocal pos
+        if pos >= len(tokens):
+            return False
+        tok = tokens[pos]
+        pos += 1
+        if tok == "(":
+            ok = parse_or()
+            if pos < len(tokens) and tokens[pos] == ")":
+                pos += 1
+                return ok
+            return False
+        return tok in PERMISSIVE
+
+    ok = parse_or()
+    return ok and pos == len(tokens)  # anything unparsed (a stray word or bracket) is flagged
+
+
 def run_checker(cwd: Path, scope: str) -> dict:
     out = subprocess.run(
         ["npx", "-y", CHECKER, "--json", "--excludePrivatePackages", f"--{scope}"],
@@ -65,7 +108,7 @@ def npm_section(label: str, cwd: Path, scope: str) -> tuple[str, list[str]]:
         lic = info.get("licenses", "UNKNOWN")
         lic = " OR ".join(lic) if isinstance(lic, list) else str(lic)
         counts[lic] += 1
-        if not any(p in PERMISSIVE for p in re.split(r"\s+(?:OR|AND)\s+|[()]", lic) if p):
+        if not allowed(lic):
             flagged.append(f"{name_ver} ({lic})")
     lines = [f"### {label}", "", "| Licence | Packages |", "|---|---|"]
     lines += [f"| {lic} | {n} |" for lic, n in counts.most_common()]
@@ -126,8 +169,7 @@ PYTHON = [
 def python_section() -> tuple[str, list[str]]:
     flagged = []
     for name, ver, _, lic in PYTHON:
-        parts = [p for p in re.split(r"\s+(?:OR|AND)\s+|[()]", lic) if p]
-        if not all(p in PERMISSIVE for p in parts):
+        if not allowed(lic):
             flagged.append(f"{name} {ver} ({lic})")
     out = ["### Evaluation scripts (Python, eval/requirements.txt, not shipped)", "",
            "| Package | Version | Reference | Licence |", "|---|---|---|---|",
@@ -143,7 +185,7 @@ def nuget_section() -> tuple[str, list[str]]:
         by_lic[lic] += 1
         kind = "direct" if "Direct" in kinds else "transitive"
         rows.append(f"| {pid} | {ver} | {kind} | {lic} |")
-        if lic not in PERMISSIVE:
+        if not allowed(lic):
             flagged.append(f"{pid} {ver} ({lic})")
     out = ["### Server (NuGet, all projects, direct and transitive)", "",
            "| Licence | Packages |", "|---|---|"]
@@ -163,7 +205,19 @@ def nuget_license_cached(pid: str, ver: str) -> str:
     return _cache[key]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Regenerate LICENSES.md from the npm, NuGet and Python dependencies.",
+        epilog="Needs network (npx fetches the licence checker), `npm ci` in ./ and ./web, and "
+        "`dotnet restore server` so the NuGet cache holds every .nuspec.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="generate in memory and print a diff against LICENSES.md instead of writing it; "
+        "exits 1 when they differ (the generation date is ignored)",
+    )
+    args = parser.parse_args(argv)
     sections, flagged = [], []
     for label, cwd, scope in [
         ("Web app, shipped in the browser bundle (npm production)", ROOT / "web", "production"),
@@ -197,13 +251,29 @@ Anything not on the permissive list ({", ".join(sorted(PERMISSIVE))}). Each need
 
 Reviewed 2026-10-14: `lightningcss` (MPL-2.0, CSS tooling inside Vite) and `caniuse-lite` (CC-BY-4.0, browser-support data) are build-time tools only. Neither is linked into the server or included in the browser bundle, and neither is modified, so MPL's file-level copyleft and CC-BY's attribution duty are not triggered by shipping the app. If this list grows, review each new entry before merging. No GPL, AGPL, non-commercial or research-only licence appears.
 
+The browser bundle and the server image carry the licence texts and copyright notices of the
+packages they ship in `web/public/THIRD-PARTY-NOTICES.txt` (maintained by hand; update it when a
+production npm or runtime NuGet package changes).
+
 Reviewed 2026-10-15: `numpy` bundles code under Zlib, and `regex` includes code under the CNRI Python licence (the permissive licence of Python 1.6.1). Both are permissive, used only by the offline evaluation scripts, and never shipped with the app.
 
 ## Packages
 
 {chr(10).join(sections)}
 """
-    (ROOT / "LICENSES.md").write_text(doc, encoding="utf-8")
+    target = ROOT / "LICENSES.md"
+    if args.check:
+        def undated(text: str) -> list[str]:
+            return [re.sub(r"(scripts/licenses\.py` on )\d{4}-\d{2}-\d{2}", r"\1DATE", x)
+                    for x in text.splitlines(keepends=True)]
+        current = target.read_text(encoding="utf-8") if target.exists() else ""
+        diff = list(difflib.unified_diff(undated(current), undated(doc),
+                                         "LICENSES.md", "LICENSES.md (generated)"))
+        sys.stdout.writelines(diff)
+        print(f"LICENSES.md {'differs' if diff else 'is up to date'}; "
+              f"{len(flagged)} package(s) listed for review")
+        return 1 if diff else 0
+    target.write_text(doc, encoding="utf-8")
     print(f"LICENSES.md written; {len(flagged)} package(s) listed for review")
     return 0
 

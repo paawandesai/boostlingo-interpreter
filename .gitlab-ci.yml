@@ -234,7 +234,9 @@ server:live:
 
 # ---------- e2e (T3.6): manual, real provider calls ----------
 # Never automatic: each run makes billed calls with keys from masked CI variables (OPENAI_API_KEY,
-# DEMO_ACCESS_TOKEN, plus the cascade vendors'). Cascade runs use OpenAI STT (Cascade__Stt=openai):
+# plus the cascade vendors'). Against the local server (E2E_BASE_URL unset) the job makes its own random
+# DEMO_ACCESS_TOKEN, so the demo's token never reaches a failure trace or report; with E2E_BASE_URL set
+# the CI variable is used and playwright.config.ts records no trace. Artifacts are developer-only. Cascade runs use OpenAI STT (Cascade__Stt=openai):
 # Deepgram timing numbers are not recorded (docs/GUARDRAILS.md). The soak also needs replay clips:
 # REPLAY_DIR points at a folder the job can read (clips are never committed, eval/replay/README.md);
 # without it the job synthesizes the labelled synthetic set. Run with SOAK_MODE=translate, realtime or cascade.
@@ -263,10 +265,14 @@ server:live:
     - curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
     - bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /opt/dotnet
     - export PATH=/opt/dotnet:$PATH
+    # A per-job token for the local server (Playwright starts it with this environment): the CI
+    # variable also gates the public demo, and helpers.ts types the token into the page.
+    - if [ -z "$E2E_BASE_URL" ]; then export DEMO_ACCESS_TOKEN=$(head -c16 /dev/urandom | od -An -tx1 | tr -d ' \n'); fi
     - cd web && npm ci --no-audit --no-fund
   artifacts:
     when: always
     expire_in: 7 days
+    access: developer
     paths:
       - web/test-results/soak/
       - web/test-results/e2e-report/
@@ -283,6 +289,7 @@ e2e:soak:
   artifacts:
     when: always
     expire_in: 7 days
+    access: developer
     paths:
       - web/test-results/soak/
   script:

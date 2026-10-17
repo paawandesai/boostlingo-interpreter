@@ -1,10 +1,9 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`, or from re-running `eval/summarize.py <log> --out <file>`
-> (priced from `config/prices.json`) on a session log there: the 2026-10-16 costs and stage breakdowns
-> are computed that way and are not stored under `eval/results/`; the 2026-10-16 latency rows are in
-> `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI job ids are links in the project's
-> private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
+> Every number comes from a file under `eval/results/`, each re-creatable by running `eval/summarize.py <log> --out <file>`
+> (priced from `config/prices.json`) on a session log there: the 2026-10-16 latency rows, costs per
+> minute and stage breakdowns are in `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI
+> job ids refer to the project's private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
 > not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
 > I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
 > browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).
@@ -28,8 +27,9 @@ Spanish dialogue for 5 minutes, each clip waiting for the previous interpretatio
 recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
 cascade STT only; chrF scores each translation against a model-written, unverified reference and
 its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
-and judged 16 of 21 acceptable, without per-dimension scores; the five failures are segmentation
-faults (cut-off turns, or a neighbouring line merged in), noted on their rows
+and judged 16 of 21 acceptable, without per-dimension scores; four failures are segmentation faults
+in Realtime translate (cut-off turns, or a neighbouring line merged in) and one cascade output dropped
+most of the sentence, noted on their rows
 (`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
 benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
 
@@ -79,9 +79,9 @@ glossary terms reach only the translator. The 2026-10-15 cascade runs lost the e
 because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
 Vietnamese onboarding run used Deepgram STT, so it has no published quality number
 (`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic. My
-blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one cut-off
-turn) and Realtime translate 3 of 7 (four cut-off turns or turns with a neighbouring
-line merged in). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
+blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one output
+dropped most of the sentence) and Realtime translate 3 of 7 (four segmentation faults: cut-off turns
+or turns with a neighbouring line merged in). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
 
 ## 4. Cost per minute
 
@@ -91,8 +91,9 @@ line merged in). Seven rows per mode is a small sample, but the failures cluster
 | Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | per M tokens: audio $32 in / $64 out, text $4 in, cached input $0.40 (both models); text out $24 (`gpt-realtime-2.1`) / $16 (`gpt-realtime`) | `gpt-realtime-2.1` $0.1145, `gpt-realtime` $0.2104, both excluding input transcription |
 | Realtime translate | minutes of audio | $0.034/min | about $0.051 with the source transcript (assumed billed); $0.034 without |
 
-Cascade and Realtime translate are from `eval/results/summary.md` (2026-10-15 logs); Realtime is
-from the 2026-10-16 logs, priced from `config/prices.json`. Same audio-input price, but
+The cascade figures excluding STT and Realtime translate are from `eval/results/summary.md` (2026-10-15
+logs); the $0.0290 cascade figure with STT and Realtime are from the 2026-10-16 logs
+(`eval/results/latency-tuning-2026-10-16.md`), all priced from `config/prices.json`. Same audio-input price, but
 `gpt-realtime` got far less prompt caching than `gpt-realtime-2.1`, so it cost almost twice as much.
 Realtime costs about six to fourteen times cascade excluding cascade STT, or about four to seven
 times the default cascade with STT ($0.0290). The `gpt-realtime-whisper` price comes from a web search
@@ -121,7 +122,8 @@ eligible list. Rates, examples and the data-flow table: [appendix G](WRITEUP-APP
 - **Personal or health data, not itself clinical or legal:** Realtime, or cascade on OpenAI STT +
   Claude + OpenAI TTS, with BAA mode on and the BAAs signed; never Realtime translate.
 - **Pairs Realtime translate lacks, or a glossary or register is needed:** cascade; a new pair is
-  configuration only (Vietnamese took about 5 minutes).
+  configuration only (Vietnamese took about 5 minutes of configuration and no application code,
+  timed by the AI agent that did it).
 - **Quality on a rare pair:** cascade for low-stakes use only; unverified without a native speaker.
 - **Medical and legal:** a qualified human interpreter; AI only with a human reviewing it.
 

@@ -25,6 +25,10 @@ Anything not on the permissive list (0BSD, Apache-2.0, BSD-2-Clause, BSD-3-Claus
 
 Reviewed 2026-10-14: `lightningcss` (MPL-2.0, CSS tooling inside Vite) and `caniuse-lite` (CC-BY-4.0, browser-support data) are build-time tools only. Neither is linked into the server or included in the browser bundle, and neither is modified, so MPL's file-level copyleft and CC-BY's attribution duty are not triggered by shipping the app. If this list grows, review each new entry before merging. No GPL, AGPL, non-commercial or research-only licence appears.
 
+The browser bundle and the server image carry the licence texts and copyright notices of the
+packages they ship in `web/public/THIRD-PARTY-NOTICES.txt` (maintained by hand; update it when a
+production npm or runtime NuGet package changes).
+
 Reviewed 2026-10-15: `numpy` bundles code under Zlib, and `regex` includes code under the CNRI Python licence (the permissive licence of Python 1.6.1). Both are permissive, used only by the offline evaluation scripts, and never shipped with the app.
 
 ## Packages

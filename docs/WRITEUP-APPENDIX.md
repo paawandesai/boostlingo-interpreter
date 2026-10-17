@@ -28,8 +28,8 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
   (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
   single-reference numbers. References were written by a model; I reviewed them and judged 16 of the 21 rows of the blind
-  sheet acceptable, without per-dimension scores (`eval/rating.py`): the five failures are segmentation faults (cut-off turns, or a
-  neighbouring line merged in), four of them in Realtime translate.
+  sheet acceptable, without per-dimension scores (`eval/rating.py`): four failures are segmentation faults in Realtime translate (cut-off
+  turns, or a neighbouring line merged in); one cascade output dropped most of the sentence.
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
@@ -42,7 +42,8 @@ and `python3 eval/summarize.py <log> --out /tmp/row.md` on each log, so the comm
 ElevenLabs): endpointing 489/545, STT final 1005/1200, translation first token 578/817, first flush
 89/136, TTS first byte 173/213, network 22/74, playback buffer 58/1539. `gpt-realtime-2.1`:
 endpointing 543/650, response created 23/61, model + audio (opaque) 675/1035. `gpt-realtime`:
-endpointing 546/629, response created 25/58, model + audio 560/901. Before the tuning (2026-10-15
+endpointing 546/629, response created 25/58, model + audio 560/901 (final lines only; its soak file's
+661 and 67 at p95 also count the 44th turn, cut off by the end of the run). Before the tuning (2026-10-15
 replay logs, server-side endpointing, older replay; the 2026-10-16 server-VAD cascade baseline is
 the first row of the tuning table) cascade endpointing was 726/2056 and STT final 1195/2451, Realtime
 endpointing 1266/1653; the two translators differed by less than the run-to-run spread (first token
@@ -95,7 +96,8 @@ session at `gpt-4o-transcribe`'s per-minute estimate (about $0.006/min, OpenAI's
 used that model) gave an upper bound of $0.0209 / $0.0253 (`--stt-minutes-from-session --out /tmp/summary-stt-upper.md`, so
 the committed summary is not overwritten). The 2026-10-16 default-config log does carry STT minutes;
 priced at `gpt-realtime-whisper`'s $0.017/min it comes to $0.0290/min
-(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`). That price
+(`eval/results/logs/2026-10-16-cascade-whisper-client300-ttswarm-openai-synthetic.json`; the cost
+column of `eval/results/latency-tuning-2026-10-16.md` has it for every 2026-10-16 run). That price
 is from a web search on 2026-10-17 summarising OpenAI's pricing page, not from the page itself; since
 `config/prices.json` lists it first, re-running `--stt-minutes-from-session` on the 2026-10-15 logs
 would now charge it to runs that used `gpt-4o-transcribe`. Deepgram

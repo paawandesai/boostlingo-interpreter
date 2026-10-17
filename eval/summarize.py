@@ -9,9 +9,12 @@ Per mode it reports latency p50/p95 per stage, quality against the scripted refe
 accuracy, output-check flags and cost per minute. Rules it follows (docs/GUARDRAILS.md):
 - WER is STT only, on cascade source text. Realtime and Realtime translate source text comes from a
   separate or model-side transcript and is never scored as recognition.
-- Latency and WER from runs whose STT was Deepgram are withheld: its terms bar benchmarking.
-- Translation quality is chrF against references the model wrote and Paawan reviewed (no rubric
-  scores); it is a rough signal, and comparing the two modes' outputs to each other is not a quality
+- Latency, WER and chrF from runs whose STT was Deepgram are withheld: its terms bar benchmarking.
+  The committed Deepgram logs carry no source text either (it was removed), so their lines match no
+  script line.
+- Translation quality is chrF against references the model wrote (no rubric scores). Paawan's review
+  (AI_USAGE.md) is quoted only when the inputs are exactly the four replay logs, the set it was written
+  for. chrF is a rough signal, and comparing the two modes' outputs to each other is not a quality
   metric.
 - Utterances are matched to script lines by text similarity, so a cascade line split by clause
   flushing may go unmatched. The counts say how many matched.
@@ -42,6 +45,18 @@ SCRIPTS = ROOT / "eval" / "replay" / "scripts.jsonl"
 GLOSSARY = ROOT / "config" / "glossary.json"
 PRICES = ROOT / "config" / "prices.json"
 REPLAY_LOGS = "eval/results/logs/2026-10-15-*-replay-*.json"
+# The committed summary.md's inputs. Its review line (Paawan reviewed the English/Spanish references and
+# the blind sheet eval/results/rating-sheet-2026-10-16-synthetic.csv, sampled from the 2026-10-15
+# translate replay and the 2026-10-16 runs) was written for this set, so it is printed only for exactly
+# these logs and never attached to other runs, such as the Vietnamese ones nobody reviewed.
+REVIEWED_LOGS = frozenset(
+    {
+        "2026-10-15-cascade-replay-anthropic-synthetic.json",
+        "2026-10-15-cascade-replay-openai-synthetic.json",
+        "2026-10-15-realtime-replay-synthetic.json",
+        "2026-10-15-translate-replay-synthetic.json",
+    }
+)
 MATCH_MIN = 0.6
 MODE_NAMES = {
     "translate": "Realtime translate",
@@ -362,6 +377,8 @@ def score_line(
     """Matches one (re-joined) line to the script and records it for chrF, WER and glossary."""
     src_lang = langs["a"] if u["side"] == "A" else langs["b"]
     tgt_lang = langs["b"] if u["side"] == "A" else langs["a"]
+    if u["source"].get("text") is None:
+        return  # removed from the log (Deepgram transcripts are not published)
     row = match_script(u["source"]["text"], src_lang, scripts)
     if row is None or row.get("target") != tgt_lang:
         return
@@ -383,10 +400,15 @@ def quality(matched: list[tuple[dict, dict]], mode: str) -> dict:
     width = max((len(r) for r in per_line), default=1)
     streams = [[r[i] if i < len(r) else None for r in per_line] for i in range(width)]
     out: dict = {"n": len(matched)}
-    if matched:
-        out["chrf"] = CHRF().corpus_score(hyps, streams).score
-    stt = [(u, row) for u, row in matched if not u.get("_deepgram")]
+    # Deepgram's terms bar benchmarking: its lines count for neither chrF nor WER.
+    keep = [i for i, (u, _) in enumerate(matched) if not u.get("_deepgram")]
+    stt = [matched[i] for i in keep]
     out["wer_withheld"] = len(matched) - len(stt)
+    out["chrf_withheld"] = len(matched) - len(stt)
+    if stt:
+        out["chrf"] = CHRF().corpus_score(
+            [hyps[i] for i in keep], [[s[i] for i in keep] for s in streams]
+        ).score
     if mode == "cascade" and stt:
         out["wer"] = jiwer.wer(
             [normalize(row["text"]) for _, row in stt],
@@ -405,16 +427,32 @@ def fmt(ms: float | None) -> str:
     return "–" if ms is None else f"{ms:.0f}"
 
 
+def reviewed(inputs: list[str]) -> bool:
+    """True when the inputs are exactly the four replay logs (REVIEWED_LOGS)."""
+    names = [Path(p).name for p in inputs]
+    return len(names) == len(REVIEWED_LOGS) and set(names) == REVIEWED_LOGS
+
+
 def render(modes: dict, inputs: list[str]) -> str:
+    if reviewed(inputs):
+        about = [
+            "Synthetic or scripted audio only. References and glossary terms were written by the model and",
+            "reviewed by Paawan. A separate blind sheet (rating-sheet-2026-10-16-synthetic.csv, sampled from the",
+            "2026-10-15 translate replay and the 2026-10-16 runs) judged 16 of 21 outputs acceptable, no rubric",
+            "scores. Quality numbers are a rough signal.",
+        ]
+    else:
+        about = [
+            "Synthetic or scripted audio only. References and glossary terms were written by the model; the",
+            "review in AI_USAGE.md is quoted only for the four replay logs. Quality numbers are a rough signal.",
+        ]
     lines = [
         "# Evaluation summary",
         "",
         "Generated by `python3 eval/summarize.py` from:",
         *[f"- `{p}`" for p in inputs],
         "",
-        "Synthetic or scripted audio only. References and glossary terms were written by the model and",
-        "reviewed by Paawan (16 of 21 sampled outputs judged acceptable, no rubric scores); quality numbers are",
-        "a rough signal.",
+        *about,
         "",
         "## Latency (client ms)",
         "",
@@ -450,13 +488,18 @@ def render(modes: dict, inputs: list[str]) -> str:
     ]
     for mode, agg in sorted(modes.items()):
         q = quality(agg["matched"], mode)
-        chrf = f"{q['chrf']:.1f}" if "chrf" in q else "–"
+        # Deepgram lines whose source text was removed match no script line, but are still withheld.
+        deepgram = bool(q.get("chrf_withheld") or agg["latency_withheld"])
+        if "chrf" in q:
+            chrf = f"{q['chrf']:.1f}"
+        else:
+            chrf = "withheld (Deepgram)" if deepgram else "–"
         if not mode.startswith("cascade"):
             wer = "n/a (not STT)"
         elif "wer" in q:
             wer = f"{q['wer']:.1%}"
         else:
-            wer = "withheld (Deepgram)" if q.get("wer_withheld") else "–"
+            wer = "withheld (Deepgram)" if deepgram else "–"
         hit, total = agg["glossary"]
         gloss = f"{hit}/{total}" if total else "–"
         flags = ", ".join(f"{k} {v}" for k, v in sorted(agg["flags"].items())) or "none"
