@@ -56,6 +56,7 @@ Commits are authored as Paawan. Every commit an agent made carries a `Co-Authore
 ## What the history shows, honestly
 
 - **Some branches carry more than one task**, against the one-task-one-branch rule: the Vietnamese-onboarding branch also carries the eval summary, write-up draft and README; the output-checks branch carries six guardrail tasks; the final-audit branch carries 46 commits of fixes.
+- **Many commits landed in quick bursts.** On `main` as of 2026-10-17 (c46defa), 77 of the 237 non-merge commits have a committer time within 5 s of the previous commit, and 29 of the 44 merges came within 60 s of the previous merge. Agents prepared a series of commits and committed it at once, and stacked merge requests were merged one after another. The history was not rewritten or backdated.
 - **`.gitignore` with `.env` arrived in the fifth commit**, the first code commit; the first four were docs only. No `.env` or key was ever committed.
 - **The container could not reach OpenAI's, ElevenLabs' or Deepgram's websites.** Endpoint and event names were checked against the `openai` npm package's type definitions and live API calls; prices and data terms were read on the official pages on 2026-10-16 by Paawan and by a browsing AI assistant Paawan directed, whose table Paawan checked; two prices came from a web search on 2026-10-17 and are labelled as such.
 
