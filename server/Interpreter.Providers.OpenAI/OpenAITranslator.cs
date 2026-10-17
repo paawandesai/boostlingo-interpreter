@@ -49,12 +49,24 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
         };
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opts.ApiKey);
         using var res = await HttpErrors.SendAsync(http, msg, Provider, "OpenAI translation", ct);
-        await using var stream = await res.Content.ReadAsStreamAsync(ct);
+        await using var stream = new ProviderBodyStream(await res.Content.ReadAsStreamAsync(ct), Provider, "OpenAI translation");
 
         await foreach (var e in ServerSentEvents.ReadAsync(stream, ct))
         {
             if (e.Data == "[DONE]") yield break;
-            using var doc = JsonDocument.Parse(e.Data);
+            if (Delta(e.Data, request) is { Length: > 0 } text) yield return text;
+        }
+    }
+
+    /// <summary>
+    /// Reads one stream event: reports usage and returns its text delta, if any. A truncated or malformed
+    /// event (a connection dropped mid-line) is a provider error, not an exception that ends the session.
+    /// </summary>
+    private static string? Delta(string data, TranslationRequest request)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(data);
             var root = doc.RootElement;
             if (root.TryGetProperty("error", out var error))
             {
@@ -67,9 +79,13 @@ public sealed class OpenAITranslator(HttpClient http, IOptions<OpenAITranslation
                 && usage.TryGetProperty("prompt_tokens", out var pt) && usage.TryGetProperty("completion_tokens", out var ctk))
                 request.OnUsage?.Invoke(new TokenUsage(pt.GetInt32(), ctk.GetInt32()));
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0
-                && choices[0].GetProperty("delta").TryGetProperty("content", out var content)
-                && content.GetString() is { Length: > 0 } text)
-                yield return text;
+                && choices[0].GetProperty("delta").TryGetProperty("content", out var content))
+                return content.GetString();
+            return null;
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
+        {
+            throw new ProviderException(ProviderErrorKind.Unavailable, Provider, "OpenAI translation sent an unreadable stream event", inner: e);
         }
     }
 }

@@ -126,6 +126,62 @@ public abstract class TranslatorContractTests
         Assert.NotEqual(ProviderErrorKind.Auth, e.Kind);
     }
 
+    /// <summary>Returns <paramref name="prefix"/>, then fails the next read as a dropped connection would.</summary>
+    private sealed class FailingStream(string prefix, Exception failure) : MemoryStream(Encoding.UTF8.GetBytes(prefix))
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            var read = await base.ReadAsync(buffer, ct);
+            return read > 0 ? read : throw failure;
+        }
+    }
+
+    private static StubHttpHandler Body(Stream body) =>
+        new(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) });
+
+    public static TheoryData<string> ReadFailures => ["io", "http-io", "http-request"];
+
+    [Theory]
+    [MemberData(nameof(ReadFailures))]
+    public async Task A_connection_dropped_mid_stream_is_an_unavailable_error_after_the_text_so_far(string failure)
+    {
+        Exception error = failure switch
+        {
+            "io" => new IOException("The response ended prematurely."),
+            "http-io" => new HttpIOException(HttpRequestError.ResponseEnded),
+            _ => new HttpRequestException("reset"),
+        };
+        var full = Stream("Tome ", "dos ");
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var d in Create(Body(new FailingStream(full[..full.LastIndexOf("dos ", StringComparison.Ordinal)], error))).TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal((ProviderErrorKind.Unavailable, Create(Sse("")).Name), (e.Kind, e.Provider));
+        Assert.Same(error, e.InnerException);
+    }
+
+    [Fact]
+    public async Task A_truncated_event_is_an_unavailable_error_after_the_text_so_far()
+    {
+        var full = Stream("Tome ", "dos ");
+        var cut = full.LastIndexOf("dos ", StringComparison.Ordinal);
+        var received = new List<string>();
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            // The body ends in the middle of the second delta's JSON.
+            await foreach (var d in Create(Sse(full[..cut])).TranslateAsync(Request, TestContext.Current.CancellationToken))
+                received.Add(d);
+        });
+
+        Assert.Equal(["Tome "], received);
+        Assert.Equal(ProviderErrorKind.Unavailable, e.Kind);
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(e.InnerException);
+    }
+
     [Fact]
     public async Task Missing_key_fails_without_calling_the_vendor()
     {
