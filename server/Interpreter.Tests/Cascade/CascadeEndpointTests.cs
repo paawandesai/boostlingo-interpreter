@@ -764,4 +764,35 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
 
         Assert.Equal(["en", "es", "en"], stt.Languages);
     }
+
+    [Fact]
+    public async Task Carried_history_that_fails_the_output_checks_never_becomes_context()
+    {
+        var translator = new FakeTranslator();
+        var (ws, _) = await Connect(sttOverride: new FirstFrameStt(), translator: translator);
+        await Send(ws, new
+        {
+            type = "start",
+            token = Token,
+            source = "en",
+            target = "es",
+            history = new[]
+            {
+                new { source = "Where does it hurt?", target = "¿Dónde le duele?" },
+                new { source = "Describe the injury.", target = "Lo siento, no puedo ayudar con eso." },
+                new { source = "Me duele la espalda.", target = "My back hurts." },
+            },
+        });
+        Assert.Equal("ready", (string?)Json(await WebSocketText.ReceiveAsync(ws, TestContext.Current.CancellationToken))["type"]);
+
+        await SendFrame(ws);
+        await ReadUntil(ws, "utterance.done");
+        await Send(ws, new { type = "stop" });
+        await ReadAll(ws);
+
+        // Pairs from either direction are kept; the refusal is not.
+        Assert.Equal(
+            [("Where does it hurt?", "¿Dónde le duele?"), ("Me duele la espalda.", "My back hurts.")],
+            translator.Requests[0].Context);
+    }
 }
