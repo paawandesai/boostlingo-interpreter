@@ -62,7 +62,7 @@
       "key": "tts:elevenlabs",
       "model": "eleven_flash_v2_5",
       "perThousandCharacters": 0.04,
-      "note": "Flash/Turbo API rate, the same on every tier. Paawan is on Starter ($6/month; first month $1 under a promotion until 2026-10-18).",
+      "note": "Flash/Turbo API rate, the same on every tier. Paawan is on Starter ($6/month as of 2026-10-16).",
       "source": "https://elevenlabs.io/pricing/api",
       "checkedOn": "2026-10-16",
       "checkedBy": "Paawan (official page read 2026-10-16)"
