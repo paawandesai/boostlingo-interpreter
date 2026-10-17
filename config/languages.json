@@ -97,7 +97,7 @@
       "name": "Spanish",
       "disclosure": {
         "notice": "Esta conversación la interpreta una IA, no una persona. Lo que diga se envía a servicios de IA de terceros, que pueden transcribirlo. La voz que escucha está generada por IA. Esta aplicación no guarda el audio. No la use para decisiones médicas, legales ni otras decisiones críticas; pida un intérprete humano.",
-        "spoken": "Está escuchando un intérprete de IA, no una persona, y la voz está generada por IA. Lo que diga lo procesan servicios de IA de terceros, que pueden transcribirlo."
+        "spoken": "Está escuchando a un intérprete de IA, no a una persona, y la voz es generada por IA. Lo que diga lo procesan servicios de IA de terceros, que pueden transcribirlo."
       },
       "stt": {
         "deepgram": {
@@ -187,7 +187,7 @@
       "name": "Vietnamese",
       "disclosure": {
         "notice": "Cuộc trò chuyện này do AI phiên dịch, không phải con người. Những gì bạn nói sẽ được gửi đến các dịch vụ AI của bên thứ ba và có thể được chép lại thành văn bản. Giọng nói bạn nghe là do AI tạo ra. Ứng dụng này không lưu âm thanh. Đừng dùng cho các quyết định y tế, pháp lý hoặc quan trọng khác; hãy yêu cầu một phiên dịch viên là người.",
-        "spoken": "Cuộc trò chuyện này được phiên dịch bằng giọng nói trí tuệ nhân tạo, không phải con người. Những gì bạn nói sẽ được các dịch vụ AI của bên thứ ba xử lý và có thể được chép lại."
+        "spoken": "Bạn đang nghe một phiên dịch viên AI, không phải con người, và giọng nói này do AI tạo ra. Những gì bạn nói sẽ được các dịch vụ AI của bên thứ ba xử lý và có thể được chép lại."
       },
       "stt": {
         "deepgram": {
