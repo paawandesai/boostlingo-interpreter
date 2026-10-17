@@ -103,12 +103,14 @@ public class OpenAIRealtimeSessionMinterTests
         Assert.Equal(ProviderErrorKind.Empty, e.Kind);
     }
 
-    [Fact]
-    public async Task Missing_key_fails_before_any_request()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("replace-me")]
+    public async Task Missing_key_fails_before_any_request(string? key)
     {
         var handler = StubHttpHandler.Json(HttpStatusCode.OK, "{}");
 
-        var e = await Assert.ThrowsAsync<ProviderException>(() => Minter(handler, apiKey: null).CreateAsync(Request, CancellationToken.None));
+        var e = await Assert.ThrowsAsync<ProviderException>(() => Minter(handler, apiKey: key).CreateAsync(Request, CancellationToken.None));
 
         Assert.Equal(ProviderErrorKind.Auth, e.Kind);
         Assert.Empty(handler.Requests);

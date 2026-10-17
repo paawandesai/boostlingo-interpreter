@@ -220,12 +220,14 @@ public abstract class TranslatorContractTests
             Collect(Create(Body(new StallingStream(""))).TranslateAsync(Request, cts.Token)));
     }
 
-    [Fact]
-    public async Task Missing_key_fails_without_calling_the_vendor()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("replace-me")] // the .env.example placeholder is never sent to the vendor
+    public async Task Missing_key_fails_without_calling_the_vendor(string? key)
     {
         var handler = Sse(Stream("x"));
         var e = await Assert.ThrowsAsync<ProviderException>(() =>
-            Collect(Create(handler, apiKey: null).TranslateAsync(Request, TestContext.Current.CancellationToken)));
+            Collect(Create(handler, apiKey: key).TranslateAsync(Request, TestContext.Current.CancellationToken)));
 
         Assert.Equal(ProviderErrorKind.Auth, e.Kind);
         Assert.Empty(handler.Requests);

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
 using Microsoft.Extensions.Options;
@@ -37,7 +38,7 @@ public sealed class AnthropicTranslator(HttpClient http, IOptions<AnthropicTrans
 
     public async IAsyncEnumerable<string> TranslateAsync(TranslationRequest request, [EnumeratorCancellation] CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, $"{AnthropicTranslationOptions.ApiKeyEnv} (or {AnthropicTranslationOptions.FallbackApiKeyEnv}) is not configured on the server");
 
         using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, "messages"))

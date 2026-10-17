@@ -150,4 +150,18 @@ public class OpenAISpeechTtsTests
             await foreach (var _ in Tts(handler).SynthesizeAsync(Texts("Hola."), new TtsOptions("es"), cts.Token)) { }
         });
     }
+
+    [Fact]
+    public async Task The_env_example_placeholder_key_fails_without_a_request()
+    {
+        var handler = StubHttpHandler.Json(HttpStatusCode.OK, "");
+
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var _ in Tts(handler, key: "replace-me").SynthesizeAsync(Texts("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken)) { }
+        });
+
+        Assert.Equal(ProviderErrorKind.Auth, e.Kind);
+        Assert.Empty(handler.Requests);
+    }
 }

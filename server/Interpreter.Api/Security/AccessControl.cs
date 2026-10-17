@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
+using Interpreter.Core.Configuration;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Interpreter.Api.Security;

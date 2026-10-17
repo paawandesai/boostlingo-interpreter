@@ -88,11 +88,13 @@ public class DeepgramSttTests
         Assert.Equal("deepgram", e.Provider);
     }
 
-    [Fact]
-    public async Task Missing_key_fails_before_connecting()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("replace-me")]
+    public async Task Missing_key_fails_before_connecting(string? key)
     {
         var e = await Assert.ThrowsAsync<ProviderException>(() =>
-            Collect(Stt(key: null).TranscribeAsync(Audio(1), new SttOptions("en"), TestContext.Current.CancellationToken)));
+            Collect(Stt(key: key).TranscribeAsync(Audio(1), new SttOptions("en"), TestContext.Current.CancellationToken)));
         Assert.Equal(ProviderErrorKind.Auth, e.Kind);
     }
 

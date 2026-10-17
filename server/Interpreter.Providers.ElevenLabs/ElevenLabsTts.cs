@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
 using Microsoft.Extensions.Options;
@@ -44,7 +45,7 @@ public sealed class ElevenLabsTts(IOptions<ElevenLabsOptions> options) : IStream
         IAsyncEnumerable<string> textChunks, TtsOptions ttsOptions, [EnumeratorCancellation] CancellationToken ct)
     {
         var uri = StreamUri(ttsOptions);
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "ELEVENLABS_API_KEY is not configured on the server");
 
         using var ws = new ClientWebSocket();

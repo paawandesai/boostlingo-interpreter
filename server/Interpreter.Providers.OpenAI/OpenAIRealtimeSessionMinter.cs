@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Realtime;
 using Microsoft.Extensions.Options;
@@ -36,7 +37,7 @@ public sealed class OpenAIRealtimeSessionMinter(HttpClient http, IOptions<OpenAI
 
     private async Task<RealtimeClientSecret> MintAsync(string path, object body, string model, string transcriptionModel, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "OPENAI_API_KEY is not configured on the server");
 
         using var msg = new HttpRequestMessage(HttpMethod.Post, new Uri(_opts.BaseUrl, path))

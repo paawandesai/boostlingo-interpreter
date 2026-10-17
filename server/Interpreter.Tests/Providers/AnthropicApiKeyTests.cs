@@ -23,5 +23,9 @@ public class AnthropicApiKeyTests
         Assert.Equal("old", KeyFrom(("CLAUDE_TRANSLATOR_API_KEY", " "), ("ANTHROPIC_API_KEY", "old")));
 
     [Fact]
+    public void Treats_the_env_example_placeholder_as_unset() =>
+        Assert.Equal("old", KeyFrom(("CLAUDE_TRANSLATOR_API_KEY", "replace-me"), ("ANTHROPIC_API_KEY", "old")));
+
+    [Fact]
     public void Is_null_when_neither_is_set() => Assert.Null(KeyFrom());
 }

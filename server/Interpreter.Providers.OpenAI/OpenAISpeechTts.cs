@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Microsoft.Extensions.Options;
 
@@ -42,7 +43,7 @@ public sealed class OpenAISpeechTts(HttpClient http, IOptions<OpenAISpeechOption
         IAsyncEnumerable<string> textChunks, TtsOptions ttsOptions, [EnumeratorCancellation] CancellationToken ct)
     {
         Body("", ttsOptions); // refuse a bad voice or rate before any text is sent
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "OPENAI_API_KEY is not configured on the server");
 
         await foreach (var text in textChunks.WithCancellation(ct))

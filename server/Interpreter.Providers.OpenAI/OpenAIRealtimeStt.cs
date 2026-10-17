@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Interpreter.Core.Cascade;
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Interpreter.Core.Net;
 using Microsoft.Extensions.Options;
@@ -72,7 +73,7 @@ public sealed class OpenAIRealtimeStt(IOptions<OpenAITranscriptionOptions> optio
     public async IAsyncEnumerable<SttEvent> TranscribeAsync(
         IAsyncEnumerable<AudioFrame> audio, SttOptions sttOptions, [EnumeratorCancellation] CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_opts.ApiKey))
+        if (!ConfigValue.IsSet(_opts.ApiKey))
             throw new ProviderException(ProviderErrorKind.Auth, Provider, "OPENAI_API_KEY is not configured on the server");
 
         using var ws = new ClientWebSocket();

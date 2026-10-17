@@ -135,4 +135,23 @@ public class ElevenLabsTtsTests
         }).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         Assert.Equal((ProviderErrorKind.Unavailable, "elevenlabs"), (e.Kind, e.Provider));
     }
+
+    [Fact]
+    public async Task The_env_example_placeholder_key_fails_without_connecting()
+    {
+        var connected = false;
+        await using var server = await FakeWebSocketServer.StartAsync((_, _) =>
+        {
+            connected = true;
+            return Task.CompletedTask;
+        });
+
+        var e = await Assert.ThrowsAsync<ProviderException>(async () =>
+        {
+            await foreach (var _ in Tts(server.BaseUrl, key: "replace-me").SynthesizeAsync(Text("Hola."), new TtsOptions("es"), TestContext.Current.CancellationToken)) { }
+        });
+
+        Assert.Equal(ProviderErrorKind.Auth, e.Kind);
+        Assert.False(connected);
+    }
 }

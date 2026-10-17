@@ -1,3 +1,4 @@
+using Interpreter.Core.Configuration;
 using Interpreter.Core.Errors;
 using Microsoft.Extensions.Configuration;
 
@@ -23,7 +24,7 @@ public sealed class AnthropicTranslationOptions
     public static string? ApiKeyFrom(IConfiguration config) =>
         NonEmpty(config[ApiKeyEnv]) ?? NonEmpty(config[FallbackApiKeyEnv]);
 
-    private static string? NonEmpty(string? v) => string.IsNullOrWhiteSpace(v) ? null : v;
+    private static string? NonEmpty(string? v) => ConfigValue.IsSet(v) ? v : null;
 
     public Uri BaseUrl { get; set; } = new("https://api.anthropic.com/v1/");
 
