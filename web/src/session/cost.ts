@@ -52,7 +52,7 @@ export interface CostInput {
   usage: Usage[]
   sttAudioSeconds: number
   /** Cascade adapters (from /api/cascade/providers) or the Realtime model. */
-  providers: { stt?: string; translator?: string; tts?: string; realtimeModel?: string }
+  providers: { stt?: string; sttModel?: string | null; translator?: string; tts?: string; realtimeModel?: string }
 }
 
 function find(prices: PriceList, key: string, model?: string): PriceEntry | undefined {
@@ -86,7 +86,8 @@ export function computeCost(input: CostInput, prices: PriceList): CostReport {
   const lines: CostLine[] = []
   const { usage, providers } = input
   if (input.mode === 'cascade') {
-    const stt = find(prices, `stt:${providers.stt}`)
+    // With the model known, only its own entry prices it; an unlisted model stays unpriced.
+    const stt = find(prices, `stt:${providers.stt}`, providers.sttModel ?? undefined)
     if (input.sttAudioSeconds > 0)
       lines.push(line(`STT (${providers.stt})`, input.sttAudioSeconds / 60, 'min', stt?.perMinute, stt))
     const tr = find(prices, `translator:${providers.translator}`)

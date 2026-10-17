@@ -173,16 +173,19 @@ def find_price(prices: dict, key: str, model: str | None = None) -> dict | None:
 
 
 def unit_price(
-    component: str, unit: str, prices: dict
+    component: str, unit: str, prices: dict, stt_model: str | None = None
 ) -> tuple[float | None, dict | None]:
     """The price per `unit` of a cost line's component, or None when the component is unknown,
-    the entry is missing, the price is null, or the entry quotes another unit."""
+    the entry is missing, the price is null, or the entry quotes another unit. `stt_model` is the
+    transcription model the log names (cost.ts does the same); older logs have none, and their STT
+    line takes the first entry for the vendor."""
     for pattern, key, field in LINE_PRICES:
         match = pattern.match(component)
         if match is None:
             continue
         groups = match.groupdict()
-        entry = find_price(prices, key.format(**groups), groups.get("model"))
+        model = groups.get("model") or (stt_model if key.startswith("stt:") else None)
+        entry = find_price(prices, key.format(**groups), model)
         price = (entry or {}).get(field)
         if price is None or unit != PRICE_UNITS.get(field, "MTok"):
             return None, entry
@@ -190,12 +193,14 @@ def unit_price(
     return None, None
 
 
-def reprice(cost: dict, prices: dict, minutes: float) -> dict:
+def reprice(
+    cost: dict, prices: dict, minutes: float, stt_model: str | None = None
+) -> dict:
     """A mode's cost block recomputed from its lines' quantities, the way cost.ts computeCost()
     built it at export time but with `prices` as they are now. Returns a copy; `cost` is untouched."""
     lines = []
     for raw in cost.get("lines", []):
-        price, entry = unit_price(raw["component"], raw["unit"], prices)
+        price, entry = unit_price(raw["component"], raw["unit"], prices, stt_model)
         source = (
             f"{entry['source']} (checked {entry.get('checkedOn') or 'never'})"
             if price is not None and entry is not None
@@ -293,7 +298,7 @@ def summarize(
             if stt_upper_bound and m["mode"] == "cascade":
                 cost = with_stt_upper_bound(cost, cascade.get("stt"), minutes)
             if prices is not None and "lines" in cost:
-                cost = reprice(cost, prices, minutes)
+                cost = reprice(cost, prices, minutes, cascade.get("sttModel"))
             agg["cost"] += cost.get("pricedTotal", 0)
             agg["unpriced"].update(cost.get("unpriced", []))
             components = [x["component"] for x in cost.get("lines", [])]

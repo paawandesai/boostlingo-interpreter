@@ -25,7 +25,16 @@ public class CascadeProvidersEndpointTests(WebApplicationFactory<Program> factor
         Assert.Equal("deepgram", json.GetProperty("stt").GetString());
         Assert.Equal("openai", json.GetProperty("translator").GetString());
         Assert.Equal("elevenlabs", json.GetProperty("tts").GetString());
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("sttModel").ValueKind);
         Assert.DoesNotContain("key", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Names_the_openai_transcription_model_so_its_price_can_be_found()
+    {
+        var body = await Client("openai", "", Placeholder).GetStringAsync("/api/cascade/providers", TestContext.Current.CancellationToken);
+
+        Assert.Equal("gpt-realtime-whisper", JsonDocument.Parse(body).RootElement.GetProperty("sttModel").GetString());
     }
 
     [Theory]

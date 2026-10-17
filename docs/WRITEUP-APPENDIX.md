@@ -1,7 +1,7 @@
 # Write-up appendix: method and longer analyses
 
 Detail moved out of [WRITEUP.md](WRITEUP.md) to keep it short. Every number comes from a file
-under `eval/results/`; the same **[VERIFY]** rule applies.
+under `eval/results/`; as there, a vendor fact not read on the vendor's own page is labelled with its source.
 
 ## A. Setup and method
 
@@ -26,7 +26,7 @@ under `eval/results/`; the same **[VERIFY]** rule applies.
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
   (model-drafted, on 59 of 70 lines), so 2026-10-16 chrF is not comparable with earlier
-  single-reference numbers. References were written by a model; Paawan reviewed them and judged all 21 rows of the blind
+  single-reference numbers. References were written by a model; I reviewed them and judged all 21 rows of the blind
   sheet acceptable, without per-dimension scores (`eval/rating.py`).
 - **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
   number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
@@ -105,7 +105,9 @@ so it is taken off text input first, then audio. Both Realtime models have the s
 price, but `gpt-realtime` got far less prompt caching in its run, so it cost almost twice as much.
 On the 2026-10-15 runs `gpt-realtime-2.1` cost $0.2023/min, about 10.5 to 13.6 times the two
 cascades ($0.0193 and $0.0149, both without STT), and Realtime translate ($0.034) about 1.8 to 2.3
-times.
+times. Realtime translate's $0.034 excludes its source transcript: the session also requests a
+`gpt-realtime-whisper` transcript of the source audio, whose billing was not checked; billed at
+$0.017/min it would bring the total to about $0.051/min.
 
 ## C. Cascade's sentence-tail loss
 
