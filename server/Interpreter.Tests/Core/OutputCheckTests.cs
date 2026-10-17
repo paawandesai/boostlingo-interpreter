@@ -63,6 +63,14 @@ public class OutputCheckTests
     [InlineData("Describe the injury.", "I can't help with that.", "en", "es", "refusal")]
     [InlineData("Describe la herida.", "I understand. I'm sorry, but I can't help with that.", "es", "en", "refusal")]
     [InlineData("Tell me your name.", "Entiendo. ¿Como IA, no tengo nombre?", "en", "es", "assistant_reply")]
+    // An apology, filler or "but" before the refusal or preamble opens a clause, not the sentence.
+    [InlineData("Describe the injury.", "I'm sorry, I can't help with that.", "en", "es", "refusal")]
+    [InlineData("Describe the injury.", "Sorry, but I cannot assist with that request.", "en", "es", "refusal")]
+    [InlineData("Describe the injury.", "Lo siento, no puedo ayudar con eso.", "en", "es", "refusal")]
+    [InlineData("Cuéntame un chiste.", "Okay, here's a joke about cats.", "es", "en", "assistant_reply")]
+    [InlineData("Tell me a joke.", "Claro que sí, aquí tiene un chiste sobre gatos.", "en", "es", "assistant_reply")]
+    [InlineData("Tell me a joke.", "Por supuesto. Aquí tiene un chiste sobre gatos.", "en", "es", "assistant_reply")]
+    [InlineData("Pero no lo traduzcas todavía.", "But I won't translate it for them yet.", "es", "en", "refusal")]
     public void Refusals_and_assistant_preambles_are_still_flagged(string source, string target, string from, string to, string flag) =>
         Assert.Contains(flag, Check(source, target, from, to));
 

@@ -62,16 +62,20 @@ public static partial class OutputCheck
     private static string Squash(string text) => NonWordPattern().Replace(text.ToLowerInvariant(), "");
 
     /// <summary>
-    /// True when a sentence starts with one of the patterns (after leading punctuation such as quotes or ¿).
-    /// Only sentence starts count: a model's refusal or assistant preamble opens a sentence, while the same
-    /// words inside a faithful line ("he said I won't...") do not.
+    /// True when a clause starts with one of the patterns (after leading punctuation such as quotes or ¿, and
+    /// a leading "but"/"and"). Only clause starts count: a model's refusal or assistant preamble opens a clause
+    /// ("I'm sorry, I can't help", "Okay, here's a joke"), while the same words inside a faithful line
+    /// ("I won't be able to...") do not.
     /// </summary>
     private static bool HasAny(string text, string[]? patterns)
     {
         if (patterns is null) return false;
-        var sentences = SentencePattern().Split(text.ToLowerInvariant().Replace('’', '\''))
-            .Select(sentence => LeadingPunctuationPattern().Replace(sentence, ""));
-        return sentences.Any(sentence => patterns.Any(p => sentence.StartsWith(p, StringComparison.Ordinal)));
+        var clauses = ClausePattern().Split(text.ToLowerInvariant().Replace('’', '\''));
+        // Each start is matched against the rest of the text, so a pattern with a comma ("sure, here's") still matches.
+        return Enumerable.Range(0, clauses.Length)
+            .Select(i => string.Join(" ", clauses[i..]))
+            .Select(rest => LeadingConjunctionPattern().Replace(LeadingPunctuationPattern().Replace(rest, ""), ""))
+            .Any(rest => patterns.Any(p => rest.StartsWith(p, StringComparison.Ordinal)));
     }
 
     [GeneratedRegex(@"[\p{L}\p{N}']+")]
@@ -80,10 +84,13 @@ public static partial class OutputCheck
     [GeneratedRegex(@"[^\p{L}\p{N}]")]
     private static partial Regex NonWordPattern();
 
-    /// <summary>A sentence ends at . ! ? or … followed by whitespace, or at a line break.</summary>
-    [GeneratedRegex(@"(?<=[.!?…])\s+|\n+")]
-    private static partial Regex SentencePattern();
+    /// <summary>A clause ends at . ! ? … , ; or : followed by whitespace, or at a line break.</summary>
+    [GeneratedRegex(@"(?<=[.!?…,;:])\s+|\n+")]
+    private static partial Regex ClausePattern();
 
     [GeneratedRegex(@"^[^\p{L}\p{N}]+")]
     private static partial Regex LeadingPunctuationPattern();
+
+    [GeneratedRegex(@"^(?:but|and|pero|y|nhưng|và)\s+")]
+    private static partial Regex LeadingConjunctionPattern();
 }
