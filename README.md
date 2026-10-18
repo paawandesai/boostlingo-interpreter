@@ -12,7 +12,7 @@ Built for the Boostlingo brief. Spec: [docs/SPEC.md](docs/SPEC.md) · Architectu
 
 ## Try the demo
 
-The public demo is at https://d14cokif1zqitf.cloudfront.net. It was redeployed from `main` on 2026-10-17 and the instance stops itself on 2026-10-31 at 20:47 UTC. The access token is sent with the submission and is never in this repo; type it into the setup screen. Cascade there runs on OpenAI transcription (`gpt-realtime-whisper` with client endpointing), not Deepgram. You need headphones and a current Chromium-based browser (Chrome or Edge). Speak scripted or synthetic lines only: the page says so, and the deployment is not built for real conversations (see "Public demo (AWS)" below).
+The public demo is at https://d14cokif1zqitf.cloudfront.net. It was redeployed from `main` on 2026-10-17 and the instance stops itself on 2026-10-31 at 23:19 UTC. The access token is sent with the submission and is never in this repo; type it into the setup screen. Cascade there runs on OpenAI transcription (`gpt-realtime-whisper` with client endpointing), not Deepgram. You need headphones and a current Chromium-based browser (Chrome or Edge). Speak scripted or synthetic lines only: the page says so, and the deployment is not built for real conversations (see "Public demo (AWS)" below).
 
 ## Prerequisites
 
