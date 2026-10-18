@@ -2,7 +2,7 @@
 
 Required by [docs/GUARDRAILS.md](docs/GUARDRAILS.md): every model-generated artifact that was not independently verified, and the model that produced it. How the agents were directed is in [AGENTS.md](AGENTS.md).
 
-**Model.** Claude, through Claude Code (executor) and Claude Projects (architect and reviewer). Every commit an agent wrote carries a `Co-Authored-By` trailer, so `git log` shows which commits were model-written; the trailer names the model and version on all but 36 agent commits from the evening of 2026-10-16, which say only "Claude".
+**Model.** Claude Opus 5.5 (Anthropic), through Claude Code (executor) and Claude Projects (architect and reviewer). Every commit an agent wrote carries a `Co-Authored-By` trailer, so `git log` shows which commits were model-written; the trailer names the model and version on all but 36 agent commits from the evening of 2026-10-16, which say only "Claude".
 
 **Verified** means a deterministic check passed (a test against a recorded or live vendor response, a type definition from the vendor's own SDK, or a measurement), or I checked it by hand. Everything else is listed as unverified.
 
