@@ -4,6 +4,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { initialState, type SessionState } from '../session/store'
 import { SetupPanel } from './SetupPanel'
 
+// Decoding needs an AudioContext; the order the clips arrive in is what these tests check.
+vi.mock('../audio/replay', () => ({
+  decodeClips: async (clips: { name: string }[]) => clips.map((c) => ({ name: c.name })),
+}))
+
 // What GET /api/realtime/models returns on a server that allows the brief's model next to the default.
 const models = { default: 'gpt-realtime-2.1', allowed: ['gpt-realtime-2.1', 'gpt-realtime'] }
 
@@ -248,5 +253,26 @@ describe('SetupPanel language pair change', () => {
     )
     pick('en|vi')
     expect(onConfigure).toHaveBeenLastCalledWith({ langA: 'en', langB: 'vi', mode: 'cascade' })
+  })
+})
+
+describe('SetupPanel replay input', () => {
+  it('orders picked clips as a back-and-forth between the two languages', async () => {
+    const onReplay = vi.fn()
+    render(initialState, { onReplay })
+    const input = container.querySelector<HTMLInputElement>('#replay-files')!
+    const names = ['en-b.wav', 'es-a.wav', 'en-a.wav', 'es-b.wav', 'en-c.wav']
+    Object.defineProperty(input, 'files', { value: names.map((n) => new File(['x'], n)) })
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await vi.waitFor(() => expect(onReplay).toHaveBeenCalled())
+    expect(onReplay.mock.calls[0][0].map((c: { name: string }) => c.name)).toEqual([
+      'en-a.wav',
+      'es-a.wav',
+      'en-b.wav',
+      'es-b.wav',
+      'en-c.wav',
+    ])
   })
 })

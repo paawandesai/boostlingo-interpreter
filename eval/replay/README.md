@@ -15,6 +15,6 @@ Never use CoVoST 2, MuST-C, TED-LIUM, Europarl-ST, LDC sets, copyrighted recordi
 
 ## Using it
 
-In the app, pick the clips under **Input** on the setup screen. They play in a loop instead of the mic; each clip waits for the interpreter to finish speaking. The same clips can then be replayed in the other mode, or across a mid-session mode switch.
+In the app, pick the clips under **Input** on the setup screen. They play in a loop instead of the mic, alternating English and Spanish clips (each language in name order); each clip waits for the interpreter to finish speaking. The same clips can then be replayed in the other mode, or across a mid-session mode switch.
 
 `python3 eval/replay/check.py` validates the script file (ids, languages, glossary terms present in the references).
