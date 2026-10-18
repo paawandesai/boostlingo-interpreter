@@ -25,6 +25,7 @@ import {
   type Transport,
 } from '../types'
 import { ClientEndpointer } from '../endpointing'
+import { firstAudibleOffsetSec } from '../realtime/firstAudioProbe'
 import { ClockSync } from './clock'
 import { CascadeEventParser } from './events'
 
@@ -242,13 +243,16 @@ export class CascadeTransport implements Transport {
     for (let i = 0; i < pcm.length; i++) samples[i] = pcm[i] / 32768
     const utteranceId = this.parser?.speaking
     const when = this.playback.enqueue(samples, TTS_RATE, utteranceId ?? undefined)
-    // First audio out (D9): when the utterance's first chunk is scheduled to start, on the client clock.
+    // First audio out (D9): when the utterance's first audible frame is due to play, on the client clock.
+    // A chunk that opens with silence is skipped past, so this is audio heard, as the Realtime probe measures.
     if (when !== null && utteranceId && !this.firstOut.has(utteranceId)) {
+      const offset = firstAudibleOffsetSec(samples, TTS_RATE)
+      if (offset === null) return
       this.firstOut.add(utteranceId)
       this.emitter.emit({
         type: 'mark',
         name: 'audio.first_out',
-        t: contextMsToPerf(this.capture.context, when * 1000),
+        t: contextMsToPerf(this.capture.context, (when + offset) * 1000),
         utteranceId,
       })
     }
