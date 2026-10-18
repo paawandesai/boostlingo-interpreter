@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { backAndForth } from '../audio/clipOrder'
 import { decodeClips, type ReplayClip } from '../audio/replay'
 import { getAccessToken, setAccessToken } from '../session/access'
 import { defaultMode, modeAvailable, translateSupported, type LanguagesResponse } from '../session/languages'
@@ -150,7 +151,10 @@ export function SetupPanel({
             accept="audio/*"
             multiple
             onChange={(e) => {
-              const files = Array.from(e.target.files ?? []).sort((a, b) => a.name.localeCompare(b.name))
+              // en-*/es-* clips alternate, so a replay is a back-and-forth rather than every English clip first.
+              const picked = Array.from(e.target.files ?? [])
+              const byName = new Map(picked.map((f) => [f.name, f]))
+              const files = backAndForth(picked.map((f) => f.name)).map((n) => byName.get(n)!)
               setReplayError(null)
               Promise.all(files.map(async (f) => ({ name: f.name, data: await f.arrayBuffer() })))
                 .then(decodeClips)

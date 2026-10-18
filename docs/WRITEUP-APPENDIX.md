@@ -22,7 +22,7 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
   turns, Realtime 42–45 of 44–48), and the cascade default's run ended after 3.9 minutes: the session
   ended early and the soak did not count the close as a drop. Since 2026-10-18 the soak
   alternates English and Spanish clips, counts any close the page did not ask for as a drop, and
-  checks the minutes it ran; not yet re-run. Realtime ran on the CI runner, Cascade in the cloud
+  checks the minutes it ran; cascade was re-run that way on 2026-10-18 (`eval/results/rerun-2026-10-18.md`), Realtime was not. Realtime ran on the CI runner, Cascade in the cloud
   container. The 2026-10-15
   runs (Realtime translate, the Claude-translator cascade, the red-team suite) used the older replay,
   which did not wait. The 28 red-team lines were voiced the same way (background-voice lines with a
@@ -30,7 +30,7 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
 - **Latency** is measured in the browser from the client VAD's speech end to first audio out, with
   per-stage marks. In the published runs Realtime stopped at the first audible frame and cascade when
   its first TTS chunk was scheduled, so cascade leaves out any leading silence in that chunk; since
-  2026-10-18 cascade also stops at the first audible frame (D9), not yet re-run. Realtime translate talks while the speaker is still talking, so
+  2026-10-18 cascade also stops at the first audible frame (D9), as in the 2026-10-18 re-run. Realtime translate talks while the speaker is still talking, so
   it uses a *text lag* (first source text → first translated text) instead.
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
@@ -44,6 +44,8 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
   TypeScript" and in `docs/DECISIONS.md` D1–D2.
 
 ## B. Latency detail, sample sizes, stability and cost caveats
+
+Cascade on the 2026-10-18 balanced re-run (`eval/results/rerun-2026-10-18.md`): endpointing 490/583, STT final 955/1128, translation first token 441/631, first flush 65/110, TTS first byte 122/140, network 44/107, playback buffer 90/563.
 
 Where the time goes on the 2026-10-16 defaults (p50/p95 ms, `eval/results/latency-tuning-2026-10-16.md`
 and `python3 eval/summarize.py <log> --out /tmp/row.md` on each log, so the committed summary is not overwritten). Cascade (`gpt-realtime-whisper`, OpenAI translator,
@@ -75,7 +77,8 @@ defaults. `gpt-realtime`'s run ended mid-turn (43 of 44 interpreted).
 
 | Run | Disconnects | Drift skips | Late audio dropped | Heap growth from minute 1 | Last-two-minute slope |
 |---|---|---|---|---|---|
-| Cascade | 0 | 6 | 16.0 s | 21.7% | +0.532 MB/min |
+| *2026-10-18 re-run (balanced, after the fixes):* Cascade | 0 | 0 | 0 s | 14.9% | +0.121 MB/min |
+| *2026-10-16:* Cascade (3.9 min) | 0 | 6 | 16.0 s | 21.7% | +0.532 MB/min |
 | Realtime, `gpt-realtime-2.1` | 0 | 0 | 0 s | 21.2% | +0.203 MB/min |
 | Realtime, `gpt-realtime` | 0 | 0 | 0 s | 18.0% | +0.377 MB/min |
 | *2026-10-15 (older replay):* Cascade replay, OpenAI translator | 0 | 12 | 22.0 s | 14.3% | +0.195 MB/min |
@@ -92,7 +95,7 @@ of interpreter speech per run across the 2026-10-15 and 2026-10-16 cascade runs 
 defaults), and the 2026-10-18 audit found the reason: TTS arrives faster than real time, so any turn
 longer than about 3 s of speech lost its middle even with nothing queued before it. Since 2026-10-18
 the cap drops only earlier turns' unplayed audio; the arriving turn is cut only past 30 s, and a line
-that lost audio says so in the transcript and the export. Not yet re-run. Heap grew 8.2–21.7% from minute 1
+that lost audio says so in the transcript and the export. Both 2026-10-18 cascade re-runs dropped none. Heap grew 8.2–21.7% from minute 1
 across all eight 2026-10-16 tuning runs (criterion < 10%; only one run passed); on 2026-10-15 it grew
 8.5–20% in the replay runs (only Realtime translate passed) and 10.1–21.2% in the red-team runs.
 One 6-minute local cascade probe (after 8c9eebd removed per-clip abort listeners from the replay
