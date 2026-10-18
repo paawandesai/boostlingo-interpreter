@@ -30,8 +30,10 @@ public static class DemoHosting
     /// <summary>
     /// Sent on every response: the page takes a typed access token and asks for the microphone, so it must
     /// not be framed or MIME-sniffed, must leak no referrer, and may use the mic only from its own origin.
-    /// No Content-Security-Policy: the built SPA's inline script and style needs were not verified, and a
-    /// wrong policy would blank the page.
+    /// The Content-Security-Policy allows only the app's own scripts, styles and worklet, and connections to
+    /// itself and to OpenAI's Realtime SDP endpoints (RealtimeEndpoints.CallsUrl, TranslationCallsUrl); the
+    /// built SPA was loaded under it in Chromium with no violations. React sets inline styles through the
+    /// CSSOM, which style-src does not govern.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> SecurityHeaders = new Dictionary<string, string>
     {
@@ -39,7 +41,13 @@ public static class DemoHosting
         ["X-Frame-Options"] = "DENY",
         ["Referrer-Policy"] = "no-referrer",
         ["Permissions-Policy"] = "microphone=(self), camera=(), geolocation=()",
+        ["Content-Security-Policy"] =
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob: mediastream:; " +
+            "connect-src 'self' https://api.openai.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     };
+
+    /// <summary>Sent only on HTTPS responses (the demo, behind CloudFront): browsers ignore it over plain HTTP.</summary>
+    public const string Hsts = "max-age=31536000";
 
     public static WebApplication UseDemoHosting(this WebApplication app, IConfiguration config)
     {
@@ -47,6 +55,12 @@ public static class DemoHosting
         app.Use((ctx, next) =>
         {
             foreach (var (name, value) in SecurityHeaders) ctx.Response.Headers[name] = value;
+            // Checked when the response starts, after the forwarded-headers step has set the real scheme.
+            ctx.Response.OnStarting(() =>
+            {
+                if (ctx.Request.IsHttps) ctx.Response.Headers.StrictTransportSecurity = Hsts;
+                return Task.CompletedTask;
+            });
             return next(ctx);
         });
         if (opts.ForwardLimit > 0)
