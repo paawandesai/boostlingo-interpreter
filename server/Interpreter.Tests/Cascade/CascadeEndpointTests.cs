@@ -334,6 +334,55 @@ public class CascadeEndpointTests(WebApplicationFactory<Program> factory) : ICla
             .Single(j => (string?)j["type"] == "error");
         Assert.Equal(("stt", "deepgram", "Auth"), ((string?)frame["stage"], (string?)frame["provider"], (string?)frame["kind"]));
         Assert.Equal("DEEPGRAM_API_KEY is not configured on the server", (string?)frame["message"]);
+        // The client was still sending audio, so this is not a clean stop.
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, messages[^1].Close);
+    }
+
+    /// <summary>Ends its stream after the first frame with no error, the way a vendor socket closing normally looks.</summary>
+    private sealed class EndingStt : IStreamingStt
+    {
+        public string Name => "ending-stt";
+
+        public async IAsyncEnumerable<SttEvent> TranscribeAsync(
+            IAsyncEnumerable<AudioFrame> audio, SttOptions options, [EnumeratorCancellation] CancellationToken ct)
+        {
+            await foreach (var _ in audio.WithCancellation(ct))
+            {
+                yield return new SttFinal("Hello.", true, 0.9);
+                yield break;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task A_vendor_ending_the_stt_stream_mid_session_is_reported_and_closes_as_an_error()
+    {
+        var (ws, _) = await Connect(sttOverride: new EndingStt());
+        await Start(ws);
+
+        await SendFrame(ws);
+        var messages = await ReadAll(ws);
+
+        var texts = messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json).ToList();
+        // The turn already transcribed is still delivered before the session stops.
+        Assert.Contains(texts, j => (string?)j["type"] == "translation.final");
+        var error = texts.Single(j => (string?)j["type"] == "error");
+        Assert.Contains("transcription service ended", (string?)error["message"]);
+        Assert.Equal(WebSocketCloseStatus.InternalServerError, messages[^1].Close);
+    }
+
+    [Fact]
+    public async Task A_client_stop_still_closes_normally()
+    {
+        var (ws, _) = await Connect();
+        await Start(ws);
+
+        await SendFrame(ws);
+        await Send(ws, new { type = "stop" });
+        var messages = await ReadAll(ws);
+
+        Assert.DoesNotContain(messages.Where(m => m.Type == WebSocketMessageType.Text && m.Close is null).Select(Json),
+            j => (string?)j["type"] == "error");
         Assert.Equal(WebSocketCloseStatus.NormalClosure, messages[^1].Close);
     }
 

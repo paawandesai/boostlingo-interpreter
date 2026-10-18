@@ -90,7 +90,7 @@ public static class CascadeEndpoints
                 new BoundedChannelOptions(AudioQueueFrames) { FullMode = BoundedChannelFullMode.DropOldest },
                 dropped => Interlocked.Add(ref _droppedSamples, dropped.Pcm16.Length / 2));
             // G19: at the limit, end the audio (the pipeline finishes queued turns) and the session closes.
-            _onLimit = limit.Register(() => Audio.Writer.TryComplete());
+            _onLimit = limit.Register(EndAudio);
         }
 
         public string Source { get; private set; }
@@ -125,6 +125,18 @@ public static class CascadeEndpoints
         }
 
         public Channel<AudioFrame> Audio { get; }
+
+        /// <summary>
+        /// True once the client side ended this leg's audio (stop, close, switch or the limit). A leg whose
+        /// pipeline finishes while this is still false lost its STT stream on the vendor side.
+        /// </summary>
+        public bool AudioEnded { get; private set; }
+
+        public void EndAudio()
+        {
+            AudioEnded = true;
+            Audio.Writer.TryComplete();
+        }
 
         /// <summary>
         /// Set when the client switched away from this leg: the next leg is queued and runs once this one has
@@ -296,7 +308,7 @@ public static class CascadeEndpoints
                             ProviderErrorKind.Unavailable);
                     }
                 }
-                await RunLegAsync(leg);
+                var sttFailed = await RunLegAsync(leg);
                 var late = leg.DroppedSeconds - leg.ReportedDroppedSeconds;
                 if (late > 0)
                 {
@@ -307,8 +319,22 @@ public static class CascadeEndpoints
                         $"The interpreter fell behind: {late:0.#} s of this speaker's audio were not interpreted.",
                         ProviderErrorKind.Unavailable);
                 }
+                // The pipeline finished while the client was still sending audio: STT failed (already reported)
+                // or the vendor ended its stream. Either way the session can't go on, and it closes as an error
+                // so neither the client nor a soak run takes it for a clean stop.
+                if (!leg.AudioEnded && !stop.IsCancellationRequested)
+                {
+                    closeStatus = WebSocketCloseStatus.InternalServerError;
+                    closeReason = "transcription ended";
+                    if (!sttFailed)
+                        await SendSessionError(
+                            "The transcription service ended its stream, so the session stopped. Start a new session to continue.",
+                            ProviderErrorKind.Unavailable);
+                    log.LogWarning("Cascade session ended: STT stream ended while audio was still arriving");
+                    break;
+                }
                 // After a switch the next leg is already queued. Otherwise the audio ended with the session
-                // (stop, close or the limit) or STT failed, and the session ends as before.
+                // (stop, close or the limit), and the session ends as before.
                 if (!leg.Switched) break;
             }
             if (limit.IsCancellationRequested)
@@ -369,8 +395,10 @@ public static class CascadeEndpoints
         /// (or STT failed). A speaker switch only ends the audio: the drain is bounded by the providers' own
         /// timeouts, and nothing here cuts it short of the session ending.
         /// </summary>
-        async Task RunLegAsync(Leg leg)
+        /// <returns>True when STT reported an error during the leg.</returns>
+        async Task<bool> RunLegAsync(Leg leg)
         {
+            var sttFailed = false;
             var terms = start.Glossary ? glossary.For(leg.Source, leg.Target) : null;
             // G15: a translation that failed the output checks is shown (flagged) but never becomes context.
             var sourceChecks = languages.Find(leg.Source)?.OutputChecks;
@@ -396,6 +424,7 @@ public static class CascadeEndpoints
                         if (history.Count > CascadeProtocol.MaxHistoryPairs) history.RemoveAt(0);
                         break;
                     case LatencyMark { Name: "tts.first_byte" }: activity.Success($"tts:{tts.Name}"); break;
+                    case CascadeError { Stage: "stt" }: sttFailed = true; break;
                 }
                 if (e is TtsAudio a)
                 {
@@ -408,6 +437,7 @@ public static class CascadeEndpoints
                     await SendJson(message);
                 }
             }
+            return sttFailed;
         }
 
         async Task ReceiveAsync(Leg leg)
@@ -499,7 +529,7 @@ public static class CascadeEndpoints
                         // before the next leg runs. Frames from here on are the new speaker's and wait in the
                         // next leg's queue.
                         leg.Switched = true;
-                        leg.Audio.Writer.TryComplete();
+                        leg.EndAudio();
                         leg = next;
                     }
                 }
@@ -510,7 +540,7 @@ public static class CascadeEndpoints
             finally
             {
                 // End of audio: the pipeline finishes the queued utterances, then the socket closes.
-                leg.Audio.Writer.TryComplete();
+                leg.EndAudio();
                 legs.Writer.TryComplete();
             }
         }
