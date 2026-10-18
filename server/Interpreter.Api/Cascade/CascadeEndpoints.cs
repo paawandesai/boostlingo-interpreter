@@ -411,7 +411,8 @@ public static class CascadeEndpoints
                 Glossary: terms,
                 History: history.TakeLast(CascadeProtocol.MaxHistoryPairs).ToList(),
                 FirstUtterance: nextUtterance,
-                KeepInContext: Keep);
+                KeepInContext: Keep,
+                Flush: opts.Flush.ToOptions());
             await foreach (var e in pipeline.RunAsync(leg.Audio.Reader.ReadAllAsync(stop.Token), settings, stop.Token, clock))
             {
                 nextUtterance = Math.Max(nextUtterance, e.Utterance + 1);
