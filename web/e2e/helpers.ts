@@ -16,6 +16,7 @@ declare global {
 export async function instrument(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const ws = new Set<WebSocket>()
+    const clientClosed = new WeakSet<WebSocket>()
     const pc = new Set<RTCPeerConnection>()
     const ctx = new Set<AudioContext>()
     const live: Window['__live'] = {
@@ -36,9 +37,17 @@ export async function instrument(page: Page): Promise<void> {
         ws.add(this)
         this.addEventListener('close', (e) => {
           ws.delete(this)
-          // 1000 is our own clean close (End, mode switch, speaker change).
-          if (e.code !== 1000) live.drops.push({ kind: 'ws', detail: `close ${e.code}`, at: performance.now() })
+          // Only a close the page asked for (End, mode switch) is clean. A server-initiated close counts as a
+          // drop whatever its code: a 1000 from the server mid-run once hid a session that ended at 3.9 of 5
+          // minutes.
+          if (!clientClosed.has(this))
+            live.drops.push({ kind: 'ws', detail: `server close ${e.code}`, at: performance.now() })
         })
+      }
+
+      close(code?: number, reason?: string) {
+        clientClosed.add(this)
+        super.close(code, reason)
       }
     }
     const PC = window.RTCPeerConnection
