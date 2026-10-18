@@ -47,22 +47,41 @@ const LANG_MIN_WORDS = 4
 
 const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []
 const squash = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
-/**
- * True when a clause starts with one of the patterns (after leading punctuation such as quotes or ¿, and
- * a leading "but"/"and"). Only clause starts count: a model's refusal or assistant preamble opens a clause
- * ("I'm sorry, I can't help", "Okay, here's a joke"), while the same words inside a faithful line
- * ("I won't be able to...") do not. Keep in step with OutputCheck.HasAny on the server.
- */
-const hasAny = (text: string, patterns: string[] = []) => {
-  const clauses = text
+/** Lower case with contractions expanded, so "I'm unable" matches "i am unable"; applied to text and patterns. */
+const CONTRACTIONS: Record<string, string> = {
+  "i'm": 'i am',
+  "here's": 'here is',
+  "can't": 'cannot',
+  "won't": 'will not',
+}
+const normalize = (text: string) =>
+  text
     .toLowerCase()
     .replace(/[’]/g, "'")
-    .split(/(?<=[.!?…,;:])\s+|\n+/u)
+    .replace(/(?<![\p{L}\p{N}'])(?:i'm|here's|can't|won't)(?![\p{L}\p{N}'])/gu, (m) => CONTRACTIONS[m])
+/**
+ * True when a clause starts with one of the patterns (after leading punctuation such as quotes or ¿, an
+ * apology or filler such as "I'm afraid" or "lo siento", and a leading "but"/"and"). Only clause starts
+ * count: a model's refusal or assistant preamble opens a clause ("I'm sorry I can't help", "Okay here's a
+ * joke"), while the same words inside a faithful line ("I won't be able to...") do not. Keep in step with
+ * OutputCheck.HasAny on the server.
+ */
+const hasAny = (text: string, patterns: string[] = []) => {
+  const normalized = patterns.map(normalize)
+  const clauses = normalize(text).split(/(?<=[.!?…,;:])\s+|\n+/u)
   // Each start is matched against the rest of the text, so a pattern with a comma ("sure, here's") still matches.
   return clauses
     .map((_, i) => clauses.slice(i).join(' '))
-    .map((rest) => rest.replace(/^[^\p{L}\p{N}]+/u, '').replace(/^(?:but|and|pero|y|nhưng|và)\s+/u, ''))
-    .some((rest) => patterns.some((p) => rest.startsWith(p)))
+    .map((rest) =>
+      rest
+        .replace(/^[^\p{L}\p{N}]+/u, '')
+        .replace(
+          /^(?:i am afraid|i am sorry|sorry|unfortunately|okay|ok|lo siento|desafortunadamente|lamentablemente|tôi xin lỗi|xin lỗi|rất tiếc)[\s,]+/u,
+          '',
+        )
+        .replace(/^(?:but|and|pero|y|nhưng|và)\s+/u, ''),
+    )
+    .some((rest) => normalized.some((p) => rest.startsWith(p)))
 }
 
 export function checkContext(
@@ -98,7 +117,13 @@ export function checkSegment(source: string, target: string, sourceFinal: boolea
   )
     flags.push('refusal')
   if (ctx.canary && squash(target).includes(squash(ctx.canary))) flags.push('prompt_leak')
-  if (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) flags.push('assistant_reply')
+  // Same for assistant phrasing the speaker said ("Sure, here's my insurance card").
+  if (
+    (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) &&
+    !hasAny(source, src?.assistantPatterns) &&
+    !hasAny(source, tgt?.assistantPatterns)
+  )
+    flags.push('assistant_reply')
   if (targetWords.length >= LANG_MIN_WORDS && tgt && src) {
     // Distinct words, so one short word both languages share ("a" is also Spanish) can't flag a
     // correct line by repeating ("Voy a enviar una nueva receta a tu farmacia.").

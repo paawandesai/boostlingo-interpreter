@@ -20,7 +20,7 @@ reasoning is in the README under "Why .NET + TypeScript" and in `docs/DECISIONS.
 
 The measured configuration uses the defaults tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
 speech end (client endpointing), cascade STT is OpenAI transcription with its adapter's default model,
-`gpt-realtime-whisper`, streaming (`Cascade__Stt=openai`; the code default is Deepgram, see below), and cascade opens
+`gpt-realtime-whisper`, streaming (`Cascade__Stt=openai`; the code default is Deepgram, which has no numbers here, appendix A), and cascade opens
 the TTS stream when translation starts. The STT streams text during speech, but translation starts
 per committed turn, on the STT final. Each run looped synthetic TTS clips of scripted English ↔
 Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
@@ -74,7 +74,7 @@ had 6 drift skips (16.0 s of late interpreter audio dropped), Realtime none; sta
 positive on correct Spanish (a marker counted twice; fixed in e6c712f). chrF now also counts model-drafted alternative
 references (on 59 of the 70 script lines), so it is **not comparable** with the single-reference
 numbers of earlier drafts. Realtime translate was last run on 2026-10-15 with the old replay
-(chrF 74.6 with the alternatives, 11 of 15 glossary hits, `eval/results/summary.md`). `gpt-realtime-whisper` takes no prompt, so
+(chrF 74.6 with the alternatives, 11 of 15 glossary hits (terms model-written, unverified), `eval/results/summary.md`). `gpt-realtime-whisper` takes no prompt, so
 glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
 because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
 Vietnamese onboarding run used Deepgram STT, so it has no published quality number
@@ -111,7 +111,8 @@ translator gets the transcript as delimited data. Every output line is run throu
 checks. On the red-team suite (2026-10-15, synthetic voices, one labeller) no mode answered a
 question addressed to it, and only Realtime translate followed an instruction once (1/53).
 Cascade's failures were loss (36% omission), partly the old replay's fault. Cascade stages swap by
-configuration; the Realtime modes are one vendor each, and leaving means a new transport. No BAA
+configuration (adding Claude beside the OpenAI translator changed 0 lines outside the adapters; on
+the 2026-10-15 runs: 2521 vs 2440 ms p50, chrF 64.3 vs 64.4); the Realtime modes are one vendor each, and leaving means a new transport. No BAA
 is in place and this is not HIPAA-compliant; BAA mode refuses routes outside each vendor's
 eligible list. Rates, examples and the data-flow table: [appendix G](WRITEUP-APPENDIX.md#g-controllability-and-compliance-in-full),
 [D](WRITEUP-APPENDIX.md#d-red-team-failure-examples) and [E](WRITEUP-APPENDIX.md#e-vendor-data-flows).

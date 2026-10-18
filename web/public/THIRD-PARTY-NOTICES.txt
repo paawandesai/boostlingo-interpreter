@@ -10,6 +10,8 @@ Browser bundle (npm production dependencies)
   react 19.3.0          Copyright (c) Meta Platforms, Inc. and affiliates.
   react-dom 19.3.0      Copyright (c) Meta Platforms, Inc. and affiliates.
   scheduler 0.28.0      Copyright (c) Meta Platforms, Inc. and affiliates.
+  vite 8.3.4            Copyright (c) 2019-present, VoidZero Inc. and Vite contributors.
+                        (its modulepreload polyfill is inlined into the bundle)
 
 Server (runtime NuGet packages, all 10.0.13, https://dot.net/)
 

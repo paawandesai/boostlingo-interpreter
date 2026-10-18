@@ -57,6 +57,8 @@ describe('buildSessionLog', () => {
       usage: { inputTokens: 100, ttsCharacters: 5 },
       breakdown: { totalMs: 1500 },
     })
+    // The log is a report of AI output, so it says so first (AI disclosure).
+    expect(log.notes[0]).toMatch(/produced by AI.*not for clinical, legal/i)
   })
 
   it('exports without prices and says no cost was computed', () => {

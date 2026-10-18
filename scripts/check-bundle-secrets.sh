@@ -9,7 +9,7 @@ if [ "$#" -eq 0 ]; then
   explicit=0
   set -- web/dist web/build
 fi
-pattern='OPENAI_API_KEY|DEEPGRAM|ASSEMBLY|ELEVEN|DEEPL|(^|[^A-Za-z0-9_-])sk-'
+pattern='OPENAI_API_KEY|ANTHROPIC_API_KEY|CLAUDE_TRANSLATOR|DEEPGRAM|ASSEMBLY|ELEVEN|DEEPL|(^|[^A-Za-z0-9_-])sk-|(^|[^A-Za-z0-9_-])(sk|ek)_[A-Za-z0-9]{20,}'
 found=0
 scanned=0
 for dir in "$@"; do

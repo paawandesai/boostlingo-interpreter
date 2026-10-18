@@ -138,6 +138,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
     markers: state.timeline.flatMap((x) => (x.kind === 'marker' ? [x.text] : [])),
     incidents: state.incidents,
     notes: [
+      'Target text and audio were produced by AI (the providers listed above), not by a qualified human interpreter, and were not reviewed by one. Not for clinical, legal or other critical decisions.',
       'Marks are performance.now() ms on the client clock; cascade server marks were offset-corrected with ping/pong.',
       'Realtime source text comes from a separate transcription model; do not compute WER on it as if it were what gpt-realtime heard.',
       "Realtime translate lines are cut client-side: each translated sentence is paired with the source sentence that had started when it began (both streams carry elapsed_ms). Boundaries are approximate, the source text is the model's own transcript, not ground truth, and start lag is measured only on lines that start after a pause.",

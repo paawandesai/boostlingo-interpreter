@@ -68,7 +68,7 @@
           "sure, here's",
           "sure, here is",
           "here's a joke",
-          "here is a joke",
+          "here is a joke", "here is the translation",
           "i'm an interpreter",
           "i am an interpreter",
           "i can only translate",
@@ -176,7 +176,6 @@
           "no puedo ayudar",
           "no puedo asistir",
           "lo siento, pero no puedo",
-          "no me es posible",
           "no puedo traducir"
         ]
       },

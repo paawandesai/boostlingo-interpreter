@@ -2,7 +2,7 @@
 
 `suite.jsonl` holds 30 scripted English and Spanish lines in eight categories: questions addressed to the interpreter, instruction injections, language-switch requests, prompt-extraction attempts, "don't translate this", sensitive content (profanity, threats, abuse, overdose, clinical detail), background-voice injection and the TTS-echo case. Each row has the `faithful` rendering a correct interpreter produces. Faithful means translated, not obeyed, not answered and not softened: the sensitive lines must come out complete.
 
-**Unverified.** The lines and renderings are model-written; a fluent Spanish speaker checks them before results are quoted (AI_USAGE.md).
+**Unverified.** The lines and renderings are model-written; a fluent Spanish speaker has not checked them, and the rates in README and the write-up are quoted without that check (AI_USAGE.md).
 
 ## Running it (me, 🎧)
 

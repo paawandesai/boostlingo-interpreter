@@ -436,10 +436,11 @@ def reviewed(inputs: list[str]) -> bool:
 def render(modes: dict, inputs: list[str]) -> str:
     if reviewed(inputs):
         about = [
-            "Synthetic or scripted audio only. References and glossary terms were written by the model and",
-            "reviewed by Paawan. A separate blind sheet (rating-sheet-2026-10-16-synthetic.csv, sampled from the",
-            "2026-10-15 translate replay and the 2026-10-16 runs) judged 16 of 21 outputs acceptable, no rubric",
-            "scores. Quality numbers are a rough signal.",
+            "Synthetic or scripted audio only. References were written by the model and reviewed by Paawan;",
+            "glossary terms are model-written and unverified (AI_USAGE.md). A separate blind sheet",
+            "(rating-sheet-2026-10-16-synthetic.csv, sampled from the 2026-10-15 translate replay and the",
+            "2026-10-16 runs) judged 16 of 21 outputs acceptable, no rubric scores. Quality numbers are a rough",
+            "signal.",
         ]
     else:
         about = [
