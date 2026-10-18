@@ -379,15 +379,36 @@ public static class CascadeEndpoints
         }
         finally
         {
-            await stop.CancelAsync();
-            await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            foreach (var leg in all) leg.Dispose();
             if (violation is not null)
             {
                 closeStatus = WebSocketCloseStatus.PolicyViolation;
                 closeReason = violation;
             }
+            // Send the close frame while the receive loop is still reading, so it takes the client's reply
+            // and ends on its own. Cancelling a pending receive aborts a real socket, and the browser then
+            // saw 1006 (no close frame) for every session the server ended, whatever the status meant.
+            await SendCloseAsync(closeReason, closeStatus);
+            await receive.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await stop.CancelAsync();
+            await receive.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            foreach (var leg in all) leg.Dispose();
             await WebSocketText.CloseQuietlyAsync(ws, closeReason, closeStatus);
+        }
+
+        async Task SendCloseAsync(string reason, WebSocketCloseStatus status)
+        {
+            if (ws.State != WebSocketState.Open) return;
+            await send.WaitAsync(CancellationToken.None);
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await ws.CloseOutputAsync(status, reason, timeout.Token);
+            }
+            catch (Exception e) when (e is WebSocketException or OperationCanceledException or ObjectDisposedException)
+            {
+                // The socket is already gone; CloseQuietlyAsync below aborts it.
+            }
+            finally { send.Release(); }
         }
 
         /// <summary>
