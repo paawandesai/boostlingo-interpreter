@@ -15,6 +15,7 @@ export type CheckFlag =
   | 'assistant_reply' // assistant-style phrasing ("As an AI", "Sure, here's")
   | 'wrong_language' // the output reads as the source language, not the target
   | 'length_ratio' // far shorter or longer than the source
+  | 'question_answered' // the speaker asked a question and no question came out
 
 export interface OutputChecks {
   markers: string[]
@@ -36,7 +37,13 @@ export const FLAG_TEXT: Record<CheckFlag, string> = {
   assistant_reply: 'it reads like an assistant reply',
   wrong_language: 'it is not in the target language',
   length_ratio: 'its length does not match what was said',
+  question_answered: 'a question came out as a statement (answered, or dropped)',
 }
+
+/** A question mark in any script the configured languages use (Spanish opens with ¿). */
+const QUESTION = /[?¿？]/u
+/** Fewest source words for the question check: a one-word "¿Sí?" can fairly come out as "Yes." */
+const QUESTION_MIN_WORDS = 3
 
 /** Length bounds (target chars / source chars) and the minimum source size they apply to. */
 const RATIO_MIN = 0.4
@@ -117,6 +124,10 @@ export function checkSegment(source: string, target: string, sourceFinal: boolea
   )
     flags.push('refusal')
   if (ctx.canary && squash(target).includes(squash(ctx.canary))) flags.push('prompt_leak')
+  // An interpreted question stays a question. Every answer-instead-of-translate in the committed logs
+  // (and 7 of 818 lines in all, none of them faithful) had a question in and none out.
+  if (sourceFinal && QUESTION.test(source) && sourceWords.length >= QUESTION_MIN_WORDS && !QUESTION.test(target))
+    flags.push('question_answered')
   // Same for assistant phrasing the speaker said ("Sure, here's my insurance card").
   if (
     (hasAny(target, tgt?.assistantPatterns) || hasAny(target, src?.assistantPatterns)) &&

@@ -260,6 +260,29 @@ public class CascadePipelineTests
     }
 
     [Fact]
+    public async Task Tts_failing_mid_utterance_keeps_the_audio_so_far_reports_once_and_moves_on()
+    {
+        // Two sentences flush as two TTS chunks; the vendor drops after the first, so audio has started.
+        var tts = new FakeTts { FailAfterChunks = 1 };
+        var events = await RunAll(new CascadePipeline(
+            new FakeStt([Final("First sentence here. Second sentence here."), Final("Next.")]),
+            new FakeTranslator { Script = ["Primera frase aquí. ", "Segunda frase aquí."] }, tts));
+
+        // The scripted translator gives every turn two sentences, so each turn fails after its first: one
+        // error per turn, after that turn's first audio, and the next turn still runs.
+        var errors = events.OfType<CascadeError>().ToList();
+        Assert.Equal([1, 2], errors.Select(e => e.Utterance));
+        Assert.All(errors, e => Assert.Equal(("tts", ProviderErrorKind.Unavailable), (e.Stage, e.Kind)));
+        foreach (var e in errors)
+        {
+            Assert.Equal("Primera frase aquí.", Spoken(events, e.Utterance).Trim());
+            Assert.True(events.IndexOf(events.OfType<TtsAudio>().First(a => a.Utterance == e.Utterance)) < events.IndexOf(e),
+                "audio for the utterance was delivered before its failure");
+        }
+        Assert.Equal(2, events.OfType<TranslationFinal>().Count());
+    }
+
+    [Fact]
     public async Task Stt_error_finishes_queued_utterances_then_ends()
     {
         var stt = new FakeStt([Final("Done.")], then: _ =>
@@ -402,6 +425,8 @@ public class CascadePipelineTests
     {
         public List<string> Received { get; } = [];
         public string? FailOn { get; init; }
+        /// <summary>Fail once this many chunks have been spoken in one stream: a vendor dropping mid-utterance.</summary>
+        public int? FailAfterChunks { get; init; }
         public TaskCompletionSource FirstChunk { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         /// <summary>Set when a stream is opened, which is when a real adapter connects.</summary>
         public TaskCompletionSource Opened { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -411,9 +436,11 @@ public class CascadePipelineTests
             IAsyncEnumerable<string> textChunks, TtsOptions options, [EnumeratorCancellation] CancellationToken ct)
         {
             Opened.TrySetResult();
+            var spoken = 0;
             await foreach (var chunk in textChunks.WithCancellation(ct))
             {
-                if (chunk == FailOn) throw new ProviderException(ProviderErrorKind.Unavailable, Name, "503");
+                if (chunk == FailOn || spoken == FailAfterChunks) throw new ProviderException(ProviderErrorKind.Unavailable, Name, "503");
+                spoken++;
                 Received.Add(chunk);
                 FirstChunk.TrySetResult();
                 yield return new AudioChunk(Encoding.UTF8.GetBytes(chunk), options.SampleRate);

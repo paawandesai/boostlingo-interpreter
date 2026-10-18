@@ -48,6 +48,8 @@ export interface SessionLog {
     source: Utterance['source']
     target: Utterance['target']
     audioFailed: boolean
+    /** Part of the audio was dropped to clear a playback backlog (counted as drift_skip in soaks). */
+    audioSkipped: boolean
     marks: Utterance['marks']
     breakdown: Breakdown
     usage: Utterance['usage'] | null
@@ -130,6 +132,7 @@ export function buildSessionLog(state: SessionState, ctx: ExportContext, now = D
       source: u.source,
       target: u.target,
       audioFailed: u.audioFailed ?? false,
+      audioSkipped: u.audioSkipped ?? false,
       marks: u.marks,
       breakdown: computeLatency(u.mode, u.marks),
       usage: u.usage ?? null,

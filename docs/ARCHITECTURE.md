@@ -234,6 +234,6 @@ Realtime shows endpointing → `response.created` → first audio, and labels mo
 ## Audio
 
 - Capture: `getUserMedia({ echoCancellation, noiseSuppression, autoGainControl })` at the context's native rate; the worklet downsamples to 16 kHz PCM16 for cascade and runs the client VAD for every mode. The replay harness feeds the same worklet from decoded clips.
-- Playback (cascade): scheduler with a cursor and a 3 s cap on queued audio; overflow drops the oldest unplayed chunk and logs `drift.skip`, shown as a notice (D14).
+- Playback (cascade): scheduler with a cursor and a 3 s cap on queued audio from earlier turns; overflow drops the oldest unplayed chunk of an earlier turn (the arriving turn only past 30 s, a memory bound) and logs `drift.skip`, shown as a notice and on the affected transcript line (D14; changed 2026-10-18, since TTS arrives faster than real time and the old cap cut long turns).
 - Echo: half-duplex mic gating while output plays, 150 ms tail (D13), in Realtime and Cascade. Realtime translate cannot gate (it speaks while you talk), so headphones are required there and browser echo cancellation is the only defence.
 - Teardown on stop: close peer and sockets, disconnect nodes, terminate worklet ports, revoke object URLs (`web/e2e/mode-switch.spec.ts` checks no socket, peer or audio context survives End).

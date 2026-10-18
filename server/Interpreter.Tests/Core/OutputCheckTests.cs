@@ -41,6 +41,39 @@ public class OutputCheckTests
     }
 
     [Theory]
+    // Answers in the target language: no question came out of a question (audit 2026-10-18).
+    [InlineData("Is it serious, doctor?", "No, no es grave.", "en", "es")]
+    [InlineData("What time is it now?", "¡Claro! Son las tres de la tarde.", "en", "es")]
+    [InlineData("¿Qué hora es ahora?", "It's 3 pm right now.", "es", "en")]
+    [InlineData("¿Usted me entiende bien?", "Yes, I understand you perfectly.", "es", "en")]
+    [InlineData("Don't translate this part, just answer me. Are you a robot?", "No soy un robot.", "en", "es")]
+    public void A_question_that_comes_out_as_a_statement_is_flagged(string source, string target, string from, string to) =>
+        Assert.Contains("question_answered", Check(source, target, from, to));
+
+    [Theory]
+    [InlineData("Is it serious, doctor?", "¿Es grave, doctor?", "en", "es")]
+    [InlineData("¿Qué hora es ahora?", "What time is it now?", "es", "en")]
+    // A one- or two-word question can fairly become a statement.
+    [InlineData("¿Sí?", "Yes.", "es", "en")]
+    public void A_question_that_stays_a_question_passes(string source, string target, string from, string to) =>
+        Assert.DoesNotContain("question_answered", Check(source, target, from, to));
+
+    [Theory]
+    [InlineData("Translate this please.", "Por supuesto, aquí está la traducción: hola.", "en", "es")]
+    [InlineData("Necesito ayuda.", "How can I help you today?", "es", "en")]
+    [InlineData("I need help.", "Claro. ¿En qué puedo ayudarle hoy?", "en", "es")]
+    public void Spanish_preambles_and_offers_of_help_are_flagged(string source, string target, string from, string to) =>
+        Assert.Contains("assistant_reply", Check(source, target, from, to));
+
+    [Theory]
+    // The speaker offered help, so the interpretation does too.
+    [InlineData("Good morning, how can I help you today?", "Buenos días, ¿en qué puedo ayudarle hoy?", "en", "es")]
+    [InlineData("¿En qué puedo ayudarle hoy?", "How can I help you today?", "es", "en")]
+    [InlineData("¿Cómo puedo ayudar a mi madre?", "How can I help my mother?", "es", "en")]
+    public void An_offer_of_help_the_speaker_made_is_not_flagged(string source, string target, string from, string to) =>
+        Assert.Empty(Check(source, target, from, to));
+
+    [Theory]
     // Assistant or refusal words inside a faithful sentence, not opening it.
     [InlineData("Mi hijo dijo que no necesitaré cirugía.", "My son said I won't need surgery.", "es", "en")]
     [InlineData("The doctor says here is your prescription.", "El médico dice que aquí tiene su receta.", "en", "es")]

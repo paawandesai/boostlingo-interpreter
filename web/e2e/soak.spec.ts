@@ -1,6 +1,7 @@
 import { readdirSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { backAndForth } from '../src/audio/clipOrder'
 import { instrument, startSession } from './helpers'
 
 /**
@@ -42,10 +43,10 @@ test.skip(!enabled, 'soak is opt-in: SOAK=1')
 
 test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   test.setTimeout((minutes + 3) * 60_000)
-  const files = readdirSync(replayDir)
-    .filter((f) => /^(en|es)-.*\.(wav|webm|ogg|mp3)$/i.test(f))
-    .sort()
-    .map((f) => join(replayDir, f))
+  // Alternating speakers, so a run is a back-and-forth in both directions, not every English clip first.
+  const files = backAndForth(readdirSync(replayDir).filter((f) => /^(en|es)-.*\.(wav|webm|ogg|mp3)$/i.test(f))).map(
+    (f) => join(replayDir, f),
+  )
   expect(files.length, `replay clips in ${replayDir}`).toBeGreaterThan(0)
 
   await instrument(page)
@@ -76,8 +77,8 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   const logPath = await (await download).path()
   await page.getByRole('button', { name: 'End', exact: true }).click()
   const log = JSON.parse(readFileSync(logPath, 'utf8')) as {
-    modes: Array<{ mode: string; utterances: number; latency: unknown[] }>
-    utterances: Array<{ target: { text: string; final: boolean } | null; audioFailed: boolean }>
+    modes: Array<{ mode: string; minutes: number; utterances: number; latency: unknown[] }>
+    utterances: Array<{ side: string; target: { text: string; final: boolean } | null; audioFailed: boolean }>
     incidents: Array<{ kind: string; message: string }>
   }
 
@@ -89,11 +90,18 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   }, {})
   const minuteOne = samples.find((s) => s.t >= 60_000) ?? samples[0]
   const last = samples[samples.length - 1]
+  // Measured, not configured: the session can end before the wall clock does (a server close).
+  const measuredMinutes = log.modes.find((m) => m.mode === modeKey)?.minutes ?? 0
   const report = {
     mode: modeKey,
     input: label,
     clips: files.length,
     minutes,
+    measuredMinutes: +measuredMinutes.toFixed(2),
+    sides: log.utterances.reduce<Record<string, number>>(
+      (acc, u) => ({ ...acc, [u.side]: (acc[u.side] ?? 0) + 1 }),
+      {},
+    ),
     utterances: log.utterances.length,
     translated,
     audioFailed: log.utterances.filter((u) => u.audioFailed).length,
@@ -120,6 +128,8 @@ test(`soak: ${mode} for ${minutes} min`, async ({ page }) => {
   await test.info().attach('session-log', { path: logPath, contentType: 'application/json' })
 
   expect.soft(report.disconnects, 'unexpected disconnects').toBe(0)
+  expect.soft(report.measuredMinutes, 'minutes the session actually ran').toBeGreaterThanOrEqual(minutes * 0.98)
+  expect.soft(Object.keys(report.sides).length, 'both speakers took turns').toBe(2)
   expect.soft(report.utterances, 'utterances in the run (G10)').toBeGreaterThanOrEqual(minUtterances)
   expect.soft(report.heap.growthFromMinuteOnePct, 'heap growth from minute 1').toBeLessThan(10)
 })

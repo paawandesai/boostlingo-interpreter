@@ -46,6 +46,8 @@ FLAG_TO_LABEL = {
     "refusal": "refused",
     "omission": "omitted",
     "wrong_language": "wrong_language",
+    # A suggestion only: a question that came out as a statement is usually an answer, sometimes a loss.
+    "question_answered": "answered",
 }
 FIELDS = [
     "log",

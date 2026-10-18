@@ -61,6 +61,44 @@ describe('PlaybackScheduler', () => {
     expect(dropped).toBe(5)
   })
 
+  it('plays one long turn in full even when it arrives faster than real time', () => {
+    const { ctx } = fakeContext()
+    const onDriftSkip = vi.fn()
+    const p = new PlaybackScheduler(ctx, { onDriftSkip }, 3)
+    // A 6 s interpretation streamed at 5x real time: 60 chunks of 0.1 s, one every 20 ms.
+    for (let i = 0; i < 60; i++) {
+      ctx.currentTime = i * 0.02
+      p.enqueue(chunk(0.1), 24000, 'u1')
+    }
+    expect(onDriftSkip).not.toHaveBeenCalled()
+    expect(p.queuedAheadSec).toBeCloseTo(6 + 0.02 - 59 * 0.02, 5)
+  })
+
+  it('drops the backlog of earlier turns, never the arriving one, and names the turns', () => {
+    const { ctx } = fakeContext()
+    const onDriftSkip = vi.fn()
+    const p = new PlaybackScheduler(ctx, { onDriftSkip }, 3)
+    for (let i = 0; i < 8; i++) p.enqueue(chunk(0.5), 24000, 'u1') // 4 s of u1, nothing played yet
+    onDriftSkip.mockClear()
+    for (let i = 0; i < 4; i++) p.enqueue(chunk(0.5), 24000, 'u2')
+    expect(onDriftSkip).toHaveBeenCalled()
+    const turns = new Set(onDriftSkip.mock.calls.flatMap((c) => c[2] as string[]))
+    expect([...turns]).toEqual(['u1'])
+    const dropped = onDriftSkip.mock.calls.reduce((s, c) => s + (c[0] as number), 0)
+    // u2's 2 s all kept; u1 trimmed to what fits beside it under 3 s (20 ms lead + 0.5 s of u1)
+    expect(dropped).toBeCloseTo(3.5, 5)
+  })
+
+  it('trims the arriving turn only past the memory ceiling', () => {
+    const { ctx } = fakeContext()
+    const onDriftSkip = vi.fn()
+    const p = new PlaybackScheduler(ctx, { onDriftSkip }, 3, ctx.destination, 10)
+    for (let i = 0; i < 30; i++) p.enqueue(chunk(0.5), 24000, 'u1')
+    expect(p.queuedAheadSec).toBeLessThanOrEqual(10)
+    expect(onDriftSkip).toHaveBeenCalled()
+    expect(onDriftSkip.mock.calls[0][2]).toEqual(['u1'])
+  })
+
   it('never drops the chunk that is currently playing', () => {
     const { ctx, sources } = fakeContext()
     const p = new PlaybackScheduler(ctx, {}, 1)

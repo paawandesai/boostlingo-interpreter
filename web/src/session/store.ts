@@ -29,6 +29,8 @@ export interface Utterance {
   usage?: Usage
   /** Speech synthesis failed for this utterance; its text is still shown (T3.4). */
   audioFailed?: boolean
+  /** Part of this utterance's audio was dropped to clear a playback backlog; the text is complete. */
+  audioSkipped?: boolean
 }
 
 export interface Marker {
@@ -238,12 +240,17 @@ function applyEvent(state: SessionState, e: TransportEvent): SessionState {
         ? updateUtterance(next, e.utteranceId, (u) => ({ ...u, audioFailed: true }))
         : next
     }
-    case 'notice':
-      return {
+    case 'notice': {
+      const next = {
         ...state,
         notice: e.message,
-        incidents: [...state.incidents, { mode: state.mode, kind: 'notice', message: e.message }],
+        incidents: [...state.incidents, { mode: state.mode, kind: 'notice' as const, message: e.message }],
       }
+      const known = state.timeline.some((x) => x.kind === 'utterance' && x.id === e.utteranceId)
+      return e.utteranceId && known && /late audio/.test(e.message)
+        ? updateUtterance(next, e.utteranceId, (u) => ({ ...u, audioSkipped: true }))
+        : next
+    }
     case 'transcript': {
       const cleared = e.role === 'target' && e.final ? { ...state, notice: null } : state
       return updateUtterance(cleared, e.utteranceId, (u) => ({

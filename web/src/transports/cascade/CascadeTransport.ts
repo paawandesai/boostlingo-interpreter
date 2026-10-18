@@ -25,6 +25,7 @@ import {
   type Transport,
 } from '../types'
 import { ClientEndpointer } from '../endpointing'
+import { firstAudibleOffsetSec } from '../realtime/firstAudioProbe'
 import { ClockSync } from './clock'
 import { CascadeEventParser } from './events'
 
@@ -101,11 +102,13 @@ export class CascadeTransport implements Transport {
       })
       this.playback = new PlaybackScheduler(this.capture.context, {
         onActiveChange: (active) => this.gate?.setPlaybackActive(active),
-        onDriftSkip: (sec) =>
-          this.emitter.emit({
-            type: 'notice',
-            message: `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`,
-          }),
+        // Only a backlog of earlier turns is dropped (the arriving turn plays in full); each line that
+        // lost audio is marked, so its text doesn't claim speech the listener never heard.
+        onDriftSkip: (sec, _chunks, turns) => {
+          const message = `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`
+          if (turns.length === 0) this.emitter.emit({ type: 'notice', message })
+          for (const utteranceId of turns) this.emitter.emit({ type: 'notice', message, utteranceId })
+        },
       })
       this.connect()
     } catch (e) {
@@ -238,15 +241,18 @@ export class CascadeTransport implements Transport {
     const pcm = new Int16Array(data)
     const samples = new Float32Array(pcm.length)
     for (let i = 0; i < pcm.length; i++) samples[i] = pcm[i] / 32768
-    const when = this.playback.enqueue(samples, TTS_RATE)
     const utteranceId = this.parser?.speaking
-    // First audio out (D9): when the utterance's first chunk is scheduled to start, on the client clock.
+    const when = this.playback.enqueue(samples, TTS_RATE, utteranceId ?? undefined)
+    // First audio out (D9): when the utterance's first audible frame is due to play, on the client clock.
+    // A chunk that opens with silence is skipped past, so this is audio heard, as the Realtime probe measures.
     if (when !== null && utteranceId && !this.firstOut.has(utteranceId)) {
+      const offset = firstAudibleOffsetSec(samples, TTS_RATE)
+      if (offset === null) return
       this.firstOut.add(utteranceId)
       this.emitter.emit({
         type: 'mark',
         name: 'audio.first_out',
-        t: contextMsToPerf(this.capture.context, when * 1000),
+        t: contextMsToPerf(this.capture.context, (when + offset) * 1000),
         utteranceId,
       })
     }

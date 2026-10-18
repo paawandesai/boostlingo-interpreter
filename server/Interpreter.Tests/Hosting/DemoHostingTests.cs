@@ -42,7 +42,32 @@ public sealed class DemoHostingTests(WebApplicationFactory<Program> factory) : I
         Assert.Equal("DENY", res.Headers.GetValues("X-Frame-Options").Single());
         Assert.Equal("no-referrer", res.Headers.GetValues("Referrer-Policy").Single());
         Assert.Equal("microphone=(self), camera=(), geolocation=()", res.Headers.GetValues("Permissions-Policy").Single());
-        Assert.False(res.Headers.Contains("Content-Security-Policy"));
+        var csp = res.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("script-src 'self';", csp);
+        Assert.Contains("connect-src 'self' https://api.openai.com;", csp);
+        Assert.Contains("frame-ancestors 'none'", csp);
+        // Plain HTTP (a local run): browsers ignore HSTS there, so it isn't sent.
+        Assert.False(res.Headers.Contains("Strict-Transport-Security"));
+    }
+
+    [Fact]
+    public async Task Https_behind_the_proxy_gets_hsts()
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, "/health");
+        req.Headers.Add("X-Forwarded-For", "203.0.113.5");
+        req.Headers.Add("X-Forwarded-Proto", "https");
+
+        var res = await Client(("Demo:ForwardLimit", "1")).SendAsync(req, TestContext.Current.CancellationToken);
+
+        Assert.Equal("max-age=31536000", res.Headers.GetValues("Strict-Transport-Security").Single());
+    }
+
+    [Fact]
+    public void The_policy_allows_every_origin_the_spa_posts_its_sdp_offer_to()
+    {
+        var csp = Interpreter.Api.Hosting.DemoHosting.SecurityHeaders["Content-Security-Policy"];
+        foreach (var url in new[] { Interpreter.Api.Realtime.RealtimeEndpoints.CallsUrl, Interpreter.Api.Realtime.RealtimeEndpoints.TranslationCallsUrl })
+            Assert.Contains($" {new Uri(url).GetLeftPart(UriPartial.Authority)}", csp);
     }
 
     [Fact]

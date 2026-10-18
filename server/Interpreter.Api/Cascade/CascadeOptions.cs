@@ -11,7 +11,22 @@ public sealed class CascadeOptions
     /// <summary>"openai" or "anthropic"; a client may pick either per session.</summary>
     public string Translator { get; set; } = "openai";
 
+    /// <summary>"elevenlabs" or "openai".</summary>
     public string Tts { get; set; } = "elevenlabs";
+
+    /// <summary>Adapter names each stage accepts; anything else stops startup with the setting's name.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> Adapters = new Dictionary<string, string[]>
+    {
+        ["Stt"] = ["deepgram", "openai"],
+        ["Translator"] = ["openai", "anthropic"],
+        ["Tts"] = ["elevenlabs", "openai"],
+    };
+
+    /// <summary>
+    /// When streamed translation text is released to TTS (D11, <see cref="Interpreter.Core.Cascade.FlushPolicy"/>).
+    /// Tunable per deployment (env <c>Cascade__Flush__MaxWaitMs</c> and so on) without a code change.
+    /// </summary>
+    public FlushSettings Flush { get; set; } = new();
 
     /// <summary>Optional stock voice per target language code; the TTS adapter's default otherwise.</summary>
     public Dictionary<string, string> Voices { get; set; } = [];
@@ -33,4 +48,21 @@ public sealed class CascadeOptions
 
     /// <summary>Seconds of audio a session may send ahead of real time (network bursts) before the rate limit applies.</summary>
     public double AudioBurstSeconds { get; set; } = 5;
+}
+
+/// <summary>Configuration form of <see cref="Interpreter.Core.Cascade.FlushOptions"/>; the defaults are the same.</summary>
+public sealed class FlushSettings
+{
+    private static readonly Interpreter.Core.Cascade.FlushOptions Defaults = new();
+
+    /// <summary>A clause boundary (, ; :) releases text only once this many characters are buffered.</summary>
+    public int MinClauseChars { get; set; } = Defaults.MinClauseChars;
+
+    /// <summary>With no boundary for this long, release up to the last word break.</summary>
+    public int MaxWaitMs { get; set; } = Defaults.MaxWaitMs;
+
+    /// <summary>...if at least this many characters are buffered.</summary>
+    public int MinCharsOnTimeout { get; set; } = Defaults.MinCharsOnTimeout;
+
+    public Interpreter.Core.Cascade.FlushOptions ToOptions() => new(MinClauseChars, MaxWaitMs, MinCharsOnTimeout);
 }

@@ -2,6 +2,7 @@ using Interpreter.Api.Cascade;
 using Interpreter.Providers.ElevenLabs;
 using Interpreter.Providers.OpenAI;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -63,5 +64,43 @@ public class CascadeOptionsValidationTests
 
         Assert.Contains(host.Services.GetServices<IValidateOptions<CascadeOptions>>(), v => v is CascadeOptionsValidation);
         Assert.Contains(host.Services.GetServices<IStartupValidator>(), _ => true);
+    }
+
+    [Theory]
+    [InlineData("Stt", "bogus")]
+    [InlineData("Translator", "gpt")]
+    [InlineData("Tts", "polly")]
+    public void An_unknown_adapter_name_fails_with_the_setting(string stage, string value)
+    {
+        var options = new CascadeOptions();
+        typeof(CascadeOptions).GetProperty(stage)!.SetValue(options, value);
+
+        Assert.Contains($"Cascade:{stage} is {value}, which is not an adapter", Failure(options));
+    }
+
+    [Fact]
+    public void The_shipped_defaults_and_every_listed_adapter_pass()
+    {
+        Assert.True(Validation.Validate(null, new CascadeOptions()).Succeeded);
+        Assert.True(Validation.Validate(null, new CascadeOptions { Stt = "openai", Translator = "anthropic", Tts = "openai" }).Succeeded);
+    }
+
+    [Fact]
+    public void Flush_settings_bind_from_configuration_and_reach_the_flush_policy()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Cascade:Flush:MaxWaitMs"] = "250", ["Cascade:Flush:MinClauseChars"] = "20" })
+            .Build();
+        var options = new CascadeOptions();
+        config.GetSection(CascadeOptions.Section).Bind(options);
+
+        Assert.Equal(new Interpreter.Core.Cascade.FlushOptions(MinClauseChars: 20, MaxWaitMs: 250, MinCharsOnTimeout: 12), options.Flush.ToOptions());
+        Assert.Equal(new Interpreter.Core.Cascade.FlushOptions(), new CascadeOptions().Flush.ToOptions());
+    }
+
+    [Fact]
+    public void A_flush_wait_that_is_not_positive_fails()
+    {
+        Assert.Contains("Cascade:Flush needs MaxWaitMs > 0", Failure(new CascadeOptions { Flush = new FlushSettings { MaxWaitMs = 0 } }));
     }
 }

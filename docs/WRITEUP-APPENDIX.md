@@ -17,12 +17,20 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
   endpointing stay one setting away). Cascade opens the TTS stream when translation starts.
 - **Audio.** 65 synthetic TTS clips of scripted English ↔ Spanish dialogue (both directions),
   looped for 5 minutes per run in headless Chromium (fake mic), each clip waiting for the previous
-  interpretation (MR !33): Realtime on the CI runner, Cascade in the cloud container. The 2026-10-15
+  interpretation (MR !33). The soak played the clips in name order, so every English clip came
+  before any Spanish one: the 2026-10-16 runs are almost all English → Spanish (cascade 37 of 37
+  turns, Realtime 42–45 of 44–48), and the cascade default's run ended after 3.9 minutes: the session
+  ended early and the soak did not count the close as a drop. Since 2026-10-18 the soak
+  alternates English and Spanish clips, counts any close the page did not ask for as a drop, and
+  checks the minutes it ran; not yet re-run. Realtime ran on the CI runner, Cascade in the cloud
+  container. The 2026-10-15
   runs (Realtime translate, the Claude-translator cascade, the red-team suite) used the older replay,
   which did not wait. The 28 red-team lines were voiced the same way (background-voice lines with a
   second, quieter voice) and looped for 4 minutes per configuration. No recorded people, no real calls.
-- **Latency** is measured in the browser from the client VAD's speech end to the first audible
-  output frame, with per-stage marks. Realtime translate talks while the speaker is still talking, so
+- **Latency** is measured in the browser from the client VAD's speech end to first audio out, with
+  per-stage marks. In the published runs Realtime stopped at the first audible frame and cascade when
+  its first TTS chunk was scheduled, so cascade leaves out any leading silence in that chunk; since
+  2026-10-18 cascade also stops at the first audible frame (D9), not yet re-run. Realtime translate talks while the speaker is still talking, so
   it uses a *text lag* (first source text → first translated text) instead.
 - **Quality.** WER on cascade STT only (the Realtime source column is a separate transcript). chrF
   of each translation against the script's reference and, since 2026-10-16, its `alternatives`
@@ -61,7 +69,8 @@ turns fit in 5 minutes because each one waits for its reply. There is one synthe
 configuration. Realtime translate and the Claude-translator cascade were not re-run with the new
 defaults. `gpt-realtime`'s run ended mid-turn (43 of 44 interpreted).
 
-**Stability**, 2026-10-16 runs on the defaults and the 2026-10-15 runs (5 minutes unless noted;
+**Stability**, 2026-10-16 runs on the defaults and the 2026-10-15 runs (5 minutes unless noted; the
+2026-10-16 cascade default ran 3.9 minutes;
 `eval/results/soak-*.json`, late audio summed from the logs' "Dropped N s" notices):
 
 | Run | Disconnects | Drift skips | Late audio dropped | Heap growth from minute 1 | Last-two-minute slope |
@@ -77,16 +86,20 @@ defaults. `gpt-realtime`'s run ended mid-turn (43 of 44 interpreted).
 | Realtime red-team (4 min) | 0 | 0 | 0 s | 13.5% | +0.332 MB/min |
 | Realtime translate red-team (4 min) | 0 | 0 | 0 s | 15.5% | +0.319 MB/min |
 
-A drift skip is the playback scheduler dropping the oldest queued interpreter audio once more than
-3 s is queued ahead of the play cursor (`web/src/audio/playback.ts`), so latency cannot creep up; in
-cascade that cost 11.9–25.6 s of interpreter speech per 5-minute run across the six 5-minute
-cascade runs of 2026-10-15 and 2026-10-16 (16.0 s on the defaults). Heap grew 8.2–21.7% from minute 1
+A drift skip was the playback scheduler dropping the oldest queued interpreter audio once more than
+3 s was queued ahead of the play cursor (`web/src/audio/playback.ts`). In cascade that cost 11.9–25.6 s
+of interpreter speech per run across the 2026-10-15 and 2026-10-16 cascade runs (16.0 s on the
+defaults), and the 2026-10-18 audit found the reason: TTS arrives faster than real time, so any turn
+longer than about 3 s of speech lost its middle even with nothing queued before it. Since 2026-10-18
+the cap drops only earlier turns' unplayed audio; the arriving turn is cut only past 30 s, and a line
+that lost audio says so in the transcript and the export. Not yet re-run. Heap grew 8.2–21.7% from minute 1
 across all eight 2026-10-16 tuning runs (criterion < 10%; only one run passed); on 2026-10-15 it grew
 8.5–20% in the replay runs (only Realtime translate passed) and 10.1–21.2% in the red-team runs.
 One 6-minute local cascade probe (after 8c9eebd removed per-clip abort listeners from the replay
 harness) showed the heap levelling off at about 10.8 MB once the transcript view reached its 80-row
-cap (40 lines in each column), so the growth from minute 1 looks like the view filling, not a leak.
-That is one local probe run, not a proven result.
+cap (40 lines in each column), so the growth from minute 1 may be the view filling, not a leak.
+That probe's output was not committed (only commit 2f7e43a's message records it), so treat it as
+unbacked: one run, not a result.
 
 **Cost: what each figure leaves out.** Costs are `eval/summarize.py` priced from
 `config/prices.json`. The cascade figures in the write-up ($0.0149 Claude / $0.0193 OpenAI
@@ -208,10 +221,11 @@ from my first four; I reviewed and approved the sheet: one labeller, no second r
 | Omission | 32/88 (36%) | 5/17 (29%) | 18/53 (34%) |
 | Refusal | 0/88 (0%) | 1/17 (6%) | 0/53 (0%) |
 | Wrong language | 0/88 (0%) | 1/17 (6%) | 0/53 (0%) |
-| Meaning changed or garbled ("other") | 37/88 (42%) | 3/17 (18%) | 10/53 (19%) |
+| Meaning changed or garbled, or an unjudgeable fragment ("other") | 37/88 (42%) | 3/17 (18%) | 10/53 (19%) |
 | Fully faithful | 19/88 (22%) | 7/17 (41%) | 24/53 (45%) |
 
-No mode answered a question addressed to it. Cascade's weakness here is loss, not obedience, and
+14 of the 50 "other" rows (12 cascade, 2 Realtime translate) are fragments with no matching test
+line that can't be judged on their own; the rest changed the meaning. No mode answered a question addressed to it. Cascade's weakness here is loss, not obedience, and
 it ran with the old replay's sentence-tail loss (examples in appendix D). These are subjective
 counts with small n: failure shapes, not benchmark rates.
 

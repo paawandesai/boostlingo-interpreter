@@ -20,6 +20,11 @@ public sealed class CascadeOptionsValidation(
             failures.Add($"Cascade:MaxSessionSeconds must be positive (got {options.MaxSessionSeconds}).");
         if (options.StartTimeoutSeconds <= 0)
             failures.Add($"Cascade:StartTimeoutSeconds must be positive (got {options.StartTimeoutSeconds}).");
+        foreach (var (stage, value) in new[] { ("Stt", options.Stt), ("Translator", options.Translator), ("Tts", options.Tts) })
+            if (!CascadeOptions.Adapters[stage].Contains(value))
+                failures.Add($"Cascade:{stage} is {value}, which is not an adapter (use {string.Join(" or ", CascadeOptions.Adapters[stage])}).");
+        if (options.Flush.MinClauseChars < 0 || options.Flush.MaxWaitMs <= 0 || options.Flush.MinCharsOnTimeout < 0)
+            failures.Add($"Cascade:Flush needs MaxWaitMs > 0 and non-negative MinClauseChars and MinCharsOnTimeout (got {options.Flush.MinClauseChars}, {options.Flush.MaxWaitMs}, {options.Flush.MinCharsOnTimeout}).");
 
         var (stock, setting) = options.Tts switch
         {

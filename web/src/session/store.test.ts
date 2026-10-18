@@ -176,6 +176,17 @@ describe('sessionReducer', () => {
     expect(s.error).toMatchObject({ kind: 'rate_limited', retryAfterMs: 1000 })
   })
 
+  it('marks a line whose audio was dropped to clear a backlog, and never invents a line for it', () => {
+    const s = run([
+      { type: 'transcript', role: 'target', utteranceId: 'u1', text: 'Hola', final: true },
+      { type: 'notice', message: 'Dropped 1.5 s of late audio to stay in sync', utteranceId: 'u1' },
+      { type: 'notice', message: 'Dropped 0.5 s of late audio to stay in sync', utteranceId: 'gone' },
+    ])
+    expect(utterances(s)).toHaveLength(1)
+    expect(utterances(s)[0]).toMatchObject({ audioSkipped: true, target: { text: 'Hola' } })
+    expect(s.incidents).toHaveLength(2)
+  })
+
   it('shows a notice until the next finished turn', () => {
     let s = run([{ type: 'notice', message: 'retrying' }])
     expect(s.notice).toBe('retrying')

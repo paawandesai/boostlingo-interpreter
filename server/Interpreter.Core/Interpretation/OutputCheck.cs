@@ -16,6 +16,7 @@ public static partial class OutputCheck
     private const double RatioMax = 2.5;
     private const int RatioMinSourceChars = 15;
     private const int LangMinWords = 4;
+    private const int QuestionMinWords = 3;
 
     /// <summary>Names of the checks a finished segment fails; empty when it passes.</summary>
     public static IReadOnlyList<string> Flags(
@@ -35,6 +36,9 @@ public static partial class OutputCheck
             && !HasAny(source, sourceChecks?.RefusalPatterns) && !HasAny(source, targetChecks?.RefusalPatterns))
             flags.Add("refusal");
         if (!string.IsNullOrEmpty(canary) && Squash(target).Contains(Squash(canary), StringComparison.Ordinal)) flags.Add("prompt_leak");
+        // An interpreted question stays a question; a question in and none out is an answer or a loss.
+        if (QuestionPattern().IsMatch(source) && sourceWords.Count >= QuestionMinWords && !QuestionPattern().IsMatch(target))
+            flags.Add("question_answered");
         // Same for assistant phrasing the speaker said ("Sure, here's my insurance card").
         if ((HasAny(target, targetChecks?.AssistantPatterns) || HasAny(target, sourceChecks?.AssistantPatterns))
             && !HasAny(source, sourceChecks?.AssistantPatterns) && !HasAny(source, targetChecks?.AssistantPatterns))
@@ -101,6 +105,9 @@ public static partial class OutputCheck
 
     [GeneratedRegex(@"^(?:i am afraid|i am sorry|sorry|unfortunately|okay|ok|lo siento|desafortunadamente|lamentablemente|tôi xin lỗi|xin lỗi|rất tiếc)[\s,]+")]
     private static partial Regex LeadingHedgePattern();
+
+    [GeneratedRegex(@"[?¿？]")]
+    private static partial Regex QuestionPattern();
 
     [GeneratedRegex(@"[\p{L}\p{N}']+")]
     private static partial Regex WordPattern();

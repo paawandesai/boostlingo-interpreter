@@ -16,7 +16,7 @@ vi.mock('../../audio/capture', () => ({
   }),
   contextMsToPerf: (_ctx: unknown, ms: number) => 4000 + ms,
 }))
-const enqueue = vi.fn<(samples: Float32Array, rate: number) => number | null>(() => 2.5)
+const enqueue = vi.fn<(samples: Float32Array, rate: number, turn?: string) => number | null>(() => 2.5)
 const playbackStop = vi.fn()
 vi.mock('../../audio/playback', () => ({
   PlaybackScheduler: class {
@@ -127,6 +127,22 @@ describe('CascadeTransport', () => {
     expect(firstOut).toEqual([{ type: 'mark', name: 'audio.first_out', t: 6500, utteranceId: 'c1-1' }])
   })
 
+  it('marks first audio out at the first audible frame, past leading silence and silent chunks', async () => {
+    const { ws, events } = await started()
+    ws.server({ type: 'ready', t: 0 })
+    ws.server({ type: 'latency.mark', u: 1, name: 'tts.first_byte', t: 10 })
+
+    ws.onmessage!({ data: new Int16Array(480).buffer }) // 20 ms of silence: no mark yet
+    expect(events.filter((e) => e.type === 'mark' && e.name === 'audio.first_out')).toEqual([])
+    // 10 ms of silence, then speech: the mark lands 10 ms into this chunk (scheduled at 2.5 s).
+    const chunk = new Int16Array(480)
+    chunk.fill(16384, 240)
+    ws.onmessage!({ data: chunk.buffer })
+    const firstOut = events.filter((e) => e.type === 'mark' && e.name === 'audio.first_out')
+    expect(firstOut).toEqual([{ type: 'mark', name: 'audio.first_out', t: 4000 + 2510, utteranceId: 'c1-1' }])
+    expect(enqueue.mock.calls.every((c) => c[2] === 'c1-1')).toBe(true)
+  })
+
   it('switches direction over the open socket and keeps playing the turn in flight', async () => {
     const { t, ws, events } = await started()
     ws.server({ type: 'ready', t: 0 })
@@ -140,7 +156,7 @@ describe('CascadeTransport', () => {
     // The server finishes the old direction's turn first: what arrives before its ack is shown and played.
     ws.server({ type: 'transcript.final', u: 1, text: 'late', t: 5 })
     ws.server({ type: 'latency.mark', u: 1, name: 'tts.first_byte', t: 6 })
-    ws.onmessage!({ data: new Int16Array([1]).buffer })
+    ws.onmessage!({ data: new Int16Array([16384]).buffer })
     expect(events).toContainEqual(
       expect.objectContaining({ type: 'transcript', role: 'source', utteranceId: 'c1-1', text: 'late', final: true }),
     )

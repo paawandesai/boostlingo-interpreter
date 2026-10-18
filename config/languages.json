@@ -73,7 +73,9 @@
           "i am an interpreter",
           "i can only translate",
           "my instructions",
-          "system prompt"
+          "system prompt",
+          "how can i help you",
+          "how may i help you"
         ],
         "refusalPatterns": [
           "i can't help",
@@ -170,7 +172,12 @@
           "soy un intérprete",
           "solo puedo traducir",
           "mis instrucciones",
-          "indicaciones del sistema"
+          "indicaciones del sistema",
+          "por supuesto, aquí",
+          "aquí está la traducción",
+          "en qué puedo ayudarle",
+          "en qué puedo ayudarte",
+          "en qué le puedo ayudar"
         ],
         "refusalPatterns": [
           "no puedo ayudar",

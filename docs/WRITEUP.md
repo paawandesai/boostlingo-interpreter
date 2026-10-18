@@ -1,141 +1,46 @@
 # Realtime vs cascade interpretation: comparison write-up
 
-> Every number comes from a file under `eval/results/`, each re-creatable by running `eval/summarize.py <log> --out <file>`
-> (priced from `config/prices.json`) on a session log there: the 2026-10-16 latency rows, costs per
-> minute and stage breakdowns are in `eval/results/latency-tuning-2026-10-16.md`. MR (!33, !37) and CI
-> job ids refer to the project's private GitLab instance, which outside readers can't open. No **[VERIFY]** markers remain: a vendor fact
-> not read on the vendor's own page is labelled with where it came from. The prose is AI-written (AI_USAGE.md).
-> I read the vendor prices, data terms and legal citations on the official pages on 2026-10-16, and a
-> browsing AI assistant read them too; I checked its table against them (an AI coding agent read the Claude Haiku price on 2026-10-14).
-> Method detail and longer analyses: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
+> Every number comes from `eval/results/` (`eval/summarize.py <log>`, priced from `config/prices.json`). The prose is AI-written (AI_USAGE.md); I and a browsing AI assistant read the vendor pages on 2026-10-16. Method and full tables: [WRITEUP-APPENDIX.md](WRITEUP-APPENDIX.md).
 
 ## 1. Setup
 
-Three modes behind one UI: *Cascade* (streaming STT → LLM translator → streaming TTS on our server),
-*Realtime* (OpenAI speech-to-speech over WebRTC, instructed only to interpret, no tools) and *Realtime
-translate* (`gpt-realtime-translate`, which takes only a target language). Realtime defaults to
-`gpt-realtime-2.1`; the brief's `gpt-realtime` is deprecated (removal 2027-01-20 per OpenAI's
-deprecations page) but selectable, and I measured both. Stack: .NET 10 server, TypeScript SPA; the
-reasoning is in the README under "Why .NET + TypeScript" and in `docs/DECISIONS.md` D1–D2.
+Three modes share one UI. **Cascade** is streaming STT → LLM translator → streaming TTS on our server. **Realtime** is OpenAI speech-to-speech over WebRTC, instructed only to interpret, with no tools; it defaults to `gpt-realtime-2.1`, and the brief's `gpt-realtime` (deprecated, removal 2027-01-20) was measured too. **Realtime translate** is `gpt-realtime-translate`, which takes only a target language. In the measured configuration, the browser commits a turn 300 ms after its VAD hears speech end. Cascade STT is `gpt-realtime-whisper`: it streams text during speech, but translation starts on each turn's final. Input was synthetic TTS clips of scripted English and Spanish, so quality numbers are signals, not findings. Deepgram's terms bar benchmarking, so cascade uses OpenAI transcription.
 
-The measured configuration uses the defaults tuned in MR !37: the browser commits a turn 300 ms after its VAD hears
-speech end (client endpointing), cascade STT is OpenAI transcription with its adapter's default model,
-`gpt-realtime-whisper`, streaming (`Cascade__Stt=openai`; the code default is Deepgram, which has no numbers here, appendix A), and cascade opens
-the TTS stream when translation starts. The STT streams text during speech, but translation starts
-per committed turn, on the STT final. Each run looped synthetic TTS clips of scripted English ↔
-Spanish dialogue for 5 minutes, each clip waiting for the previous interpretation (MR !33): no
-recorded people, so every quality number is a synthetic-audio signal, not a finding. WER covers
-cascade STT only; chrF scores each translation against a model-written, unverified reference and
-its alternatives. I reviewed the references and a blind sheet of 21 outputs (7 per mode; 19 en → es and 2 es → en)
-and judged 16 of 21 acceptable, without per-dimension scores; four failures are segmentation faults
-in Realtime translate (cut-off turns, or a neighbouring line merged in) and one cascade output dropped
-most of the sentence, noted on their rows
-(`eval/results/rating-sheet-2026-10-16-synthetic.csv`, key in `rating-key-2026-10-16-synthetic.csv`). Deepgram's terms bar
-benchmarking, so every cascade number uses OpenAI transcription (method: appendix A).
+**The 2026-10-18 audit found three limits in the 2026-10-16 runs.** The headline cascade run lasted 3.9 minutes, not 5 (every other run lasted 5.1). English clips all played before Spanish ones, so the runs are almost all English → Spanish (cascade 37 of 37 turns, Realtime 42–45 of 44–48). Cascade playback cut 16 s from the middle of long interpretations, which the text metrics don't see. All three are fixed in code since then (README, Known constraints); the numbers below have not been re-run.
 
 ## 2. Latency (client ms, speech end → first audio, 2026-10-16)
 
 | Mode | n | p50 | p95 |
 |---|---|---|---|
-| Cascade: `gpt-realtime-whisper` + OpenAI translator + ElevenLabs | 36 | 1940 | 2319 |
+| Cascade (OpenAI STT + OpenAI translator + ElevenLabs; 3.9 min) | 36 | 1940 | 2319 |
 | Realtime, `gpt-realtime-2.1` | 38 | 1271 | 1602 |
 | Realtime, `gpt-realtime` | 36 | 1150 | 1490 |
-| Realtime translate (2026-10-15; text lag, source text → translated text) | 70 | 1984 | 5284 |
+| Realtime translate (2026-10-15; text lag) | 70 | 1984 | 5284 |
 
-Sources: `eval/results/latency-tuning-2026-10-16.md` (one row per run, each from
-`python3 eval/summarize.py <log> --out /tmp/row.md`, so the committed summary is not overwritten) and the `soak-2026-10-16-*.json` reports beside it. Before the
-tuning, with server-side endpointing, cascade was 2540/4170 ms (2026-10-16 baseline run) and
-`gpt-realtime-2.1` 2251/3451 (2026-10-15, older replay).
+Realtime meets the brief's 1.5 s at p50 with both models; at p95 only `gpt-realtime` does. Cascade meets 3 s at p50 and p95, and the 2 s target at p50 only. Beyond 490–550 ms of endpointing, the largest stages are STT finalisation in cascade (1005 ms) and the model's opaque time in Realtime (560–675 ms).
 
-**Against the brief's targets.** Realtime meets 1.5 s at p50 with both models (1271 and 1150 ms).
-At p95 only `gpt-realtime` meets it (1490 ms, one run, just under the line); `gpt-realtime-2.1`
-misses (1602). Cascade meets 3 s at p50 and p95, and the 2 s target at p50 only (1940; p95 2319).
-Endpointing is now 490–550 ms at p50 in cascade and both Realtime models (Realtime translate was not
-re-run); in cascade the next largest stage is STT
-finalisation (1005 ms at p50 from speech end, about 0.5 s after the commit), and in Realtime the
-model's opaque time (560–675 ms). Stage breakdown: appendix B.
-
-**Caveats.** One synthetic run per configuration; n is 36–38, below the 50 the guardrails ask for,
-because each turn waits for its reply. Realtime translate and the Claude-translator cascade were not
-re-run with the new defaults. Heap grew 8–22% from minute 1 (criterion < 10%); one 6-minute local
-cascade probe levelled off at about 10.8 MB once the transcript view hit its 80-row cap, which points
-at the view filling rather than a leak, but it is one run. 0 disconnects; cascade on the defaults
-had 6 drift skips (16.0 s of late interpreter audio dropped), Realtime none; stability: appendix B.
+Caveats: one synthetic run per configuration, with n below 50. In these runs cascade stopped its clock when its first chunk was scheduled and Realtime at the first audible frame; both now use the audible frame. Heap grew 18–22% from minute 1, against a target of under 10%. There were no disconnects.
 
 ## 3. Quality (synthetic audio, model-written references)
 
-| Mode | Lines interpreted | Matched to a script line | chrF | STT WER | Glossary hits | Output-check flags |
-|---|---|---|---|---|---|---|
-| Cascade (defaults above) | 37 of 37 | 31 | 89.1 | 8.3% | 2 of 2 | none |
-| Realtime, `gpt-realtime-2.1` | 48 of 48 | 36 | 82.9 | n/a | 7 of 9 | none |
-| Realtime, `gpt-realtime` | 43 of 44 | 36 | 83.3 | n/a | 7 of 10 | wrong language 1 |
+| Mode | Interpreted | chrF | STT WER | Flags |
+|---|---|---|---|---|
+| Cascade | 37/37 | 89.1 | 8.3% | none |
+| Realtime, `gpt-realtime-2.1` | 48/48 | 82.9 | n/a | none |
+| Realtime, `gpt-realtime` | 43/44 | 83.3 | n/a | 1 false positive |
 
-`gpt-realtime`'s 44th turn was cut by the end of the run, and its wrong-language flag was a false
-positive on correct Spanish (a marker counted twice; fixed in e6c712f). chrF now also counts model-drafted alternative
-references (on 59 of the 70 script lines), so it is **not comparable** with the single-reference
-numbers of earlier drafts. Realtime translate was last run on 2026-10-15 with the old replay
-(chrF 74.6 with the alternatives, 11 of 15 glossary hits (terms model-written, unverified), `eval/results/summary.md`). `gpt-realtime-whisper` takes no prompt, so
-glossary terms reach only the translator. The 2026-10-15 cascade runs lost the ends of sentences
-because the replay started the next clip too early; MR !33 fixed the harness (appendix C). The
-Vietnamese onboarding run used Deepgram STT, so it has no published quality number
-(`eval/results/onboarding-vi.md`). **This table is not a ranking:** the audio is synthetic. My
-blind review judged 16 of 21 sampled outputs acceptable: Realtime 7 of 7, cascade 6 of 7 (one output
-dropped most of the sentence) and Realtime translate 3 of 7 (four segmentation faults: cut-off turns
-or turns with a neighbouring line merged in). Seven rows per mode is a small sample, but the failures cluster in Realtime translate.
+WER covers cascade STT only; Realtime's source text comes from a separate model. chrF uses model-drafted alternative references. Those were added after earlier outputs existed, and 18 of 92 match an earlier output word for word, so chrF may be inflated. Blind review of 21 outputs (one rater, accept or reject, 2 Spanish → English): I accepted Realtime 7 of 7, cascade 6 of 7, Realtime translate 3 of 7 (segmentation faults).
 
 ## 4. Cost per minute
 
-| Mode | Billing unit | Price | Per minute |
-|---|---|---|---|
-| Cascade | STT minutes + translator tokens + TTS characters | Translator per M tokens in/out: Claude Haiku $0.10 / $0.50, `gpt-5.4-mini` $0.75 / $4.50; `gpt-realtime-whisper` $0.017/min (web search, 2026-10-17); ElevenLabs Flash $0.04 per 1,000 characters | $0.0149 (Claude) / $0.0193 (OpenAI translator), excluding STT; $0.0290 with STT on the 2026-10-16 default config (OpenAI translator) |
-| Realtime | audio and text tokens in and out (cached input at the cached rate) + input transcription, billed separately | per M tokens: audio $32 in / $64 out, text $4 in, cached input $0.40 (both models); text out $24 (`gpt-realtime-2.1`) / $16 (`gpt-realtime`) | `gpt-realtime-2.1` $0.1145, `gpt-realtime` $0.2104, both excluding input transcription |
-| Realtime translate | minutes of audio | $0.034/min | about $0.051 with the source transcript (assumed billed); $0.034 without |
+The default cascade costs $0.0290 per minute with STT, or $0.0193 without it ($0.0149 with the Claude translator). Realtime costs $0.1145 per minute with `gpt-realtime-2.1` and $0.2104 with `gpt-realtime`, both before input transcription. Realtime translate costs $0.034 per minute, or about $0.051 if its source transcript is billed.
 
-The cascade figures excluding STT and Realtime translate are from `eval/results/summary.md` (2026-10-15
-logs); the $0.0290 cascade figure with STT and Realtime are from the 2026-10-16 logs
-(`eval/results/latency-tuning-2026-10-16.md`), all priced from `config/prices.json`. Same audio-input price, but
-`gpt-realtime` got far less prompt caching than `gpt-realtime-2.1`, so it cost almost twice as much.
-Realtime costs about six to fourteen times cascade excluding cascade STT, or about four to seven
-times the default cascade with STT ($0.0290). The `gpt-realtime-whisper` price comes from a web search
-summary of OpenAI's pricing page, which this project could not open. Cascade bills up to three vendors (two in the
-BAA profile); the Realtime modes bill one. The Realtime translate session also requests a
-`gpt-realtime-whisper` source transcript. OpenAI's pages found by a 2026-10-17 web search don't say
-whether it is billed on top of the $0.034; Realtime bills its input transcription separately, so this
-write-up assumes the same and counts it at $0.017/min, about $0.051/min in total. What each figure leaves out: appendix B.
+Worked example for the cascade default: (2.63 STT min × $0.017 + 0.0185 M input tokens × $0.75 + 0.00044 M output tokens × $4.50 + 1.294 k chars × $0.04) ÷ 3.87 min = $0.0290/min (the $0.017 STT price is from a web search). Realtime costs four to seven times cascade.
 
 ## 5. Controllability and compliance
 
-Speech is untrusted input to an instructed model. Realtime translate takes no instructions and has
-no tools, so it is structurally the safest; Realtime relies on its instructions; cascade's
-translator gets the transcript as delimited data. Every output line is run through deterministic
-checks. On the red-team suite (2026-10-15, synthetic voices, one labeller) no mode answered a
-question addressed to it, and only Realtime translate followed an instruction once (1/53).
-Cascade's failures were loss (36% omission), partly the old replay's fault. Cascade stages swap by
-configuration (adding Claude beside the OpenAI translator changed 0 lines outside the adapters; on
-the 2026-10-15 runs: 2521 vs 2440 ms p50, chrF 64.3 vs 64.4); the Realtime modes are one vendor each, and leaving means a new transport. No BAA
-is in place and this is not HIPAA-compliant; BAA mode refuses routes outside each vendor's
-eligible list. Rates, examples and the data-flow table: [appendix G](WRITEUP-APPENDIX.md#g-controllability-and-compliance-in-full),
-[D](WRITEUP-APPENDIX.md#d-red-team-failure-examples) and [E](WRITEUP-APPENDIX.md#e-vendor-data-flows).
+Speech is untrusted input. Realtime translate takes no instructions (structurally safest), Realtime relies on its instructions, and cascade's translator gets the transcript as delimited data with no tools. Deterministic checks flag suspect lines in every mode. On the 2026-10-15 red-team suite, no mode answered a question, and Realtime translate followed an instruction once in 53 lines. The main failure was loss. The fully faithful rate was 22% for cascade, 41% for Realtime and 45% for Realtime translate. Omission ran 36%, 29% and 34%, and meaning changed or unjudgeable ran 42%, 18% and 19%. One person labelled the outputs, and an AI agent drafted 154 of the 158 labels, so a Claude model labelled the Claude translator's outputs. Cascade stages swap by configuration; each Realtime mode is one vendor. No BAA is signed and the system is not HIPAA-compliant; BAA mode refuses ineligible routes.
 
 ## 6. Recommendation by scenario
 
-- **Consumer and low-stakes:** Realtime translate where the pair is supported, else Realtime.
-- **Personal or health data, not itself clinical or legal:** Realtime, or cascade on OpenAI STT +
-  Claude + OpenAI TTS, with BAA mode on and the BAAs signed; never Realtime translate.
-- **Pairs Realtime translate lacks, or a glossary or register is needed:** cascade; a new pair is
-  configuration only (Vietnamese took about 5 minutes of configuration and no application code,
-  timed by the AI agent that did it).
-- **Quality on a rare pair:** cascade for low-stakes use only; unverified without a native speaker.
-- **Medical and legal:** a qualified human interpreter; AI only with a human reviewing it.
-
-Reasons for each: [appendix H](WRITEUP-APPENDIX.md#h-recommendation-by-scenario-in-full).
-
-## 7. What this does not show
-
-- No recorded human speech, and one synthetic run per configuration; no run reached 50 latency
-  samples, and of the two Realtime models only `gpt-realtime-2.1` went through the red-team suite.
-- No Deepgram numbers; the `gpt-realtime-whisper` price behind the $0.0290 cascade figure is from a web search, not OpenAI's page.
-- Heap grew more than 10% from minute 1 in every 2026-10-16 run but one (8.2%).
-- Cascade drops late audio to stay in sync: 6 drift skips and 16.0 s dropped on the defaults.
-- Quality references are model-written; one person reviewed them and the 21-row blind sheet (16 acceptable,
-  4 of the 5 failures in Realtime translate), with no per-dimension scores. The red-team labels have one labeller.
+**Consumer, low-stakes:** Realtime translate where the pair is supported, else Realtime. **Personal or health data, not clinical:** Realtime, or cascade (OpenAI STT + Claude + OpenAI TTS) with BAA mode and signed BAAs; never Realtime translate. **Unsupported pairs, glossary or register needs:** cascade; a new pair is configuration only (Vietnamese took about 5 minutes). **Medical and legal:** a qualified human interpreter, with AI only under human review. Reasons: appendix H.
