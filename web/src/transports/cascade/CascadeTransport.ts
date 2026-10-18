@@ -101,11 +101,13 @@ export class CascadeTransport implements Transport {
       })
       this.playback = new PlaybackScheduler(this.capture.context, {
         onActiveChange: (active) => this.gate?.setPlaybackActive(active),
-        onDriftSkip: (sec) =>
-          this.emitter.emit({
-            type: 'notice',
-            message: `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`,
-          }),
+        // Only a backlog of earlier turns is dropped (the arriving turn plays in full); each line that
+        // lost audio is marked, so its text doesn't claim speech the listener never heard.
+        onDriftSkip: (sec, _chunks, turns) => {
+          const message = `Dropped ${sec.toFixed(1)} s of late audio to stay in sync`
+          if (turns.length === 0) this.emitter.emit({ type: 'notice', message })
+          for (const utteranceId of turns) this.emitter.emit({ type: 'notice', message, utteranceId })
+        },
       })
       this.connect()
     } catch (e) {
@@ -238,8 +240,8 @@ export class CascadeTransport implements Transport {
     const pcm = new Int16Array(data)
     const samples = new Float32Array(pcm.length)
     for (let i = 0; i < pcm.length; i++) samples[i] = pcm[i] / 32768
-    const when = this.playback.enqueue(samples, TTS_RATE)
     const utteranceId = this.parser?.speaking
+    const when = this.playback.enqueue(samples, TTS_RATE, utteranceId ?? undefined)
     // First audio out (D9): when the utterance's first chunk is scheduled to start, on the client clock.
     if (when !== null && utteranceId && !this.firstOut.has(utteranceId)) {
       this.firstOut.add(utteranceId)

@@ -87,6 +87,7 @@ function Line({
         {item[role].final ? '' : ' · partial'}
         {role === 'source' ? sourceFlags(item) : ''}
         {role === 'target' && item.audioFailed ? ' · audio failed, text only' : ''}
+        {role === 'target' && item.audioSkipped ? ' · part of the audio was skipped to catch up' : ''}
       </span>
       {declined || omitted ? (
         <span className="final">{declined ? DECLINED : '[segment not interpreted]'}</span>
