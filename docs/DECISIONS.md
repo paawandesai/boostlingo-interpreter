@@ -122,6 +122,8 @@ public interface IStreamingTts {
 
 The calculator is a pure function `computeLatency(marks: Mark[]): Breakdown`, unit tested.
 
+**Amended 2026-10-18:** cascade's first audio out is now the first audible frame too: the scheduled `when` plus the offset of the first frame above the Realtime probe's threshold in that chunk (`firstAudibleOffsetSec` in `web/src/transports/realtime/firstAudioProbe.ts`); an all-silent chunk is skipped. Both modes now stop the clock at audible output; Realtime polls every 5 ms, so it can still read a few ms late. The published 2026-10-16 runs predate this. The 30 s ping exists for the clock offset; it is not there to keep the socket alive (replay audio streams continuously, so it never had to).
+
 ### D10. Speaker direction: explicit toggle first, auto-detect as an experiment — Locked
 
 As built (2026-10-16): the explicit toggle only (Option A); auto-detect was not built.
@@ -142,6 +144,8 @@ As built (2026-10-16): the explicit toggle only (Option A); auto-detect was not 
 
 **As built (T2.2, 2026-10-14):** `FlushPolicy` and `CascadePipeline` are in `server/Interpreter.Core/Cascade/`. Starting values: clause flush at 30 chars, timeout 400 ms with at least 12 chars; the timeout releases up to the last word break and keeps the trailing word. `¿` and `¡` open sentences, so they never end a chunk. A boundary needs whitespace after it, so a sentence end at the very end of the buffer waits for the next delta or for the translation to finish. Utterances are interpreted one at a time, in order, while STT keeps listening; every queue is bounded and waits rather than drops. The translator sees the last 3 source/target pairs. A translation or TTS error is reported and the next utterance proceeds; an STT error lets queued utterances finish, then ends the session. Server marks: `stt.final`, `endpoint`, `translation.first_token`, `tts.first_flush`, `tts.first_byte`.
 
+**Update 2026-10-18:** the three parameters are now configuration (`Cascade:Flush:MinClauseChars`, `MaxWaitMs`, `MinCharsOnTimeout`; env `Cascade__Flush__*`), validated at startup, with the same defaults.
+
 **Update 2026-10-16:** the parameters were not re-tuned; the starting values above are still the defaults (`FlushOptions` in `FlushPolicy.cs`, unchanged since 4ecc069). The latency tuning of MR !37 changed endpointing, the STT model and the TTS connect, not the flush policy.
 
 ### D12. Mid-session toggle — Locked
@@ -159,6 +163,8 @@ The session store (client) owns transcript history, language pair, speaker side 
 ### D14. Playback queue bound — Locked
 
 Cascade playback keeps a schedule cursor. If the queued audio-ahead exceeds a cap (e.g. 3 s), drop the oldest unplayed chunks and log a `drift.skip` event. That prevents drift accumulating over 5 minutes. Count skips in the soak report.
+
+**Amended 2026-10-18:** the cap applies only to earlier turns' unplayed audio. TTS for one turn arrives faster than real time, so the original cap cut the middle of every turn longer than about 3 s even with no backlog (the 2026-10-18 audit; 16.0 s lost in the 2026-10-16 cascade default run). The arriving turn is trimmed only past 30 s queued (a memory bound), and the skip names the turns that lost audio so their transcript lines are marked.
 
 ### D15. Realtime interpretation pinning — Locked
 
