@@ -38,8 +38,9 @@ CI job ids refer to the project's private GitLab instance. As there, a vendor fa
   single-reference numbers. References were written by a model; I reviewed them and judged 16 of the 21 rows of the blind
   sheet acceptable, without per-dimension scores (`eval/rating.py`): four failures are segmentation faults in Realtime translate (cut-off
   turns, or a neighbouring line merged in); one cascade output dropped most of the sentence.
-- **Deepgram.** Its terms bar benchmarking without written consent, and none has arrived, so every
-  number for Cascade uses OpenAI transcription. Deepgram is a swappable adapter with no numbers here.
+- **Deepgram.** Its terms bar benchmarking without written consent. Consent arrived on 2026-10-19,
+  after every run here, so every number for Cascade uses OpenAI transcription. Deepgram is a swappable
+  adapter with no numbers here; nothing in this write-up states or implies an endorsement by Deepgram.
 - **Stack.** .NET 10 server, TypeScript SPA; the reasoning is in the README under "Why .NET +
   TypeScript" and in `docs/DECISIONS.md` D1–D2.
 
